@@ -1,16 +1,24 @@
 import * as vscode from "vscode";
 import { getNonce } from "../utils";
+import { ClaudeCodeService, ClaudeMessage } from "../service/claudeCodeService";
 
 export class ChatWebviewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = "claudeCodeChatView";
+  private _view?: vscode.WebviewView;
+  private _messageListeners: vscode.Disposable[] = [];
 
-  constructor(private readonly _extensionUri: vscode.Uri) {}
+  constructor(
+    private readonly _extensionUri: vscode.Uri,
+    private readonly _claudeCodeService: ClaudeCodeService
+  ) {}
 
   public resolveWebviewView(
     webviewView: vscode.WebviewView,
     context: vscode.WebviewViewResolveContext,
     _token: vscode.CancellationToken
   ) {
+    this._view = webviewView;
+    
     webviewView.webview.options = {
       // Enable scripts in the webview
       enableScripts: true,
@@ -27,27 +35,123 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider {
       (message) => {
         switch (message.command) {
           case "sendMessage":
-            // TODO: Send message to Claude Code process
-            this._handleUserMessage(webviewView.webview, message.text);
+            this._handleUserMessage(message.text);
             return;
         }
       },
       undefined,
       []
     );
+
+    // Set up listeners for Claude Code service events
+    this._setupClaudeCodeListeners();
   }
 
-  private _handleUserMessage(webview: vscode.Webview, text: string) {
-    // For now, just echo the message back with a mock response
-    // Later, this will connect to the actual Claude Code process
-    setTimeout(() => {
-      webview.postMessage({
+  private _setupClaudeCodeListeners() {
+    // Clean up any existing listeners
+    this._disposeMessageListeners();
+
+    // Add message listener
+    this._messageListeners.push(
+      this._claudeCodeService.onMessage((message: ClaudeMessage) => {
+        if (!this._view) {
+          return;
+        }
+
+        this._view.webview.postMessage({
+          command: "receiveMessage",
+          sender: message.role,
+          text: message.content,
+          timestamp: new Date().toISOString(),
+        });
+      })
+    );
+
+    // Add error listener
+    this._messageListeners.push(
+      this._claudeCodeService.onError((error: string) => {
+        if (!this._view) {
+          return;
+        }
+
+        this._view.webview.postMessage({
+          command: "receiveMessage",
+          sender: "claude",
+          text: `⚠️ Error: ${error}`,
+          timestamp: new Date().toISOString(),
+        });
+
+        vscode.window.showErrorMessage(`Claude Code error: ${error}`);
+      })
+    );
+
+    // Add exit listener
+    this._messageListeners.push(
+      this._claudeCodeService.onExit((code: number) => {
+        if (!this._view) {
+          return;
+        }
+
+        // Don't flood UI with restart messages
+        if (code !== 0) {
+          this._view.webview.postMessage({
+            command: "receiveMessage",
+            sender: "claude",
+            text: `Claude Code process exited. Attempting to restart...`,
+            timestamp: new Date().toISOString(),
+          });
+        }
+
+        // Add delay before restart to prevent immediate crash loops
+        setTimeout(() => {
+          // Try to restart the process
+          this._claudeCodeService.start().catch(error => {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            vscode.window.showErrorMessage(`Failed to restart Claude Code: ${errorMessage}`);
+            
+            this._view?.webview.postMessage({
+              command: "receiveMessage",
+              sender: "claude",
+              text: `⚠️ Error restarting Claude Code. Please try again or restart VS Code.`,
+              timestamp: new Date().toISOString(),
+            });
+          });
+        }, 2000);
+      })
+    );
+  }
+
+  private _disposeMessageListeners() {
+    for (const disposable of this._messageListeners) {
+      disposable.dispose();
+    }
+    this._messageListeners = [];
+  }
+
+  private async _handleUserMessage(text: string) {
+    try {
+      // Send message to Claude Code process
+      await this._claudeCodeService.sendMessage(text);
+    } catch (error) {
+      if (!this._view) {
+        return;
+      }
+
+      // Get error message safely
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : String(error);
+
+      // Show error in UI
+      this._view.webview.postMessage({
         command: "receiveMessage",
         sender: "claude",
-        text: `You said: "${text}"\n\nThis is a placeholder response that demonstrates Claude's formatting capabilities.\n\n## Code Example\n\n\`\`\`javascript\n// This demonstrates syntax highlighting\nfunction exampleFunction() {\n  return "Hello world!";\n}\n\`\`\`\n\n### Features\n\n* Markdown support\n* Code highlighting\n* Lists like this one\n\n> Claude Code helps you write, understand, and improve your code directly within VSCode.`,
+        text: `⚠️ Error: Failed to send message to Claude Code. ${errorMessage}`,
         timestamp: new Date().toISOString(),
       });
-    }, 1500);
+
+      vscode.window.showErrorMessage(`Failed to send message to Claude Code: ${errorMessage}`);
+    }
   }
 
   private _getHtmlForWebview(webview: vscode.Webview) {

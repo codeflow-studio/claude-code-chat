@@ -3,6 +3,7 @@ const path = require('path');
 const config = {
   target: 'node',
   entry: './src/extension.ts',
+  mode: 'production', // Added mode to fix webpack warning
   output: {
     path: path.resolve(__dirname, 'dist'),
     filename: 'extension.js',
