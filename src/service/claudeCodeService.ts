@@ -2,6 +2,9 @@ import * as vscode from 'vscode';
 import * as child_process from 'child_process';
 import { EventEmitter } from 'events';
 import { exec } from 'child_process';
+import * as os from 'os';
+import * as path from 'path';
+import * as fs from 'fs';
 
 export interface ClaudeMessage {
   role: 'user' | 'assistant';
@@ -58,22 +61,32 @@ export class ClaudeCodeService {
       });
     }
 
+    // Get workspace root folder
+    const workspaceRoot = this.getWorkspaceRoot();
+    if (!workspaceRoot) {
+      this.messageEmitter.emit('error', 'No workspace folder is open. Please open a folder or workspace.');
+      return;
+    }
+    
     // Create a temporary script file to handle the trust prompt
-    const tempScriptFile = '/tmp/claude_vscode_script.sh';
+    const tempDir = os.tmpdir();
+    const tempScriptFile = path.join(tempDir, `claude_vscode_script_${Date.now()}.sh`);
     const scriptContent = `#!/bin/bash
 # Script to handle Claude interaction
 (echo "1"; echo "${message}") | TERM=xterm-256color claude -p 2>/dev/null
 `;
 
     // Write the script file
-    const fs = require('fs');
     fs.writeFileSync(tempScriptFile, scriptContent);
     fs.chmodSync(tempScriptFile, '755');
     
     // Execute the script
-    console.log('Executing Claude via script file');
+    console.log('Executing Claude via script file from workspace root:', workspaceRoot);
     
-    exec(`bash ${tempScriptFile}`, { env: { ...process.env, TERM: 'xterm-256color' } }, (error, stdout, stderr) => {
+    exec(`bash ${tempScriptFile}`, { 
+      env: { ...process.env, TERM: 'xterm-256color' },
+      cwd: workspaceRoot.fsPath
+    }, (error, stdout, stderr) => {
       // Clean up the temp file
       try {
         fs.unlinkSync(tempScriptFile);
@@ -158,5 +171,16 @@ export class ClaudeCodeService {
         this.messageEmitter.removeListener('exit', listener);
       }
     };
+  }
+
+  /**
+   * Get the root folder of the currently open workspace
+   * @returns The Uri of the workspace root folder or undefined if none is open
+   */
+  private getWorkspaceRoot(): vscode.Uri | undefined {
+    if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+      return vscode.workspace.workspaceFolders[0].uri;
+    }
+    return undefined;
   }
 }
