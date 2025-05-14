@@ -1,0 +1,252 @@
+:root {
+  --vscode-background: var(--vscode-editor-background);
+  --vscode-foreground: var(--vscode-editor-foreground);
+  --vscode-highlight: var(--vscode-editor-selectionBackground);
+  --claude-color: #AB68FF;
+  --user-message-bg: var(--vscode-editor-background);
+  --claude-message-bg: rgba(171, 104, 255, 0.1);
+  --input-bg: var(--vscode-input-background);
+  --input-fg: var(--vscode-input-foreground);
+  --button-bg: var(--vscode-button-background);
+  --button-fg: var(--vscode-button-foreground);
+  --button-hover-bg: var(--vscode-button-hoverBackground);
+  --border-color: var(--vscode-panel-border);
+  --code-block-bg: var(--vscode-editor-inactiveSelectionBackground);
+  --inline-code-bg: var(--vscode-editor-inactiveSelectionBackground);
+}
+
+body {
+  font-family: var(--vscode-font-family);
+  padding: 0;
+  margin: 0;
+  color: var(--vscode-foreground);
+  background-color: var(--vscode-background);
+  font-size: var(--vscode-font-size);
+}
+
+.chat-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  padding: 10px;
+  box-sizing: border-box;
+}
+
+.messages {
+  flex: 1;
+  overflow-y: auto;
+  margin-bottom: 10px;
+  padding: 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+}
+
+.message {
+  margin-bottom: 15px;
+  padding: 10px;
+  border-radius: 6px;
+  max-width: 85%;
+  word-wrap: break-word;
+}
+
+.message.user {
+  background-color: var(--user-message-bg);
+  margin-left: auto;
+  border: 1px solid var(--border-color);
+}
+
+.message.claude {
+  background-color: var(--claude-message-bg);
+  margin-right: auto;
+  border-left: 3px solid var(--claude-color);
+}
+
+.message-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 5px;
+  font-size: 0.8em;
+  color: var(--vscode-descriptionForeground);
+}
+
+.message-sender.claude {
+  color: var(--claude-color);
+  font-weight: bold;
+}
+
+.message-text {
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
+/* Improved Code Blocks */
+.code-block-container {
+  margin: 10px 0;
+  border-radius: 5px;
+  overflow: hidden;
+  background-color: var(--code-block-bg);
+  border: 1px solid var(--border-color);
+}
+
+.code-block-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 8px;
+  background-color: rgba(0, 0, 0, 0.2);
+  font-family: var(--vscode-editor-font-family);
+  font-size: 0.8em;
+}
+
+.code-language {
+  text-transform: uppercase;
+  opacity: 0.8;
+}
+
+.code-block-copy {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--vscode-foreground);
+  font-size: 0.8em;
+  padding: 2px 6px;
+  cursor: pointer;
+  border-radius: 3px;
+}
+
+.code-block-copy:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.code-block {
+  margin: 0;
+  padding: 10px;
+  overflow-x: auto;
+  font-family: var(--vscode-editor-font-family);
+  font-size: 0.9em;
+  line-height: 1.4;
+}
+
+code.inline-code {
+  font-family: var(--vscode-editor-font-family);
+  background-color: var(--inline-code-bg);
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-size: 0.9em;
+}
+
+/* Markdown styling */
+.message-text h1, 
+.message-text h2, 
+.message-text h3 {
+  margin-top: 16px;
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.message-text h1 {
+  font-size: 1.5em;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 4px;
+}
+
+.message-text h2 {
+  font-size: 1.3em;
+}
+
+.message-text h3 {
+  font-size: 1.1em;
+}
+
+.message-text ul, 
+.message-text ol {
+  padding-left: 20px;
+  margin: 8px 0;
+}
+
+.message-text li {
+  margin-bottom: 4px;
+}
+
+.message-text a {
+  color: var(--vscode-textLink-foreground);
+  text-decoration: none;
+}
+
+.message-text a:hover {
+  text-decoration: underline;
+}
+
+.message-text strong {
+  font-weight: 600;
+}
+
+.message-text em {
+  font-style: italic;
+}
+
+.input-container {
+  display: flex;
+  margin-bottom: 10px;
+}
+
+textarea {
+  flex: 1;
+  height: 60px;
+  padding: 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  resize: none;
+  background-color: var(--input-bg);
+  color: var(--input-fg);
+  font-family: var(--vscode-font-family);
+}
+
+textarea:focus {
+  outline: 1px solid var(--vscode-focusBorder);
+}
+
+button {
+  background-color: var(--button-bg);
+  color: var(--button-fg);
+  border: none;
+  padding: 8px 12px;
+  margin-left: 5px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+button:hover {
+  background-color: var(--button-hover-bg);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.actions button {
+  margin-left: 10px;
+}
+
+/* Loading indicator */
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 10px 0;
+}
+
+.loading-spinner {
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top: 3px solid var(--claude-color);
+  width: 16px;
+  height: 16px;
+  animation: spin 1s linear infinite;
+  margin-right: 8px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}

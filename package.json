@@ -1,0 +1,133 @@
+{
+  "name": "claude-code-extension",
+  "displayName": "Claude Code Assistant",
+  "description": "VSCode integration for Anthropic's Claude Code command-line AI coding assistant",
+  "version": "0.0.1",
+  "publisher": "anthropic",
+  "engines": {
+    "vscode": "^1.70.0"
+  },
+  "categories": [
+    "Other",
+    "Programming Languages",
+    "Snippets"
+  ],
+  "activationEvents": [
+    "onCommand:claude-code.startChat",
+    "onCommand:claude-code.sendMessage",
+    "onCommand:claude-code.askAboutSelection",
+    "onCommand:claude-code.clearConversation",
+    "onCommand:claude-code.newConversation"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "claude-code.startChat",
+        "title": "Start Claude Code Chat"
+      },
+      {
+        "command": "claude-code.sendMessage",
+        "title": "Send Message to Claude Code"
+      },
+      {
+        "command": "claude-code.askAboutSelection",
+        "title": "Ask Claude About Selection"
+      },
+      {
+        "command": "claude-code.clearConversation",
+        "title": "Clear Claude Conversation"
+      },
+      {
+        "command": "claude-code.newConversation",
+        "title": "Start New Claude Conversation"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "when": "editorHasSelection",
+          "command": "claude-code.askAboutSelection",
+          "group": "9_claudeCode"
+        }
+      ]
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "claude-code-sidebar",
+          "title": "Claude Code",
+          "icon": "resources/claude-color.svg"
+        }
+      ]
+    },
+    "views": {
+      "claude-code-sidebar": [
+        {
+          "id": "claude-code-chat",
+          "name": "Chat"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Claude Code",
+      "properties": {
+        "claudeCode.autoStart": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically start Claude Code when VSCode launches"
+        },
+        "claudeCode.cliPath": {
+          "type": "string",
+          "default": "claude-code",
+          "description": "Path to the Claude Code CLI executable (use absolute path if not in PATH)"
+        },
+        "claudeCode.additionalCliArgs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Additional arguments to pass to the Claude Code CLI"
+        },
+        "claudeCode.panelLocation": {
+          "type": "string",
+          "enum": ["left", "right", "active"],
+          "default": "active",
+          "description": "Preferred location for the Claude Code chat panel"
+        },
+        "claudeCode.preserveConversations": {
+          "type": "boolean",
+          "default": true,
+          "description": "Preserve conversations between VSCode sessions"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js"
+  },
+  "devDependencies": {
+    "@types/glob": "^7.2.0",
+    "@types/mocha": "^8.2.3",
+    "@types/node": "^14.18.63",
+    "@types/sinon": "^17.0.4",
+    "@types/vscode": "^1.100.0",
+    "@typescript-eslint/eslint-plugin": "^4.33.0",
+    "@typescript-eslint/parser": "^4.33.0",
+    "eslint": "^7.32.0",
+    "glob": "^7.2.3",
+    "mocha": "^8.4.0",
+    "sinon": "^20.0.0",
+    "typescript": "^4.9.5",
+    "vscode-test": "^1.6.1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
