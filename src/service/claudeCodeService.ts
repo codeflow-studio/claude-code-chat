@@ -32,27 +32,31 @@ export class ClaudeCodeService {
       this.isProcessReady = true;
       this.messageEmitter.emit('ready');
       
-      // Send the ready message to the UI
+      // Send welcome message
       this.messageEmitter.emit('message', {
-        role: 'assistant',
-        content: 'Claude Code found. How can I help you with your project?'
+        role: 'claude',
+        content: 'Hello! I\'m Claude Code. How can I help you with your coding tasks today?'
       });
     });
   }
 
   /**
    * Send a message to Claude
+   * @param message The message to send
+   * @param emitUserMessage Whether to emit the user message to UI (default: true)
    */
-  public async sendMessage(message: string): Promise<void> {
+  public async sendMessage(message: string, emitUserMessage: boolean = true): Promise<void> {
     if (!this.isProcessReady) {
       await this.start();
     }
 
-    // Emit the user message first
-    this.messageEmitter.emit('message', {
-      role: 'user',
-      content: message
-    });
+    // Emit the user message first (only if requested)
+    if (emitUserMessage) {
+      this.messageEmitter.emit('message', {
+        role: 'user',
+        content: message
+      });
+    }
 
     // Create a temporary script file to handle the trust prompt
     const tempScriptFile = '/tmp/claude_vscode_script.sh';

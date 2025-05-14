@@ -130,8 +130,9 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider {
 
   private async _handleUserMessage(text: string) {
     try {
-      // Send message to Claude Code process
-      await this._claudeCodeService.sendMessage(text);
+      // Send message to Claude Code process but don't emit the user message
+      // since the client already displayed it
+      await this._claudeCodeService.sendMessage(text, false);
     } catch (error) {
       if (!this._view) {
         return;

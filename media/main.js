@@ -11,9 +11,6 @@ let isWaitingForResponse = false;
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
-  // Add welcome message
-  addMessage('claude', 'Hello! I\'m Claude Code. How can I help you with your coding tasks today?');
-  
   // Focus the input
   messageInput.focus();
   
