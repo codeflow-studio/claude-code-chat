@@ -1,284 +1,124 @@
 import * as vscode from 'vscode';
-import * as path from 'path';
-import { ConversationContext } from '../api/claudeCodeClient';
-import { SettingsManager } from '../settings';
-
-export interface ChatMessage {
-  sender: 'user' | 'claude';
-  text: string;
-  timestamp: number;
-}
+import { getNonce } from '../utils';
 
 export class ChatWebviewProvider implements vscode.WebviewViewProvider {
-  public static readonly viewType = 'claude-code-chat';
-  
-  private _view: vscode.WebviewView | undefined;
-  private _panel: vscode.WebviewPanel | undefined;
-  private _extensionUri: vscode.Uri;
-  private _disposables: vscode.Disposable[] = [];
-  private _settingsManager: SettingsManager;
-  
-  constructor(private readonly _context: vscode.ExtensionContext) {
-    this._extensionUri = _context.extensionUri;
-    this._settingsManager = SettingsManager.getInstance();
-  }
-  
-  /**
-   * Resolves the webview view
-   * @param webviewView The webview view to resolve
-   */
+  public static readonly viewType = 'claudeCodeChatView';
+
+  constructor(
+    private readonly _extensionUri: vscode.Uri,
+  ) {}
+
   public resolveWebviewView(
     webviewView: vscode.WebviewView,
-    _context: vscode.WebviewViewResolveContext<unknown>,
-    _token: vscode.CancellationToken
-  ): void | Thenable<void> {
-    this._view = webviewView;
-    
-    // Set options for the webview
+    context: vscode.WebviewViewResolveContext,
+    _token: vscode.CancellationToken,
+  ) {
     webviewView.webview.options = {
+      // Enable scripts in the webview
       enableScripts: true,
-      localResourceRoots: [
-        vscode.Uri.file(path.join(this._context.extensionPath))
-      ]
+      
+      // Restrict the webview to only load resources from the extension's directory
+      localResourceRoots: [this._extensionUri]
     };
-    
-    // Set the HTML content for the webview
+
+    // Set the webview's HTML content
     webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
-    
+
     // Handle messages from the webview
     webviewView.webview.onDidReceiveMessage(
-      async (message) => {
-        switch (message.type) {
+      message => {
+        switch (message.command) {
           case 'sendMessage':
-            // Forward the message to the Claude Code client
-            vscode.commands.executeCommand('claude-code.sendMessage', message.text);
-            break;
-            
-          case 'clearMessages':
-            // Clear the conversation
-            vscode.commands.executeCommand('claude-code.clearConversation');
-            break;
-            
-          case 'newChat':
-            // Start a new conversation
-            vscode.commands.executeCommand('claude-code.newConversation');
-            break;
+            // TODO: Send message to Claude Code process
+            this._handleUserMessage(webviewView.webview, message.text);
+            return;
         }
       },
-      null,
-      this._disposables
+      undefined,
+      []
     );
   }
-  
-  /**
-   * Creates or shows the webview panel (legacy method for backward compatibility)
-   */
-  public createOrShow(): vscode.WebviewPanel {
-    // If the panel already exists, show it
-    if (this._panel) {
-      this._panel.reveal(vscode.ViewColumn.One);
-      return this._panel;
-    }
-    
-    // Get the preferred panel location from settings
-    const viewColumn = this._settingsManager.getPanelViewColumn();
-    
-    // Create a new panel
-    this._panel = vscode.window.createWebviewPanel(
-      ChatWebviewProvider.viewType,
-      'Claude Code Chat',
-      viewColumn,
-      {
-        enableScripts: true,
-        retainContextWhenHidden: true,
-        localResourceRoots: [
-          vscode.Uri.file(path.join(this._context.extensionPath))
-        ]
-      }
-    );
-    
-    // Set the webview's html content
-    this._panel.webview.html = this._getHtmlForWebview(this._panel.webview);
-    
-    // Handle dispose event
-    this._panel.onDidDispose(() => this._dispose(), null, this._disposables);
-    
-    // Handle messages from the webview
-    this._panel.webview.onDidReceiveMessage(
-      async (message) => {
-        switch (message.type) {
-          case 'sendMessage':
-            // Forward the message to the Claude Code client
-            vscode.commands.executeCommand('claude-code.sendMessage', message.text);
-            break;
-            
-          case 'clearMessages':
-            // Clear the conversation
-            vscode.commands.executeCommand('claude-code.clearConversation');
-            break;
-            
-          case 'newChat':
-            // Start a new conversation
-            vscode.commands.executeCommand('claude-code.newConversation');
-            break;
-        }
-      },
-      null,
-      this._disposables
-    );
-    
-    return this._panel;
-  }
-  
-  /**
-   * Adds a message to the chat history
-   * @param sender The sender of the message ('user' or 'claude')
-   * @param text The message text
-   */
-  public async addMessage(sender: 'user' | 'claude', text: string): Promise<void> {
-    const message: ChatMessage = {
-      sender,
-      text,
-      timestamp: Date.now()
-    };
-    
-    // Try to send to the view first, then fallback to panel if necessary
-    if (this._view) {
-      await this._view.webview.postMessage({
-        type: 'addMessage',
-        message
+
+  private _handleUserMessage(webview: vscode.Webview, text: string) {
+    // For now, just echo the message back with a mock response
+    // Later, this will connect to the actual Claude Code process
+    setTimeout(() => {
+      webview.postMessage({
+        command: 'receiveMessage',
+        sender: 'claude',
+        text: `You said: "${text}"\n\nThis is a placeholder response that demonstrates Claude's formatting capabilities.\n\n## Code Example\n\n\`\`\`javascript\n// This demonstrates syntax highlighting\nfunction exampleFunction() {\n  return "Hello world!";\n}\n\`\`\`\n\n### Features\n\n* Markdown support\n* Code highlighting\n* Lists like this one\n\n> Claude Code helps you write, understand, and improve your code directly within VSCode.`,
+        timestamp: new Date().toISOString()
       });
-    } else if (this._panel) {
-      await this._panel.webview.postMessage({
-        type: 'addMessage',
-        message
-      });
-    }
+    }, 1500);
   }
-  
-  /**
-   * Clears the chat history
-   */
-  public async clearMessages(): Promise<void> {
-    if (this._view) {
-      await this._view.webview.postMessage({
-        type: 'clearMessages'
-      });
-    } else if (this._panel) {
-      await this._panel.webview.postMessage({
-        type: 'clearMessages'
-      });
-    }
-  }
-  
-  /**
-   * Updates the webview with conversation context
-   * @param context The conversation context
-   */
-  public async updateFromContext(context: ConversationContext): Promise<void> {
-    // First clear existing messages
-    await this.clearMessages();
-    
-    // Add each message from the context
-    for (const msg of context.messages) {
-      await this.addMessage(
-        msg.role === 'user' ? 'user' : 'claude',
-        msg.content
-      );
-    }
-  }
-  
-  /**
-   * Sets the loading state in the UI
-   * @param isLoading Whether Claude is processing a request
-   */
-  public async setLoading(isLoading: boolean): Promise<void> {
-    if (this._view) {
-      await this._view.webview.postMessage({
-        type: 'setLoading',
-        isLoading
-      });
-    } else if (this._panel) {
-      await this._panel.webview.postMessage({
-        type: 'setLoading',
-        isLoading
-      });
-    }
-  }
-  
-  /**
-   * Dispose of the panel and related resources
-   */
-  private _dispose() {
-    this._panel = undefined;
-    
-    // Dispose of all disposables
-    while (this._disposables.length) {
-      const disposable = this._disposables.pop();
-      if (disposable) {
-        disposable.dispose();
-      }
-    }
-  }
-  
-  /**
-   * Returns the HTML content for the webview
-   */
-  private _getHtmlForWebview(webview: vscode.Webview): string {
-    // Get the local path to script and stylesheet
-    const scriptUri = webview.asWebviewUri(
-      vscode.Uri.file(path.join(this._context.extensionPath, 'media', 'main.js'))
-    );
-    
-    const styleUri = webview.asWebviewUri(
-      vscode.Uri.file(path.join(this._context.extensionPath, 'media', 'styles.css'))
-    );
-    
-    // Use a nonce to whitelist scripts
-    const nonce = this._getNonce();
-    
-    return `<!DOCTYPE html>
-    <html lang="en">
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
-      <link href="${styleUri}" rel="stylesheet" />
-      <title>Claude Code Chat</title>
-    </head>
-    <body>
-      <div class="chat-container">
-        <div class="messages" id="messages">
-          <!-- Messages will be inserted here -->
+
+  private _getHtmlForWebview(webview: vscode.Webview) {
+    // Generate a nonce for script security
+    const nonce = getNonce();
+
+    // Get paths to local resources
+    const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'styles.css'));
+    const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'main.js'));
+    const claudeIconPath = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'resources', 'claude-icon.svg'));
+
+    return /* html */`
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; img-src ${webview.cspSource} data:; script-src 'nonce-${nonce}';">
+        <title>Claude Code Chat</title>
+        <link href="${styleUri}" rel="stylesheet">
+      </head>
+      <body>
+        <div class="chat-container">
+          <!-- Chat header with Claude branding -->
+          <div class="chat-header">
+            <div class="chat-header-logo">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect width="24" height="24" rx="4" fill="#5A32FB"/>
+                <path d="M6 12C6 8.68629 8.68629 6 12 6C15.3137 6 18 8.68629 18 12C18 15.3137 15.3137 18 12 18C8.68629 18 6 15.3137 6 12Z" fill="white"/>
+                <path d="M10.5 10H13.5C14.0523 10 14.5 10.4477 14.5 11V15C14.5 15.5523 14.0523 16 13.5 16H10.5C9.94772 16 9.5 15.5523 9.5 15V11C9.5 10.4477 9.94772 10 10.5 10Z" fill="#5A32FB"/>
+              </svg>
+              <span class="chat-header-title">Claude Code</span>
+            </div>
+          </div>
+          
+          <!-- Message container -->
+          <div id="messages" class="messages"></div>
+          
+          <!-- Input area styled like Claude -->
+          <div class="input-container">
+            <div class="input-wrapper">
+              <textarea id="messageInput" placeholder="Ask Claude Code..." rows="1"></textarea>
+              <div class="input-actions">
+                <button id="sendButton">
+                  Send
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" fill="currentColor"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Claude attribution footer -->
+          <div class="utility-row">
+            <div class="claude-attribution">
+              <svg class="claude-flower" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 2L14.2451 9.75492H22L15.8774 14.4896L18.1226 22.2451L12 17.5104L5.87745 22.2451L8.12255 14.4896L2 9.75492H9.75492L12 2Z" fill="currentColor"/>
+              </svg>
+              <span>Claude can make mistakes. Please double-check responses.</span>
+            </div>
+            <div class="claude-version">
+              <span>Claude 3.7 Sonnet</span>
+            </div>
+          </div>
         </div>
-        
-        <div class="input-container">
-          <textarea id="messageInput" placeholder="Type your message to Claude Code..."></textarea>
-          <button id="sendButton">Send</button>
-        </div>
-        
-        <div class="actions">
-          <button id="clearButton">Clear Chat</button>
-          <button id="newChatButton">New Chat</button>
-        </div>
-      </div>
-      
-      <script nonce="${nonce}" src="${scriptUri}"></script>
-    </body>
-    </html>`;
-  }
-  
-  /**
-   * Generates a nonce for the webview
-   */
-  private _getNonce(): string {
-    let text = '';
-    const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    
-    for (let i = 0; i < 32; i++) {
-      text += possible.charAt(Math.floor(Math.random() * possible.length));
-    }
-    
-    return text;
+        <script nonce="${nonce}" src="${scriptUri}"></script>
+      </body>
+      </html>
+    `;
   }
 }

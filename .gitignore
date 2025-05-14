@@ -4,4 +4,5 @@ node_modules
 *.vsix
 .DS_Store
 
-**/.claude/settings.local.json
+**/.claude
+.memory-bank
