@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
-import * as child_process from 'child_process';
+import { spawn, exec } from 'child_process';
 import { EventEmitter } from 'events';
-import { exec } from 'child_process';
 import * as os from 'os';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -11,9 +10,23 @@ export interface ClaudeMessage {
   content: string;
 }
 
+interface ClaudeJsonResponse {
+  message: {
+    content: string;
+  };
+  session_id: string;
+  cost: {
+    total_cost: number;
+  };
+  duration: {
+    total_ms: number;
+  };
+}
+
 export class ClaudeCodeService {
   private messageEmitter = new EventEmitter();
   private isProcessReady = false;
+  private sessionId?: string;
 
   constructor() {
     this.messageEmitter.setMaxListeners(100);
@@ -37,7 +50,7 @@ export class ClaudeCodeService {
       
       // Send welcome message
       this.messageEmitter.emit('message', {
-        role: 'claude',
+        role: 'assistant',
         content: 'Hello! I\'m Claude Code. How can I help you with your coding tasks today?'
       });
     });
@@ -68,49 +81,85 @@ export class ClaudeCodeService {
       return;
     }
     
-    // Create a temporary script file to handle the trust prompt
-    const tempDir = os.tmpdir();
-    const tempScriptFile = path.join(tempDir, `claude_vscode_script_${Date.now()}.sh`);
-    const scriptContent = `#!/bin/bash
-# Script to handle Claude interaction
-(echo "1"; echo "${message}") | TERM=xterm-256color claude -p 2>/dev/null
-`;
-
-    // Write the script file
-    fs.writeFileSync(tempScriptFile, scriptContent);
-    fs.chmodSync(tempScriptFile, '755');
+    // Prepare Claude command arguments
+    const args = ['-p', '--output-format', 'json'];
     
-    // Execute the script
-    console.log('Executing Claude via script file from workspace root:', workspaceRoot);
+    // Add session ID if we have one to maintain conversation context
+    if (this.sessionId) {
+      args.push('--resume', this.sessionId);
+    }
     
-    exec(`bash ${tempScriptFile}`, { 
-      env: { ...process.env, TERM: 'xterm-256color' },
-      cwd: workspaceRoot.fsPath
-    }, (error, stdout, stderr) => {
-      // Clean up the temp file
-      try {
-        fs.unlinkSync(tempScriptFile);
-      } catch (e) {
-        console.error('Error removing temp file:', e);
-      }
-      
-      if (error) {
-        console.error(`Error from Claude: ${error.message}`);
-        this.messageEmitter.emit('error', `Error from Claude: ${error.message}`);
+    // Set up the process in the workspace root to ensure correct context
+    const claudeProcess = spawn('claude', args, {
+      cwd: workspaceRoot.fsPath,
+      env: { ...process.env, TERM: 'xterm-256color' }
+    });
+    
+    let stdoutData = '';
+    let stderrData = '';
+    
+    // Collect stdout data
+    claudeProcess.stdout.on('data', (data) => {
+      stdoutData += data.toString();
+    });
+    
+    // Collect stderr data
+    claudeProcess.stderr.on('data', (data) => {
+      stderrData += data.toString();
+      console.error(`Claude stderr: ${data.toString()}`);
+    });
+    
+    // Handle process completion
+    claudeProcess.on('close', (code) => {
+      if (code !== 0) {
+        console.error(`Claude process exited with code ${code}`);
+        this.messageEmitter.emit('error', `Claude process error. Exit code: ${code}. ${stderrData}`);
         return;
       }
       
-      if (stderr) {
-        console.error(`Claude stderr: ${stderr}`);
+      try {
+        // Parse the JSON response
+        const response: ClaudeJsonResponse = JSON.parse(stdoutData);
+        
+        // Store the session ID for future continuation
+        this.sessionId = response.session_id;
+        
+        // Emit the response
+        this.messageEmitter.emit('message', {
+          role: 'assistant',
+          content: response.message.content.trim()
+        });
+        
+        console.log(`Claude response sent to UI. Session ID: ${this.sessionId}`);
+        console.log(`Response stats - Duration: ${response.duration.total_ms}ms, Cost: $${response.cost.total_cost.toFixed(6)}`);
+      } catch (error) {
+        console.error('Failed to parse Claude response:', error);
+        console.error('Raw response:', stdoutData);
+        this.messageEmitter.emit('error', 'Failed to parse Claude response. There might be an issue with the CLI.');
       }
-      
-      // Emit the response
-      this.messageEmitter.emit('message', {
-        role: 'assistant',
-        content: stdout.trim() || 'No response received from Claude. There might be an issue with the CLI.'
-      });
-      
-      console.log('Claude response sent to UI');
+    });
+    
+    // Handle process errors
+    claudeProcess.on('error', (error) => {
+      console.error(`Error spawning Claude process: ${error.message}`);
+      this.messageEmitter.emit('error', `Failed to start Claude process: ${error.message}`);
+    });
+    
+    // Send the message to Claude
+    claudeProcess.stdin.write(message);
+    claudeProcess.stdin.end();
+  }
+
+  /**
+   * Reset the conversation by clearing the session ID
+   */
+  public resetConversation(): void {
+    this.sessionId = undefined;
+    console.log('Conversation reset. Session ID cleared.');
+    
+    this.messageEmitter.emit('message', {
+      role: 'assistant',
+      content: 'Conversation has been reset. How can I help you?'
     });
   }
 
@@ -120,6 +169,7 @@ export class ClaudeCodeService {
   public stop(): void {
     // No long-running process to stop
     this.isProcessReady = false;
+    this.sessionId = undefined;
   }
 
   /**

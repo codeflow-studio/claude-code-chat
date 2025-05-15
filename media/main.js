@@ -5,6 +5,7 @@ const vscode = acquireVsCodeApi();
 const messagesContainer = document.getElementById('messages');
 const messageInput = document.getElementById('messageInput');
 const sendButton = document.getElementById('sendButton');
+const resetButton = document.getElementById('resetButton');
 
 // State
 let isWaitingForResponse = false;
@@ -20,6 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Event listeners
 sendButton.addEventListener('click', sendMessage);
+resetButton.addEventListener('click', resetConversation);
 messageInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault();
@@ -33,13 +35,13 @@ window.addEventListener('message', (event) => {
   
   switch (message.command) {
     case 'receiveMessage':
-      isWaitingForResponse = false;
-      sendButton.disabled = false;
-      removeLoadingIndicator();
       addMessage(message.sender, message.text);
       break;
     case 'updateStatus':
-      // Handle status updates
+      handleStatusUpdate(message.status);
+      break;
+    case 'conversationReset':
+      handleConversationReset();
       break;
   }
 });
@@ -55,15 +57,58 @@ function sendMessage() {
   // Clear input and set loading state
   messageInput.value = '';
   messageInput.style.height = 'auto';
-  isWaitingForResponse = true;
-  sendButton.disabled = true;
-  addLoadingIndicator();
   
   // Send message to extension
   vscode.postMessage({
     command: 'sendMessage',
     text
   });
+}
+
+function resetConversation() {
+  // Ask for confirmation before resetting
+  const confirmation = confirm('Are you sure you want to reset the conversation? This will clear the current context and start fresh.');
+  
+  if (confirmation) {
+    vscode.postMessage({
+      command: 'resetConversation'
+    });
+  }
+}
+
+function handleConversationReset() {
+  // Clear all messages
+  messagesContainer.innerHTML = '';
+  
+  // Add system message about reset
+  addMessage('claude', 'Conversation has been reset. How can I help you today?');
+}
+
+function handleStatusUpdate(status) {
+  switch (status) {
+    case 'thinking':
+      isWaitingForResponse = true;
+      sendButton.disabled = true;
+      removeLoadingIndicator(); // Remove any existing indicators first
+      addLoadingIndicator();
+      break;
+    case 'ready':
+      isWaitingForResponse = false;
+      sendButton.disabled = false;
+      removeLoadingIndicator();
+      break;
+    case 'error':
+      isWaitingForResponse = false;
+      sendButton.disabled = false;
+      removeLoadingIndicator();
+      break;
+    case 'restarting':
+      isWaitingForResponse = true;
+      sendButton.disabled = true;
+      removeLoadingIndicator();
+      addLoadingIndicator();
+      break;
+  }
 }
 
 function addMessage(sender, text) {
@@ -74,14 +119,14 @@ function addMessage(sender, text) {
   // Create sender element with avatar
   const senderElement = document.createElement('div');
   senderElement.classList.add('message-sender');
-  if (sender === 'claude') {
+  if (sender === 'assistant') {
     senderElement.classList.add('claude');
   }
   
   // Add avatar
   const avatar = document.createElement('div');
   avatar.classList.add('avatar');
-  if (sender === 'claude') {
+  if (sender === 'assistant') {
     avatar.classList.add('claude');
     
     // Use Claude's flower icon in the avatar
@@ -105,7 +150,7 @@ function addMessage(sender, text) {
   
   // Add sender name
   const senderName = document.createElement('span');
-  senderName.textContent = sender === 'claude' ? 'Claude' : 'You';
+  senderName.textContent = sender === 'assistant' ? 'Claude' : 'You';
   senderElement.appendChild(senderName);
   
   messageGroup.appendChild(senderElement);
@@ -121,7 +166,7 @@ function addMessage(sender, text) {
   messageGroup.appendChild(messageEl);
   
   // Add message actions (only for Claude messages)
-  if (sender === 'claude') {
+  if (sender === 'assistant') {
     const actionsContainer = document.createElement('div');
     actionsContainer.classList.add('message-actions');
     

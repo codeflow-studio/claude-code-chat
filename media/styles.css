@@ -72,26 +72,43 @@ body {
 .chat-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   padding: 12px 16px;
   border-bottom: 1px solid var(--claude-border);
   background-color: var(--bg-color);
 }
 
-.chat-header-logo {
+.chat-title {
   display: flex;
   align-items: center;
-}
-
-.chat-header-logo svg {
-  width: 20px;
-  height: 20px;
-  margin-right: 10px;
-}
-
-.chat-header-title {
   font-weight: 500;
   font-size: 14px;
+}
+
+.chat-title .claude-icon {
+  margin-right: 8px;
+}
+
+.chat-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.chat-actions button {
+  background-color: transparent;
   color: var(--text-color);
+  border: 1px solid var(--claude-border);
+  border-radius: 4px;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.chat-actions button:hover {
+  background-color: var(--claude-input-bg);
 }
 
 .messages {
@@ -161,7 +178,7 @@ body {
   align-self: flex-start;
 }
 
-.message.claude {
+.message.assistant {
   background-color: var(--claude-message-bg);
   border: none;
   align-self: flex-start;

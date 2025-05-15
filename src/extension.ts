@@ -20,7 +20,16 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.executeCommand('claudeCodeChatView.focus');
   });
 
+  // Register command to reset conversation
+  const resetConversationCommand = vscode.commands.registerCommand('claude-code-extension.resetConversation', () => {
+    if (claudeCodeServiceInstance) {
+      claudeCodeServiceInstance.resetConversation();
+      vscode.window.showInformationMessage('Claude Code conversation has been reset.');
+    }
+  });
+
   context.subscriptions.push(startChatCommand);
+  context.subscriptions.push(resetConversationCommand);
   
   // Add Claude process cleanup to subscriptions
   context.subscriptions.push({
