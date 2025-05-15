@@ -28,8 +28,25 @@ export function activate(context: vscode.ExtensionContext) {
     }
   });
 
+  // Register command to launch Claude Code in a terminal
+  const launchClaudeCodeTerminalCommand = vscode.commands.registerCommand('claude-code-extension.launchClaudeCodeTerminal', () => {
+    // Create a terminal with the name "Claude Code"
+    const terminal = vscode.window.createTerminal({
+      name: 'Claude Code',
+      iconPath: vscode.Uri.joinPath(context.extensionUri, 'resources', 'claude-icon.svg'),
+      cwd: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
+    });
+    
+    // Show the terminal
+    terminal.show();
+    
+    // Run Claude Code in the terminal
+    terminal.sendText('claude');
+  });
+
   context.subscriptions.push(startChatCommand);
   context.subscriptions.push(resetConversationCommand);
+  context.subscriptions.push(launchClaudeCodeTerminalCommand);
   
   // Add Claude process cleanup to subscriptions
   context.subscriptions.push({

@@ -12,6 +12,7 @@
   ],
   "activationEvents": [
     "onCommand:claude-code-extension.startChat",
+    "onCommand:claude-code-extension.launchClaudeCodeTerminal",
     "onView:claudeCodeChatView"
   ],
   "main": "./dist/extension.js",
@@ -20,6 +21,10 @@
       {
         "command": "claude-code-extension.startChat",
         "title": "Start Claude Code Chat"
+      },
+      {
+        "command": "claude-code-extension.launchClaudeCodeTerminal",
+        "title": "Claude Code: Launch Terminal"
       }
     ],
     "viewsContainers": {
