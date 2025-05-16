@@ -121,6 +121,14 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider {
           return;
         }
 
+        // Skip error message if it's a parsing error and there are no other messages
+        // This prevents showing error on first launch
+        if (error.includes('Failed to parse Claude response') && 
+            this._messageHistory.length < 2) {
+          console.log('Suppressing parse error on first launch in UI');
+          return;
+        }
+
         // Create error message object
         const errorMessageObj = {
           role: "assistant",

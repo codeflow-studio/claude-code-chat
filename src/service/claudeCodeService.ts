@@ -44,22 +44,34 @@ export class ClaudeCodeService {
    * Start the Claude Code service
    */
   public async start(): Promise<void> {
-    // Simple non-interactive test to check Claude installation
-    exec('which claude', (error, stdout, stderr) => {
-      if (error) {
-        console.error(`Error checking for Claude: ${error.message}`);
-        this.messageEmitter.emit('error', 'Claude Code CLI is not installed or not in the PATH');
+    return new Promise<void>((resolve, reject) => {
+      // If already ready, resolve immediately
+      if (this.isProcessReady) {
+        resolve();
         return;
       }
-      
-      console.log(`Found Claude at: ${stdout.trim()}`);
-      this.isProcessReady = true;
-      this.messageEmitter.emit('ready');
-      
-      // Send welcome message
-      this.messageEmitter.emit('message', {
-        role: 'assistant',
-        content: 'Hello! I\'m Claude Code. How can I help you with your coding tasks today?'
+
+      // Simple non-interactive test to check Claude installation
+      exec('which claude', (error, stdout, stderr) => {
+        if (error) {
+          console.error(`Error checking for Claude: ${error.message}`);
+          this.messageEmitter.emit('error', 'Claude Code CLI is not installed or not in the PATH');
+          reject(new Error('Claude Code CLI is not installed or not in the PATH'));
+          return;
+        }
+        
+        console.log(`Found Claude at: ${stdout.trim()}`);
+        this.isProcessReady = true;
+        this.messageEmitter.emit('ready');
+        
+        // Send welcome message without triggering error
+        this.messageEmitter.emit('message', {
+          role: 'assistant',
+          content: 'Hello! I\'m Claude Code. How can I help you with your coding tasks today?'
+        });
+        
+        // Don't reject on welcome message error
+        resolve();
       });
     });
   }
@@ -70,8 +82,17 @@ export class ClaudeCodeService {
    * @param emitUserMessage Whether to emit the user message to UI (default: true)
    */
   public async sendMessage(message: string, emitUserMessage: boolean = true): Promise<void> {
+    // Make sure Claude Code is ready
     if (!this.isProcessReady) {
-      await this.start();
+      try {
+        await this.start();
+        // Wait a moment to ensure startup is complete
+        await new Promise(resolve => setTimeout(resolve, 500));
+      } catch (error) {
+        console.error('Error starting Claude Code:', error);
+        this.messageEmitter.emit('error', 'Failed to start Claude Code. Please check if it is installed correctly.');
+        return;
+      }
     }
 
     // Emit the user message first (only if requested)
@@ -129,6 +150,12 @@ export class ClaudeCodeService {
         // Parse the JSON response
         console.log('Parsing Claude response: ', stdoutData);
         
+        // Check if the output is empty or doesn't contain valid JSON
+        if (!stdoutData || stdoutData.trim() === '') {
+          console.log('Empty response from Claude CLI, not showing error');
+          return;
+        }
+        
         const response: ClaudeJsonResponse = JSON.parse(stdoutData);
         
         // Store the session ID for future continuation
@@ -141,7 +168,6 @@ export class ClaudeCodeService {
         
         // Log response format for debugging
         console.log("Response format detected:", response);
-        console.log("arg1 =\n", response);
         
         // Check which format we received and extract the appropriate fields
         if (response.result !== undefined) {
@@ -173,6 +199,14 @@ export class ClaudeCodeService {
       } catch (error) {
         console.error('Failed to parse Claude response:', error);
         console.error('Raw response:', stdoutData);
+        
+        // Don't show parse error if this was the first launch 
+        // and user hasn't sent any messages yet
+        if (stdoutData && !this.sessionId) {
+          console.log('Suppressing parse error on first launch');
+          return;
+        }
+        
         this.messageEmitter.emit('error', 'Failed to parse Claude response. There might be an issue with the CLI.');
       }
     });
