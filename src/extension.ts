@@ -12,7 +12,11 @@ export function activate(context: vscode.ExtensionContext) {
   // Register Chat Webview Provider with Claude Code Service
   const chatWebviewProvider = new ChatWebviewProvider(context.extensionUri, claudeCodeService);
   context.subscriptions.push(
-    vscode.window.registerWebviewViewProvider('claudeCodeChatView', chatWebviewProvider)
+    vscode.window.registerWebviewViewProvider('claudeCodeChatView', chatWebviewProvider, {
+      webviewOptions: {
+        retainContextWhenHidden: true
+      }
+    })
   );
 
   // Register command to start/show chat

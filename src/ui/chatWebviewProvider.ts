@@ -6,6 +6,8 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = "claudeCodeChatView";
   private _view?: vscode.WebviewView;
   private _messageListeners: vscode.Disposable[] = [];
+  private _messageHistory: Array<{role: string, content: string, timestamp: string}> = [];
+  private _currentStatus: string = "ready";
 
   constructor(
     private readonly _extensionUri: vscode.Uri,
@@ -19,13 +21,21 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider {
   ) {
     this._view = webviewView;
     
+    // Enable state preservation for the webview
     webviewView.webview.options = {
       // Enable scripts in the webview
       enableScripts: true,
 
       // Restrict the webview to only load resources from the extension's directory
-      localResourceRoots: [this._extensionUri],
+      localResourceRoots: [this._extensionUri]
     };
+    
+    // Keep webview state when it becomes hidden
+    webviewView.onDidChangeVisibility(() => {
+      if (webviewView.visible) {
+        console.log('Webview became visible again, refreshing state');
+      }
+    });
 
     // Set the webview's HTML content
     webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
@@ -40,6 +50,9 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider {
           case "resetConversation":
             this._handleResetConversation();
             return;
+          case "requestMessageHistory":
+            this._sendMessageHistory();
+            return;
         }
       },
       undefined,
@@ -48,6 +61,19 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider {
 
     // Set up listeners for Claude Code service events
     this._setupClaudeCodeListeners();
+  }
+  
+  private _sendMessageHistory() {
+    if (!this._view) {
+      return;
+    }
+    
+    // Send message history to the webview
+    this._view.webview.postMessage({
+      command: "restoreMessageHistory",
+      messages: this._messageHistory,
+      status: this._currentStatus
+    });
   }
 
   private _setupClaudeCodeListeners() {
@@ -61,19 +87,28 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider {
           return;
         }
 
+        // Create message object
+        const messageObj = {
+          role: message.role,
+          content: message.content,
+          timestamp: new Date().toISOString()
+        };
+        
+        // Add to history
+        this._messageHistory.push(messageObj);
+
         // Send the message to the webview
         this._view.webview.postMessage({
           command: "receiveMessage",
-          sender: message.role,
-          text: message.content,
-          timestamp: new Date().toISOString(),
+          ...messageObj
         });
         
         // If this is a response from Claude, update the UI status
         if (message.role === 'assistant') {
+          this._currentStatus = "ready";
           this._view.webview.postMessage({
             command: "updateStatus",
-            status: "ready"
+            status: this._currentStatus
           });
         }
       })
@@ -86,17 +121,28 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider {
           return;
         }
 
+        // Create error message object
+        const errorMessageObj = {
+          role: "assistant",
+          content: `⚠️ Error: ${error}`,
+          timestamp: new Date().toISOString()
+        };
+        
+        // Add to history
+        this._messageHistory.push(errorMessageObj);
+
         this._view.webview.postMessage({
           command: "receiveMessage",
-          sender: "claude",
-          text: `⚠️ Error: ${error}`,
-          timestamp: new Date().toISOString(),
+          ...errorMessageObj
         });
+        
+        // Update status
+        this._currentStatus = "error";
         
         // Update UI status when there's an error
         this._view.webview.postMessage({
           command: "updateStatus",
-          status: "error"
+          status: this._currentStatus
         });
 
         vscode.window.showErrorMessage(`Claude Code error: ${error}`);
@@ -112,17 +158,28 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider {
 
         // Don't flood UI with restart messages
         if (code !== 0) {
+          // Create restart message object
+          const restartMessageObj = {
+            role: "assistant",
+            content: `Claude Code process exited. Attempting to restart...`,
+            timestamp: new Date().toISOString()
+          };
+          
+          // Add to history
+          this._messageHistory.push(restartMessageObj);
+
           this._view.webview.postMessage({
             command: "receiveMessage",
-            sender: "claude",
-            text: `Claude Code process exited. Attempting to restart...`,
-            timestamp: new Date().toISOString(),
+            ...restartMessageObj
           });
+          
+          // Update status
+          this._currentStatus = "restarting";
           
           // Update UI status on process exit
           this._view.webview.postMessage({
             command: "updateStatus",
-            status: "restarting"
+            status: this._currentStatus
           });
         }
 
@@ -134,17 +191,28 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider {
             vscode.window.showErrorMessage(`Failed to restart Claude Code: ${errorMessage}`);
             
             if (this._view) {
+              // Create error message object
+              const errorRestartObj = {
+                role: "assistant",
+                content: `⚠️ Error restarting Claude Code. Please try again or restart VS Code.`,
+                timestamp: new Date().toISOString()
+              };
+              
+              // Add to history
+              this._messageHistory.push(errorRestartObj);
+
               this._view.webview.postMessage({
                 command: "receiveMessage",
-                sender: "claude",
-                text: `⚠️ Error restarting Claude Code. Please try again or restart VS Code.`,
-                timestamp: new Date().toISOString(),
+                ...errorRestartObj
               });
+              
+              // Update status
+              this._currentStatus = "error";
               
               // Update UI status when restart fails
               this._view.webview.postMessage({
                 command: "updateStatus",
-                status: "error"
+                status: this._currentStatus
               });
             }
           });
@@ -165,10 +233,23 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider {
       return;
     }
     
+    // Create user message object
+    const userMessageObj = {
+      role: 'user',
+      content: text,
+      timestamp: new Date().toISOString()
+    };
+    
+    // Add to history
+    this._messageHistory.push(userMessageObj);
+    
+    // Update status
+    this._currentStatus = "thinking";
+    
     // Update UI to show loading state
     this._view.webview.postMessage({
       command: "updateStatus",
-      status: "thinking"
+      status: this._currentStatus
     });
     
     try {
@@ -185,18 +266,29 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider {
         ? error.message 
         : String(error);
 
+      // Create error message object
+      const errorMessageObj = {
+        role: "assistant",
+        content: `⚠️ Error: Failed to send message to Claude Code. ${errorMessage}`,
+        timestamp: new Date().toISOString()
+      };
+      
+      // Add to history
+      this._messageHistory.push(errorMessageObj);
+
       // Show error in UI
       this._view.webview.postMessage({
         command: "receiveMessage",
-        sender: "claude",
-        text: `⚠️ Error: Failed to send message to Claude Code. ${errorMessage}`,
-        timestamp: new Date().toISOString(),
+        ...errorMessageObj
       });
+      
+      // Update status
+      this._currentStatus = "error";
       
       // Update UI status on error
       this._view.webview.postMessage({
         command: "updateStatus",
-        status: "error"
+        status: this._currentStatus
       });
 
       vscode.window.showErrorMessage(`Failed to send message to Claude Code: ${errorMessage}`);
@@ -210,6 +302,9 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider {
     
     // Call the service to reset the conversation
     this._claudeCodeService.resetConversation();
+    
+    // Clear message history
+    this._messageHistory = [];
     
     // Update UI to indicate reset
     this._view.webview.postMessage({

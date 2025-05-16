@@ -11,14 +11,22 @@ export interface ClaudeMessage {
 }
 
 interface ClaudeJsonResponse {
-  message: {
+  // New Claude format
+  role?: string;
+  result?: string;
+  session_id?: string;
+  cost_usd?: number;
+  duration_ms?: number;
+  duration_api_ms?: number;
+  
+  // Old Claude format - kept for backward compatibility
+  message?: {
     content: string;
   };
-  session_id: string;
-  cost: {
+  cost?: {
     total_cost: number;
   };
-  duration: {
+  duration?: {
     total_ms: number;
   };
 }
@@ -119,19 +127,49 @@ export class ClaudeCodeService {
       
       try {
         // Parse the JSON response
+        console.log('Parsing Claude response: ', stdoutData);
+        
         const response: ClaudeJsonResponse = JSON.parse(stdoutData);
         
         // Store the session ID for future continuation
         this.sessionId = response.session_id;
         
+        // Extract the content based on the response format
+        let content = '';
+        let duration = 0;
+        let cost = 0;
+        
+        // Log response format for debugging
+        console.log("Response format detected:", response);
+        console.log("arg1 =\n", response);
+        
+        // Check which format we received and extract the appropriate fields
+        if (response.result !== undefined) {
+          // New format
+          content = response.result;
+          duration = response.duration_ms || 0;
+          cost = response.cost_usd || 0;
+          console.log(`New Claude format detected. Duration: ${duration}ms, Cost: $${cost.toFixed(6)}`);
+        } else if (response.message && response.message.content) {
+          // Old format
+          content = response.message.content;
+          duration = response.duration?.total_ms || 0;
+          cost = response.cost?.total_cost || 0;
+          console.log(`Legacy Claude format detected. Duration: ${duration}ms, Cost: $${cost.toFixed(6)}`);
+        } else {
+          throw new Error('Unrecognized response format from Claude CLI');
+        }
+        
+        // Use 'assistant' role for all Claude responses, even if the API returns 'system'
+        const messageRole = 'assistant';
+        
         // Emit the response
         this.messageEmitter.emit('message', {
-          role: 'assistant',
-          content: response.message.content.trim()
+          role: messageRole,
+          content: content.trim()
         });
         
         console.log(`Claude response sent to UI. Session ID: ${this.sessionId}`);
-        console.log(`Response stats - Duration: ${response.duration.total_ms}ms, Cost: $${response.cost.total_cost.toFixed(6)}`);
       } catch (error) {
         console.error('Failed to parse Claude response:', error);
         console.error('Raw response:', stdoutData);

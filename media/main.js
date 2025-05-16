@@ -9,6 +9,18 @@ const resetButton = document.getElementById('resetButton');
 
 // State
 let isWaitingForResponse = false;
+let isRestoringHistory = false;
+
+// Try to restore state from vscode storage
+try {
+  const previousState = vscode.getState();
+  if (previousState && previousState.messages) {
+    // We'll use this state later during init
+    console.log('Found previous webview state to restore');
+  }
+} catch (e) {
+  console.error('Error restoring state:', e);
+}
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -17,6 +29,17 @@ document.addEventListener('DOMContentLoaded', () => {
   
   // Auto-resize textarea
   messageInput.addEventListener('input', autoResizeTextarea);
+  
+  // Attempt to restore from local webview state first
+  const previousState = vscode.getState();
+  if (previousState && previousState.messages && previousState.messages.length > 0) {
+    console.log('Restoring UI from webview state');
+    handleRestoreMessageHistory(previousState.messages, previousState.status);
+  } else {
+    // If no local state, request history from extension
+    console.log('Requesting message history from extension');
+    requestMessageHistory();
+  }
 });
 
 // Event listeners
@@ -29,22 +52,103 @@ messageInput.addEventListener('keydown', (e) => {
   }
 });
 
+// Store for maintaining messages locally
+let localMessages = [];
+
 // Handle messages from extension
 window.addEventListener('message', (event) => {
   const message = event.data;
   
   switch (message.command) {
     case 'receiveMessage':
-      addMessage(message.sender, message.text);
+      // Don't add duplicate messages if we're restoring history
+      if (!isRestoringHistory) {
+        console.log("Received message:", message);
+        
+        // Handle both the new protocol (role/content) and compatibility with older protocol (sender/text)
+        const role = message.role || message.sender;
+        const content = message.content || message.text;
+        
+        // Add message to local storage
+        localMessages.push({
+          role: role,
+          content: content,
+          timestamp: message.timestamp
+        });
+        
+        // Update webview state
+        vscode.setState({ 
+          messages: localMessages,
+          status: isWaitingForResponse ? 'thinking' : 'ready'
+        });
+        
+        // Display the message
+        addMessage(role, content);
+      }
       break;
     case 'updateStatus':
       handleStatusUpdate(message.status);
+      // Save status in state
+      const currentState = vscode.getState() || {};
+      vscode.setState({ 
+        ...currentState,
+        status: message.status
+      });
       break;
     case 'conversationReset':
       handleConversationReset();
       break;
+    case 'restoreMessageHistory':
+      // Update local messages array
+      localMessages = message.messages || [];
+      handleRestoreMessageHistory(message.messages, message.status);
+      break;
   }
 });
+
+// Function to request message history from extension
+function requestMessageHistory() {
+  vscode.postMessage({
+    command: 'requestMessageHistory'
+  });
+}
+
+// Function to handle restored message history
+function handleRestoreMessageHistory(messages, status) {
+  // Set flag to prevent duplicate messages
+  isRestoringHistory = true;
+  
+  // Clear existing messages first
+  messagesContainer.innerHTML = '';
+  
+  // Add each message in history
+  if (messages && messages.length) {
+    console.log("Restoring messages:", messages);
+    
+    messages.forEach(msg => {
+      // Handle both new protocol (role/content) and compatibility with older protocol (sender/text)
+      const role = msg.role || msg.sender;
+      const content = msg.content || msg.text;
+      
+      // Display message with the appropriate role and content
+      addMessage(role, content);
+    });
+    
+    // Save state to webview state storage
+    vscode.setState({ 
+      messages: messages,
+      status: status
+    });
+  }
+  
+  // Reset flag
+  isRestoringHistory = false;
+  
+  // Update UI status
+  if (status) {
+    handleStatusUpdate(status);
+  }
+}
 
 // Functions
 function sendMessage() {
@@ -80,8 +184,21 @@ function handleConversationReset() {
   // Clear all messages
   messagesContainer.innerHTML = '';
   
+  // Reset local messages
+  localMessages = [{
+    role: 'assistant',
+    content: 'Conversation has been reset. How can I help you today?',
+    timestamp: new Date().toISOString()
+  }];
+  
+  // Update webview state
+  vscode.setState({ 
+    messages: localMessages,
+    status: 'ready'
+  });
+  
   // Add system message about reset
-  addMessage('claude', 'Conversation has been reset. How can I help you today?');
+  addMessage('assistant', 'Conversation has been reset. How can I help you today?');
 }
 
 function handleStatusUpdate(status) {
@@ -111,7 +228,7 @@ function handleStatusUpdate(status) {
   }
 }
 
-function addMessage(sender, text) {
+function addMessage(role, content) {
   // Create message group
   const messageGroup = document.createElement('div');
   messageGroup.classList.add('message-group');
@@ -119,14 +236,14 @@ function addMessage(sender, text) {
   // Create sender element with avatar
   const senderElement = document.createElement('div');
   senderElement.classList.add('message-sender');
-  if (sender === 'assistant') {
+  if (role === 'assistant') {
     senderElement.classList.add('claude');
   }
   
   // Add avatar
   const avatar = document.createElement('div');
   avatar.classList.add('avatar');
-  if (sender === 'assistant') {
+  if (role === 'assistant') {
     avatar.classList.add('claude');
     
     // Use Claude's flower icon in the avatar
@@ -150,23 +267,23 @@ function addMessage(sender, text) {
   
   // Add sender name
   const senderName = document.createElement('span');
-  senderName.textContent = sender === 'assistant' ? 'Claude' : 'You';
+  senderName.textContent = role === 'assistant' ? 'Claude' : 'You';
   senderElement.appendChild(senderName);
   
   messageGroup.appendChild(senderElement);
   
   // Create message element
   const messageEl = document.createElement('div');
-  messageEl.classList.add('message', sender);
+  messageEl.classList.add('message', role);
   
   // Process text with enhanced formatting
-  const formattedText = formatMessageText(text);
+  const formattedText = formatMessageText(content);
   messageEl.innerHTML = formattedText;
   
   messageGroup.appendChild(messageEl);
   
   // Add message actions (only for Claude messages)
-  if (sender === 'assistant') {
+  if (role === 'assistant') {
     const actionsContainer = document.createElement('div');
     actionsContainer.classList.add('message-actions');
     
@@ -181,11 +298,11 @@ function addMessage(sender, text) {
     `;
     copyButton.setAttribute('data-tooltip', 'Copy message');
     copyButton.classList.add('tooltip');
-    copyButton.addEventListener('click', () => copyMessageText(text));
+    copyButton.addEventListener('click', () => copyMessageText(content));
     actionsContainer.appendChild(copyButton);
     
     // Copy code button (only if there's code in the message)
-    if (text.includes('```')) {
+    if (content.includes('```')) {
       const copyCodeButton = document.createElement('button');
       copyCodeButton.classList.add('action-button');
       copyCodeButton.innerHTML = `
@@ -196,7 +313,7 @@ function addMessage(sender, text) {
       `;
       copyCodeButton.setAttribute('data-tooltip', 'Copy only code blocks');
       copyCodeButton.classList.add('tooltip');
-      copyCodeButton.addEventListener('click', () => copyCodeFromMessage(text));
+      copyCodeButton.addEventListener('click', () => copyCodeFromMessage(content));
       actionsContainer.appendChild(copyCodeButton);
     }
     
@@ -319,19 +436,19 @@ function autoResizeTextarea() {
   messageInput.style.height = Math.min(messageInput.scrollHeight, 200) + 'px';
 }
 
-function copyMessageText(text) {
-  navigator.clipboard.writeText(text)
+function copyMessageText(content) {
+  navigator.clipboard.writeText(content)
     .then(() => showNotification('Message copied to clipboard'))
     .catch(err => console.error('Failed to copy: ', err));
 }
 
-function copyCodeFromMessage(text) {
+function copyCodeFromMessage(content) {
   // Extract code blocks from the message
   const codeRegex = /```(?:[a-z]*\n)?([\s\S]*?)```/g;
   let codeBlocks = [];
   let match;
   
-  while ((match = codeRegex.exec(text)) !== null) {
+  while ((match = codeRegex.exec(content)) !== null) {
     codeBlocks.push(match[1]);
   }
   
