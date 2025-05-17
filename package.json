@@ -1,7 +1,7 @@
 {
   "name": "claude-code-extension",
-  "displayName": "Claude Code Assistant",
-  "description": "Claude Code AI assistant integrated into VS Code",
+  "displayName": "Claude Code Terminal",
+  "description": "Claude Code terminal integration for VS Code",
   "version": "0.0.1",
   "publisher": "anthropic",
   "engines": {
@@ -11,20 +11,24 @@
     "Other"
   ],
   "activationEvents": [
-    "onCommand:claude-code-extension.startChat",
     "onCommand:claude-code-extension.launchClaudeCodeTerminal",
-    "onView:claudeCodeChatView"
+    "onView:claudeCodeInputView"
   ],
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
       {
-        "command": "claude-code-extension.startChat",
-        "title": "Start Claude Code Chat"
+        "command": "claude-code-extension.launchClaudeCodeTerminal",
+        "title": "Claude Code: Launch Terminal",
+        "icon": "resources/claude-icon.svg"
       },
       {
-        "command": "claude-code-extension.launchClaudeCodeTerminal",
-        "title": "Claude Code: Launch Terminal"
+        "command": "claude-code-extension.restartClaudeCode",
+        "title": "Claude Code: Restart",
+        "icon": {
+          "light": "resources/restart-light.svg",
+          "dark": "resources/restart-dark.svg"
+        }
       }
     ],
     "viewsContainers": {
@@ -40,11 +44,35 @@
       "claude-code-sidebar": [
         {
           "type": "webview",
-          "id": "claudeCodeChatView",
-          "name": "Chat",
-          "contextualTitle": "Claude Code Chat"
+          "id": "claudeCodeInputView",
+          "name": "Terminal Input",
+          "contextualTitle": "Claude Terminal Input"
         }
       ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "claude-code-extension.launchClaudeCodeTerminal",
+          "group": "navigation",
+          "when": "view == claudeCodeInputView"
+        },
+        {
+          "command": "claude-code-extension.restartClaudeCode",
+          "group": "navigation",
+          "when": "view == claudeCodeInputView"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Claude Code",
+      "properties": {
+        "claude-code-extension.autoStartOnActivation": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically start Claude Code when the extension is activated"
+        }
+      }
     }
   },
   "scripts": {

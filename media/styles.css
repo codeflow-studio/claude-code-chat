@@ -22,6 +22,11 @@
   --claude-active: #5A32FB;
   --claude-input-focus: #5A32FB;
   --claude-input-text: var(--text-color);
+  
+  /* Status colors */
+  --warning-color: #F2C94C;
+  --error-color: #E25141;
+  --success-color: #57B894;
 
   /* Other UI elements */
   --shadow-color: rgba(0, 0, 0, 0.15);
@@ -69,6 +74,12 @@ body {
   background-color: var(--bg-color);
 }
 
+/* Special style for terminal input container */
+.chat-container.input-only {
+  max-height: 220px;
+  height: auto;
+}
+
 .chat-header {
   display: flex;
   align-items: center;
@@ -109,6 +120,30 @@ body {
 
 .chat-actions button:hover {
   background-color: var(--claude-input-bg);
+}
+
+/* Terminal status banner */
+.terminal-status-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background-color: rgba(242, 201, 76, 0.1);
+  border-left: 3px solid var(--warning-color);
+  margin: 0 0 8px 0;
+  font-size: 13px;
+}
+
+.terminal-status-banner.hidden {
+  display: none;
+}
+
+.terminal-status-icon {
+  font-size: 16px;
+}
+
+.terminal-status-message {
+  flex: 1;
 }
 
 .messages {
@@ -265,6 +300,18 @@ body {
   border-top: 1px solid var(--claude-border);
   background-color: var(--bg-color);
   position: relative;
+}
+
+/* Special styles for input-only view */
+.input-only .input-container {
+  flex: 1;
+  border-top: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.input-only textarea {
+  min-height: 80px;
 }
 
 .input-wrapper {
@@ -490,6 +537,48 @@ button svg {
 .tooltip:hover::after {
   opacity: 1;
   visibility: visible;
+}
+
+/* Terminal input component styles */
+.terminal-input-container {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.terminal-info {
+  margin-bottom: 10px;
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground, #8a8a8a);
+  padding: 4px 8px;
+  background-color: var(--claude-input-bg);
+  border-radius: 4px;
+  border-left: 3px solid var(--claude-primary);
+}
+
+/* Help section */
+.input-help {
+  margin-top: 16px;
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground, #8a8a8a);
+  padding: 8px;
+  border-radius: 4px;
+  background-color: var(--claude-input-bg);
+}
+
+.input-help h4 {
+  margin: 0 0 6px 0;
+  font-size: 13px;
+}
+
+.input-help ul {
+  margin: 0;
+  padding-left: 16px;
+}
+
+.input-help li {
+  margin-bottom: 4px;
 }
 
 /* Responsive adjustments */
