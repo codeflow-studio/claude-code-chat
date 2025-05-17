@@ -43,6 +43,8 @@ body {
   font-size: var(--vscode-font-size, 14px);
   background-color: var(--bg-color);
   line-height: 1.5;
+  height: 100%;
+  overflow: hidden;
 }
 
 /* Scrollbar styling */
@@ -76,8 +78,10 @@ body {
 
 /* Special style for terminal input container */
 .chat-container.input-only {
-  max-height: 220px;
+  max-height: 280px; /* Further increased to ensure attribution text is visible */
   height: auto;
+  display: flex;
+  flex-direction: column;
 }
 
 .chat-header {
@@ -132,10 +136,16 @@ body {
   border-left: 3px solid var(--warning-color);
   margin: 0 0 8px 0;
   font-size: 13px;
+  flex-shrink: 0; /* Prevent banner from shrinking */
+  min-height: 20px; /* Ensure consistent height */
 }
 
 .terminal-status-banner.hidden {
   display: none;
+  height: 0;
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
 }
 
 .terminal-status-icon {
@@ -308,10 +318,15 @@ body {
   border-top: none;
   display: flex;
   flex-direction: column;
+  overflow: visible; /* Prevent content from being cut off */
+  min-height: 100px; /* Reduced to leave more room for footer */
+  padding-bottom: 16px; /* Reduced padding */
+  max-height: 200px; /* Limit maximum height */
 }
 
 .input-only textarea {
   min-height: 80px;
+  max-height: 120px; /* Limit maximum height */
 }
 
 .input-wrapper {
@@ -393,12 +408,19 @@ button svg {
   font-size: 12px;
   color: var(--vscode-descriptionForeground, #8a8a8a);
   border-top: 1px solid var(--claude-border);
+  flex-shrink: 0; /* Prevent footer from shrinking */
+  margin-top: auto; /* Push to bottom */
+  min-height: 20px; /* Ensure minimum height */
+  position: relative; /* Ensure it's in the layout flow */
+  overflow: visible; /* Prevent content from being cut off */
 }
 
 .claude-attribution {
   display: flex;
   align-items: center;
   gap: 6px;
+  padding: 2px 0;
+  line-height: 16px;
 }
 
 .claude-version {

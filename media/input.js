@@ -62,10 +62,27 @@
       case 'terminalStatus':
         // Update terminal status banner visibility
         if (terminalStatusBanner) {
+          const wasHidden = terminalStatusBanner.classList.contains('hidden');
+          
           if (message.isTerminalClosed) {
             terminalStatusBanner.classList.remove('hidden');
+            // If the banner was previously hidden and is now shown, adjust the container
+            if (wasHidden) {
+              // Allow layout to adjust by forcing a reflow
+              document.querySelector('.chat-container').style.maxHeight = '280px';
+            }
           } else {
             terminalStatusBanner.classList.add('hidden');
+            // If the banner was previously shown and is now hidden, restore original size
+            if (!wasHidden) {
+              document.querySelector('.chat-container').style.maxHeight = '250px';
+            }
+          }
+          
+          // Ensure input height is correct
+          if (messageInputElement) {
+            messageInputElement.style.height = 'auto';
+            messageInputElement.style.height = (messageInputElement.scrollHeight) + 'px';
           }
         }
         break;
@@ -78,6 +95,12 @@
     if (messageInputElement) {
       messageInputElement.style.height = 'auto';
       messageInputElement.style.height = (messageInputElement.scrollHeight) + 'px';
+    }
+    
+    // Set container height based on terminal status
+    if (terminalStatusBanner && !terminalStatusBanner.classList.contains('hidden')) {
+      // If banner is visible, ensure container has enough height
+      document.querySelector('.chat-container').style.maxHeight = '280px';
     }
   }
   
