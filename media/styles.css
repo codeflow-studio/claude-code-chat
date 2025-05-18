@@ -672,40 +672,53 @@ button svg {
 .context-menu-container {
   position: fixed;
   z-index: 99999;
-  overflow: auto;
+  overflow: hidden;
   max-height: 300px;
   min-height: 40px;
   background-color: var(--vscode-dropdown-background, #252526);
-  border: 1px solid var(--vscode-focusBorder, #5A32FB);
-  border-radius: 6px;
+  border: 2px solid var(--vscode-focusBorder, #5A32FB);
+  border-radius: 16px;
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.5);
   pointer-events: auto;
-  min-width: 280px;
-  padding: 4px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .context-menu {
   display: flex;
   flex-direction: column;
-  max-height: 300px;
+  max-height: 284px; /* Container max height minus padding */
   overflow-y: auto;
-  padding: 4px;
+  overflow-x: hidden;
+  padding: 8px;
   margin: 0;
   width: 100%;
+  box-sizing: border-box;
+  scroll-behavior: smooth;
 }
 
 .context-menu-item {
   padding: 10px 12px;
   cursor: pointer;
-  border-bottom: 1px solid var(--vscode-editorGroup-border, #444);
   display: flex;
   align-items: center;
   justify-content: space-between;
   color: var(--vscode-foreground);
   font-size: 13px;
   margin-bottom: 2px;
-  border-radius: 3px;
+  border-radius: 8px;
   min-height: 38px;
+}
+
+.context-menu-item:first-child {
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
+.context-menu-item:last-child {
+  border-bottom-left-radius: 8px;
+  border-bottom-right-radius: 8px;
+  margin-bottom: 0;
 }
 
 .context-menu-item:hover {

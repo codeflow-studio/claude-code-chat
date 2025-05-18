@@ -26,8 +26,8 @@ const mentionRegexGlobal = new RegExp(mentionRegex.source, 'g');
 
 // Base context menu items
 const baseContextItems = [
-  { type: 'problems', label: 'Problems', description: 'Workspace problems' },
-  { type: 'terminal', label: 'Terminal', description: 'Terminal output' }
+  { type: 'problems', value: 'problems', label: 'Problems', description: 'Workspace problems' },
+  { type: 'terminal', value: 'terminal', label: 'Terminal', description: 'Terminal output' }
 ];
 
 // State
@@ -401,7 +401,11 @@ function renderContextMenu() {
 
   // Add click event listeners to menu items
   document.querySelectorAll('.context-menu-item:not(.not-selectable):not(.loading)').forEach((item, index) => {
-    item.addEventListener('click', () => handleContextMenuSelect(index));
+    item.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      handleContextMenuSelect(index);
+    });
     item.addEventListener('mouseenter', () => {
       contextMenuSelectedIndex = index;
       renderContextMenu();
@@ -450,22 +454,28 @@ function handleContextMenuSelect(index) {
   
   // Insert the selected item as a mention
   if (messageInput) {
+    // Use value if available, otherwise use type as fallback
+    const mentionValue = selectedItem.value || selectedItem.type;
+    
     const { newValue, mentionIndex } = insertMention(
       messageInput.value,
       cursorPosition,
-      selectedItem.value
+      mentionValue
     );
 
     // Update the input value
     messageInput.value = newValue;
     
     // Update cursor position
-    const newPosition = mentionIndex + selectedItem.value.length + 2; // +2 for the @ and the space after
+    const newPosition = mentionIndex + mentionValue.length + 2; // +2 for the @ and the space after
     messageInput.setSelectionRange(newPosition, newPosition);
     messageInput.focus();
     
     // Update highlights
     updateHighlights();
+    
+    // Auto-resize textarea to fit new content
+    autoResizeTextarea();
     
     // Hide context menu
     contextMenuVisible = false;

@@ -28,8 +28,8 @@
   
   // Base context menu items
   const baseContextItems = [
-    { type: 'problems', label: 'Problems', description: 'Workspace problems' },
-    { type: 'terminal', label: 'Terminal', description: 'Terminal output' }
+    { type: 'problems', value: 'problems', label: 'Problems', description: 'Workspace problems' },
+    { type: 'terminal', value: 'terminal', label: 'Terminal', description: 'Terminal output' }
   ];
 
   // Function to handle sending a message
@@ -112,62 +112,36 @@
     globalContextMenu.id = 'global-context-menu';
     globalContextMenu.className = 'context-menu-container';
     
-    // Get input position for menu placement
-    const input = document.getElementById('messageInput');
-    const inputRect = input.getBoundingClientRect();
+    // Get input wrapper position for menu placement - align with the bordered container
+    const inputWrapper = document.querySelector('.input-wrapper');
+    const inputRect = inputWrapper ? inputWrapper.getBoundingClientRect() : document.getElementById('messageInput').getBoundingClientRect();
     
     // Set styles to ensure visibility
     globalContextMenu.style.position = 'fixed';
     globalContextMenu.style.zIndex = '999999';
     globalContextMenu.style.backgroundColor = 'var(--vscode-dropdown-background, #252526)';
-    globalContextMenu.style.border = '1px solid var(--vscode-focusBorder, #5A32FB)';
-    globalContextMenu.style.borderRadius = '6px';
-    globalContextMenu.style.boxShadow = '0 4px 20px rgba(0,0,0,0.5)';
+    globalContextMenu.style.border = '2px solid var(--vscode-focusBorder, #5A32FB)';
+    globalContextMenu.style.borderRadius = '16px';
+    globalContextMenu.style.boxShadow = '0 8px 16px rgba(0,0,0,0.5)';
     globalContextMenu.style.overflow = 'auto';
     globalContextMenu.style.maxHeight = '300px';
-    globalContextMenu.style.width = 'auto';
-    globalContextMenu.style.minWidth = '300px';
-    globalContextMenu.style.maxWidth = '500px';
     globalContextMenu.style.minHeight = '40px';
     
-    // Position near the cursor in the input field
-    // Find the @ symbol and position menu below it
-    const atSymbolIndex = input.value.lastIndexOf('@', input.selectionStart);
-    if (atSymbolIndex !== -1) {
-      // Calculate the position of the @ symbol
-      // We need to measure the text up to the @ symbol to get its position
-      const textBeforeAt = input.value.substring(0, atSymbolIndex);
-      const tempSpan = document.createElement('span');
-      tempSpan.style.position = 'absolute';
-      tempSpan.style.visibility = 'hidden';
-      tempSpan.style.whiteSpace = 'pre';
-      tempSpan.style.font = window.getComputedStyle(input).font;
-      tempSpan.textContent = textBeforeAt;
-      document.body.appendChild(tempSpan);
-      
-      // Calculate position based on the @ symbol
-      const atPos = tempSpan.getBoundingClientRect().width;
-      document.body.removeChild(tempSpan);
-      
-      // Position the menu below the @ symbol
-      const lineHeight = parseInt(window.getComputedStyle(input).lineHeight) || 20;
-      const topPosition = inputRect.top + lineHeight + window.scrollY;
-      const leftPosition = inputRect.left + atPos + window.scrollX;
-      
-      // Ensure menu stays within viewport
-      globalContextMenu.style.top = `${topPosition}px`;
-      globalContextMenu.style.left = `${leftPosition}px`;
-      
-      // Make sure menu is visible by forcing a reflow
-      document.body.offsetHeight;
-    } else {
-      // Fallback positioning
-      globalContextMenu.style.top = `${inputRect.bottom + window.scrollY + 5}px`;
-      globalContextMenu.style.left = `${inputRect.left + window.scrollX}px`;
-    }
+    // Position the menu directly below the input field, aligned with its edges
+    // Set menu width to match input field's outer width
+    globalContextMenu.style.width = `${inputRect.width}px`;
+    
+    // Position below the input field with a small gap (4px to account for visual alignment)
+    globalContextMenu.style.top = `${inputRect.bottom + window.scrollY + 4}px`;
+    globalContextMenu.style.left = `${inputRect.left + window.scrollX}px`;
     
     // Append to body
     document.body.appendChild(globalContextMenu);
+    
+    // Ensure menu is fully rendered
+    setTimeout(() => {
+      globalContextMenu.style.display = 'block';
+    }, 0);
     
     // Start with base items, add search results if available
     let menuItems = baseContextItems;
@@ -266,17 +240,45 @@
     // Set the HTML content of the global menu
     globalContextMenu.innerHTML = menuHTML;
     
-    // Add click event listeners to menu items
-    const menuItemElements = globalContextMenu.querySelectorAll('.context-menu-item:not(.not-selectable):not(.loading)');
-    menuItemElements.forEach((item, index) => {
-      item.addEventListener('click', () => handleContextMenuSelect(index));
-      item.addEventListener('mouseenter', () => {
-        contextMenuSelectedIndex = index;
-        renderContextMenu();
+    // Wait for DOM to be ready then add listeners
+    setTimeout(() => {
+      const menuItemElements = globalContextMenu.querySelectorAll('.context-menu-item:not(.not-selectable):not(.loading)');
+      menuItemElements.forEach((item, idx) => {
+        const itemIndex = parseInt(item.getAttribute('data-index'));
+        
+        // Add click handler
+        item.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          handleContextMenuSelect(itemIndex);
+        });
+        
+        // Add hover handler
+        item.addEventListener('mouseenter', () => {
+          contextMenuSelectedIndex = itemIndex;
+          // Update visual state without re-rendering
+          menuItemElements.forEach(el => el.classList.remove('selected'));
+          item.classList.add('selected');
+        });
       });
-    });
+    }, 10);
   }
 
+  // Function to update selected menu item visual state
+  function updateSelectedMenuItem() {
+    const globalContextMenu = document.getElementById('global-context-menu');
+    if (!globalContextMenu) return;
+    
+    const menuItems = globalContextMenu.querySelectorAll('.context-menu-item:not(.not-selectable):not(.loading)');
+    menuItems.forEach((item, index) => {
+      if (index === contextMenuSelectedIndex) {
+        item.classList.add('selected');
+      } else {
+        item.classList.remove('selected');
+      }
+    });
+  }
+  
   // Function to insert a mention at the cursor position
   function insertMention(text, position, value) {
     const beforeCursor = text.slice(0, position);
@@ -312,28 +314,36 @@
         }))
       : baseContextItems;
       
-    if (index < 0 || index >= items.length) return;
+    if (index < 0 || index >= items.length) {
+      return;
+    }
     
     const selectedItem = items[index];
     
     // Insert the selected item as a mention
     if (messageInputElement) {
+      // Use value if available, otherwise use type as fallback
+      const mentionValue = selectedItem.value || selectedItem.type;
+      
       const { newValue, mentionIndex } = insertMention(
         messageInputElement.value,
         cursorPosition,
-        selectedItem.value
+        mentionValue
       );
 
       // Update the input value
       messageInputElement.value = newValue;
       
       // Update cursor position
-      const newPosition = mentionIndex + selectedItem.value.length + 2; // +2 for the @ and the space after
+      const newPosition = mentionIndex + mentionValue.length + 2; // +2 for the @ and the space after
       messageInputElement.setSelectionRange(newPosition, newPosition);
       messageInputElement.focus();
       
       // Update highlights
       updateHighlights();
+      
+      // Auto-resize textarea to fit new content
+      autoResizeTextarea();
       
       // Hide context menu
       contextMenuVisible = false;
@@ -442,13 +452,13 @@
           const items = Array.isArray(searchResults) && searchResults.length > 0
             ? searchResults : baseContextItems;
           contextMenuSelectedIndex = Math.min(contextMenuSelectedIndex + 1, items.length - 1);
-          renderContextMenu();
+          updateSelectedMenuItem();
           break;
           
         case 'ArrowUp':
           e.preventDefault();
           contextMenuSelectedIndex = Math.max(contextMenuSelectedIndex - 1, 0);
-          renderContextMenu();
+          updateSelectedMenuItem();
           break;
           
         case 'Enter':
@@ -510,6 +520,35 @@
     contextButtonElement.addEventListener('click', handleContextButtonClick);
   }
   
+  // Function to resize textarea based on content
+  function autoResizeTextarea() {
+    if (!messageInputElement) return;
+    
+    // Store the current scroll position
+    const scrollPos = window.scrollY;
+    
+    // Reset height to auto to get the correct scrollHeight
+    messageInputElement.style.height = 'auto';
+    
+    // Calculate border and padding (if any)
+    const style = window.getComputedStyle(messageInputElement);
+    const borderHeight = parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth);
+    
+    // Set the height to scrollHeight + border
+    const newHeight = Math.min(
+      Math.max(messageInputElement.scrollHeight + borderHeight, 24), // Min height is 24px
+      200 // Max height is 200px
+    );
+    
+    messageInputElement.style.height = newHeight + 'px';
+    
+    // Update highlight layer size and scroll position
+    updateHighlights();
+    
+    // Restore scroll position
+    window.scrollTo(0, scrollPos);
+  }
+  
   // Event listeners for input field
   if (messageInputElement) {
     // Listen for key presses
@@ -522,38 +561,8 @@
     messageInputElement.addEventListener('click', handleInputChange);
     messageInputElement.addEventListener('select', handleInputChange);
     
-    // Function to resize textarea based on content
-    function autoResizeTextarea() {
-      // Store the current scroll position
-      const scrollPos = window.scrollY;
-      
-      // Reset height to auto to get the correct scrollHeight
-      messageInputElement.style.height = 'auto';
-      
-      // Calculate border and padding (if any)
-      const style = window.getComputedStyle(messageInputElement);
-      const borderHeight = parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth);
-      
-      // Set the height to scrollHeight + border
-      const newHeight = Math.min(
-        Math.max(messageInputElement.scrollHeight + borderHeight, 24), // Min height is 24px
-        200 // Max height is 200px
-      );
-      
-      messageInputElement.style.height = newHeight + 'px';
-      
-      // Update highlight layer size and scroll position
-      updateHighlights();
-      
-      // Restore scroll position
-      window.scrollTo(0, scrollPos);
-    }
-    
     // Auto-resize textarea as content grows
     messageInputElement.addEventListener('input', autoResizeTextarea);
-    
-    // Also resize on window resize
-    window.addEventListener('resize', autoResizeTextarea);
     
     // Handle scrolling in the textarea
     messageInputElement.addEventListener('scroll', () => {
@@ -643,9 +652,13 @@
   });
   
   // Click event listener for document to close context menu when clicking outside
-  document.addEventListener('click', (e) => {
+  document.addEventListener('mousedown', (e) => {
+    // Get the global context menu element if it exists
+    const globalContextMenu = document.getElementById('global-context-menu');
+    
     // Check if click is outside the context menu and input
     const isClickOutside = 
+      !globalContextMenu?.contains(e.target) &&
       !contextMenuContainer?.contains(e.target) && 
       !messageInputElement?.contains(e.target) &&
       e.target !== contextButtonElement;
