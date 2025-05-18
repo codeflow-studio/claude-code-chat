@@ -55,7 +55,7 @@ export function activate(context: vscode.ExtensionContext) {
   }
   
   // Register Terminal Input Provider
-  claudeTerminalInputProvider = new ClaudeTerminalInputProvider(context.extensionUri, terminal);
+  claudeTerminalInputProvider = new ClaudeTerminalInputProvider(context.extensionUri, terminal, context);
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider('claudeCodeInputView', claudeTerminalInputProvider)
   );

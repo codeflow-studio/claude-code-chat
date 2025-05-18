@@ -11,6 +11,9 @@
   const terminalStatusBanner = document.getElementById('terminalStatusBanner');
   const highlightLayerElement = document.getElementById('highlightLayer');
   const contextMenuContainer = document.getElementById('contextMenuContainer');
+  const imageButtonElement = document.getElementById('imageButton');
+  const imageInputElement = document.getElementById('imageInput');
+  const imagePreviewContainer = document.getElementById('imagePreviewContainer');
   
   // RegExp for detecting @ mentions
   const mentionRegex = /@((?:\/|\w+:\/\/)[^\s]+?|[a-f0-9]{7,40}\b|problems\b|terminal\b|git-changes\b)(?=[.,;:!?]?(?=[\s\r\n]|$))/;
@@ -31,6 +34,9 @@
   let slashCommandSelectedIndex = -1;
   let slashCommandQuery = '';
   let slashCommands = [];
+  
+  // Image upload state
+  let pendingImages = [];
   
   // Base context menu items
   const baseContextItems = [
@@ -90,19 +96,22 @@
   // Function to handle sending a message
   function sendMessage() {
     const text = messageInputElement.value.trim();
-    if (!text) {
+    if (!text && pendingImages.length === 0) {
       return;
     }
     
-    // Send the message to the extension
+    // Send the message to the extension with images if any
     vscode.postMessage({
       command: 'sendToTerminal',
-      text: text
+      text: text,
+      images: pendingImages
     });
     
-    // Clear input after sending
+    // Clear input and images after sending
     messageInputElement.value = '';
     messageInputElement.focus();
+    pendingImages = [];
+    updateImagePreview();
     updateHighlights();
   }
   
@@ -912,6 +921,22 @@
         // Update the context menu
         renderContextMenu();
         break;
+        
+      case 'imageFilesSelected':
+        // Handle image file paths from VSCode file selection
+        if (message.imagePaths && message.imagePaths.length > 0) {
+          message.imagePaths.forEach(path => {
+            const fileName = path.split('/').pop() || path.split('\\').pop() || 'image';
+            pendingImages.push({
+              name: fileName,
+              type: 'image/*', // We don't know the exact type from path
+              path: path,
+              isFromClipboard: false
+            });
+          });
+          updateImagePreview();
+        }
+        break;
     }
   });
   
@@ -941,6 +966,174 @@
     if (isClickOutsideSlash && slashCommandVisible) {
       slashCommandVisible = false;
       renderSlashCommandMenu();
+    }
+  });
+  
+  // Function to handle image file selection
+  function handleImageSelection(files, isFromClipboard = false) {
+    const validFiles = Array.from(files).filter(file => {
+      return file.type.startsWith('image/');
+    });
+
+    if (validFiles.length === 0) {
+      vscode.postMessage({
+        command: 'showError',
+        message: 'Please select valid image files (PNG, JPG, JPEG, GIF, WebP)'
+      });
+      return;
+    }
+
+    validFiles.forEach(file => {
+      // For clipboard images, we need to save to temp as they don't have a path
+      if (isFromClipboard) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          pendingImages.push({
+            name: file.name || `clipboard-image-${Date.now()}.png`,
+            type: file.type,
+            data: e.target.result,
+            isFromClipboard: true
+          });
+          updateImagePreview();
+        };
+        reader.onerror = (error) => {
+          console.error('Error reading clipboard file:', error);
+          vscode.postMessage({
+            command: 'showError',
+            message: `Failed to read clipboard image`
+          });
+        };
+        reader.readAsDataURL(file);
+      } else {
+        // For file selection and drag-drop, we'll use a special command to get the actual path
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          pendingImages.push({
+            name: file.name,
+            type: file.type,
+            data: e.target.result,
+            isFromClipboard: false,
+            needsPath: true  // Flag to indicate we need to resolve the actual path
+          });
+          updateImagePreview();
+        };
+        reader.onerror = (error) => {
+          console.error('Error reading file:', error);
+          vscode.postMessage({
+            command: 'showError',
+            message: `Failed to read file: ${file.name}`
+          });
+        };
+        reader.readAsDataURL(file);
+      }
+    });
+  }
+
+  // Function to update image preview display
+  function updateImagePreview() {
+    if (!imagePreviewContainer) return;
+
+    if (pendingImages.length === 0) {
+      imagePreviewContainer.style.display = 'none';
+      imagePreviewContainer.innerHTML = '';
+      return;
+    }
+
+    imagePreviewContainer.style.display = 'flex';
+    
+    const previewHTML = pendingImages.map((image, index) => {
+      // For path-based images, just show the filename
+      if (image.path && !image.data) {
+        return `
+          <div class="image-preview-item">
+            <div class="preview-icon">📷</div>
+            <span class="preview-name" title="${image.path}">${image.name}</span>
+            <button class="image-remove-btn" data-index="${index}" title="Remove image">×</button>
+          </div>
+        `;
+      } else {
+        // For clipboard images, show the actual preview
+        return `
+          <div class="image-preview-item">
+            <img src="${image.data}" alt="${image.name}" class="preview-thumbnail" />
+            <span class="preview-name">${image.name}</span>
+            <button class="image-remove-btn" data-index="${index}" title="Remove image">×</button>
+          </div>
+        `;
+      }
+    }).join('');
+
+    imagePreviewContainer.innerHTML = previewHTML;
+
+    // Add event listeners to remove buttons
+    const removeButtons = imagePreviewContainer.querySelectorAll('.image-remove-btn');
+    removeButtons.forEach(button => {
+      button.addEventListener('click', (e) => {
+        const index = parseInt(e.target.getAttribute('data-index'));
+        pendingImages.splice(index, 1);
+        updateImagePreview();
+      });
+    });
+  }
+
+  // Event listener for image button
+  if (imageButtonElement) {
+    imageButtonElement.addEventListener('click', () => {
+      // Request VSCode to open file selection dialog
+      vscode.postMessage({
+        command: 'selectImageFiles'
+      });
+    });
+  }
+
+  // Handle drag and drop
+  if (messageInputElement) {
+    messageInputElement.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+      messageInputElement.classList.add('drag-over');
+    });
+
+    messageInputElement.addEventListener('dragleave', () => {
+      messageInputElement.classList.remove('drag-over');
+    });
+
+    messageInputElement.addEventListener('drop', (e) => {
+      e.preventDefault();
+      messageInputElement.classList.remove('drag-over');
+      
+      const files = Array.from(e.dataTransfer.files).filter(file => 
+        file.type.startsWith('image/')
+      );
+      
+      if (files.length > 0) {
+        // For drag-drop, we need to save to temp since we can't access the original path
+        handleImageSelection(files, true);
+      }
+    });
+  }
+
+  // Add keyboard shortcut for image paste (Ctrl/Cmd+V)
+  document.addEventListener('paste', (e) => {
+    // Skip if we're in the message input (let regular paste work)
+    if (document.activeElement === messageInputElement) {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      const imageItems = Array.from(items).filter(item => 
+        item.type.startsWith('image/')
+      );
+
+      if (imageItems.length > 0) {
+        e.preventDefault();
+        
+        imageItems.forEach(item => {
+          const file = item.getAsFile();
+          if (file) {
+            handleImageSelection([file], true); // Mark as clipboard image
+          }
+        });
+      }
     }
   });
   

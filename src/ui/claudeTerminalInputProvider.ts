@@ -1,16 +1,21 @@
 import * as vscode from "vscode";
 import { getNonce } from "../utils";
 import { searchFiles, getGitCommits } from "../fileSystem";
+import { ImageManager } from "../service/imageManager";
 
 export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = "claudeCodeInputView";
   private _view?: vscode.WebviewView;
   private _isTerminalClosed: boolean = false;
+  private _imageManager?: ImageManager;
 
   constructor(
     private readonly _extensionUri: vscode.Uri,
-    private _terminal: vscode.Terminal
-  ) {}
+    private _terminal: vscode.Terminal,
+    private _context: vscode.ExtensionContext
+  ) {
+    this._imageManager = new ImageManager(_context);
+  }
 
   public updateTerminal(terminal: vscode.Terminal) {
     this._terminal = terminal;
@@ -64,11 +69,16 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
       (message) => {
         switch (message.command) {
           case "sendToTerminal":
-            // Check if it's a slash command
-            if (message.text.trim().startsWith('/')) {
-              this._handleSlashCommand(message.text.trim());
+            // Handle images if present
+            if (message.images && message.images.length > 0) {
+              this._handleMessageWithImages(message.text, message.images);
             } else {
-              this._sendToTerminal(message.text);
+              // Check if it's a slash command
+              if (message.text.trim().startsWith('/')) {
+                this._handleSlashCommand(message.text.trim());
+              } else {
+                this._sendToTerminal(message.text);
+              }
             }
             return;
             
@@ -78,6 +88,14 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
             
           case "searchCommits":
             this._handleCommitSearch(message.query, message.mentionsRequestId);
+            return;
+            
+          case "showError":
+            vscode.window.showErrorMessage(message.message);
+            return;
+            
+          case "selectImageFiles":
+            this._handleImageFileSelection();
             return;
         }
       },
@@ -169,6 +187,123 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
     this._sendToTerminal(command);
   }
   
+  private async _handleImageFileSelection() {
+    const options: vscode.OpenDialogOptions = {
+      canSelectMany: true,
+      openLabel: 'Select Images',
+      filters: {
+        'Images': ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg']
+      }
+    };
+
+    const fileUris = await vscode.window.showOpenDialog(options);
+    
+    if (fileUris && fileUris.length > 0) {
+      const imagePaths = fileUris.map(uri => uri.fsPath);
+      
+      // Send the paths to the webview
+      if (this._view) {
+        this._view.webview.postMessage({
+          command: 'imageFilesSelected',
+          imagePaths: imagePaths
+        });
+      }
+    }
+  }
+  
+  private async _handleMessageWithImages(text: string, images: any[]) {
+    try {
+      const imagePaths: string[] = [];
+      const failedImages: string[] = [];
+      
+      for (const image of images) {
+        if (!image.name) {
+          continue;
+        }
+        
+        try {
+          // If it's a clipboard image, save to temp
+          if (image.isFromClipboard && image.data) {
+            const tempPath = await this._imageManager!.saveImage(image.data, image.name, image.type);
+            
+            // Verify the file was actually created
+            const fs = require('fs');
+            if (fs.existsSync(tempPath)) {
+              // Double-check the file is readable
+              try {
+                await fs.promises.access(tempPath, fs.constants.R_OK);
+                imagePaths.push(tempPath);
+              } catch (accessError) {
+                console.error(`File created but not readable: ${tempPath}`, accessError);
+                failedImages.push(image.name);
+                // Try to clean up the inaccessible file
+                try {
+                  await this._imageManager!.removeImage(tempPath);
+                } catch (cleanupError) {
+                  console.error('Failed to clean up inaccessible file:', cleanupError);
+                }
+              }
+            } else {
+              console.error(`File was not created successfully: ${tempPath}`);
+              failedImages.push(image.name);
+            }
+          } else if (image.path) {
+            // Use the original path for file selections and drag-drop
+            const fs = require('fs');
+            try {
+              await fs.promises.access(image.path, fs.constants.R_OK);
+              imagePaths.push(image.path);
+            } catch (error) {
+              console.error(`Cannot access file: ${image.path}`, error);
+              failedImages.push(image.name);
+            }
+          }
+        } catch (error) {
+          console.error(`Failed to process image ${image.name}:`, error);
+          failedImages.push(image.name);
+        }
+      }
+      
+      // Notify user about failed images
+      if (failedImages.length > 0) {
+        const failedList = failedImages.join(', ');
+        vscode.window.showWarningMessage(
+          `Failed to process ${failedImages.length} image(s): ${failedList}. Continuing with successfully processed images.`
+        );
+      }
+      
+      // Only proceed if we have successfully processed images or text
+      if (imagePaths.length === 0 && !text) {
+        vscode.window.showErrorMessage('No images were successfully processed and no text was provided.');
+        return;
+      }
+      
+      // Format message with verified image paths
+      let enhancedMessage = text || '';
+      
+      if (imagePaths.length > 0) {
+        const imageReferences = this._imageManager!.formatImageReferences(imagePaths);
+        enhancedMessage = enhancedMessage ? `${enhancedMessage}${imageReferences}` : imageReferences.trim();
+        
+        // Log successful image paths for debugging
+        console.log(`Successfully processed ${imagePaths.length} image(s):`, imagePaths);
+      }
+      
+      // Send to terminal only if we have content
+      if (enhancedMessage) {
+        this._sendToTerminal(enhancedMessage);
+      }
+      
+    } catch (error) {
+      console.error('Error handling images:', error);
+      vscode.window.showErrorMessage(`Failed to process images: ${error}`);
+      // Fallback to sending just text if available
+      if (text) {
+        this._sendToTerminal(text);
+      }
+    }
+  }
+  
   private _getHtmlForWebview(webview: vscode.Webview) {
     // Generate nonce for script security
     const nonce = getNonce();
@@ -251,6 +386,11 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
                 <button id="contextButton" title="Add Context (@)" class="context-button">
                   @
                 </button>
+                <button id="imageButton" title="Attach image" class="image-button">
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M9 1H3.5C2.67157 1 2 1.67157 2 2.5V13.5C2 14.3284 2.67157 15 3.5 15H12.5C13.3284 15 14 14.3284 14 13.5V6M9 1L14 6M9 1V6H14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </button>
                 <button id="sendButton" title="Send to Claude Terminal">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" fill="currentColor"/>
@@ -259,6 +399,7 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
               </div>
             </div>
             <div id="contextMenuContainer" class="context-menu-container" style="display: none;"></div>
+            <div id="imagePreviewContainer" class="image-preview-container"></div>
           </div>
           
           <!-- Claude attribution footer -->
