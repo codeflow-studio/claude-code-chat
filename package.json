@@ -4,6 +4,10 @@
   "description": "Claude Code terminal input for VS Code",
   "version": "0.0.1",
   "publisher": "anthropic",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/anthropic/claude-code-extension"
+  },
   "engines": {
     "vscode": "^1.100.0"
   },
