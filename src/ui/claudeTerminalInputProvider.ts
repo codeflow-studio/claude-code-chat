@@ -177,11 +177,35 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
       <html lang="en">
       <head>
         <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource}; font-src ${webview.cspSource}; img-src ${webview.cspSource} data:; script-src 'nonce-${nonce}';">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; font-src ${webview.cspSource}; img-src ${webview.cspSource} data:; script-src 'nonce-${nonce}';">
         <link href="${styleUri}" rel="stylesheet">
         <link href="${codiconsCss}" rel="stylesheet">
         <title>Claude Code Input</title>
+        <style>
+          html, body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow-x: hidden;
+          }
+          * {
+            box-sizing: border-box;
+          }
+          .input-wrapper {
+            width: 100% !important;
+            min-width: 100% !important;
+          }
+          .highlight-container {
+            width: 100% !important;
+            min-width: 100% !important;
+          }
+          textarea {
+            width: 100% !important;
+            min-width: 100% !important;
+          }
+        </style>
       </head>
       <body>
         <div class="chat-container input-only">
@@ -206,14 +230,13 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
             <div class="input-wrapper">
               <div class="highlight-container">
                 <div id="highlightLayer" class="highlight-layer"></div>
-                <textarea id="messageInput" placeholder="Type your message to Claude Code..." rows="3"></textarea>
+                <textarea id="messageInput" placeholder="Type your task here..." rows="1"></textarea>
               </div>
               <div class="input-actions">
                 <button id="contextButton" title="Add Context (@)" class="context-button">
                   @
                 </button>
                 <button id="sendButton" title="Send to Claude Terminal">
-                  Send
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" fill="currentColor"/>
                   </svg>

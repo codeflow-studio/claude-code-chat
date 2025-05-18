@@ -78,10 +78,15 @@ body {
 
 /* Special style for terminal input container */
 .chat-container.input-only {
-  max-height: 280px; /* Further increased to ensure attribution text is visible */
+  max-height: none; /* Remove fixed height limitation */
   height: auto;
   display: flex;
   flex-direction: column;
+  min-height: 80px; /* Minimum height to fit all elements */
+  width: 100%; /* Ensure container takes full width */
+  box-sizing: border-box; /* Include padding in width calculation */
+  padding: 0; /* Remove any potential padding */
+  margin: 0; /* Remove any potential margin */
 }
 
 .chat-header {
@@ -310,6 +315,8 @@ body {
   border-top: 1px solid var(--claude-border);
   background-color: var(--bg-color);
   position: relative;
+  width: 100%; /* Take full width */
+  box-sizing: border-box; /* Include padding in width calculation */
 }
 
 /* Special styles for input-only view */
@@ -319,31 +326,39 @@ body {
   display: flex;
   flex-direction: column;
   overflow: visible; /* Prevent content from being cut off */
-  min-height: 100px; /* Reduced to leave more room for footer */
-  padding-bottom: 16px; /* Reduced padding */
-  max-height: 200px; /* Limit maximum height */
+  padding: 16px 16px; /* Horizontal padding */
+  max-height: none; /* Remove maximum height limit */
+  width: 100%; /* Full width */
+  box-sizing: border-box; /* Include padding in width calculation */
+  margin: 0; /* Remove any potential margin */
+  align-items: stretch; /* Make children stretch to full width */
 }
 
 .input-only textarea {
-  min-height: 80px;
-  max-height: 120px; /* Limit maximum height */
+  min-height: 24px; /* Single line height initially */
+  max-height: 200px; /* Increase maximum height to allow for more content */
 }
 
 .input-wrapper {
   flex: 1;
   display: flex;
   position: relative;
-  border: 1px solid var(--claude-border);
-  border-radius: 8px;
-  background-color: var(--claude-input-bg);
+  border: 2px solid var(--claude-primary); /* Thicker border with Claude primary color */
+  border-radius: 16px; /* Increased border radius */
+  background-color: var(--bg-color); /* Use the main background color */
   overflow: hidden;
+  width: 100%; /* Take full width */
+  min-width: 100%; /* Ensure minimum width */
+  max-width: 100%; /* Prevent exceeding container width */
+  box-sizing: border-box; /* Include border in width calculation */
+  margin: 0 auto; /* Center horizontally if needed */
+  align-self: stretch; /* Stretch to container width */
 }
 
 .input-wrapper:focus-within {
-  border-color: var(--claude-border);
-  /* No yellow highlight on focus */
+  border-color: var(--claude-primary); /* Change border color on focus */
   outline: none;
-  box-shadow: none !important;
+  box-shadow: 0 0 0 1px var(--claude-primary) !important; /* Add subtle glow on focus */
 }
 
 textarea {
@@ -351,8 +366,8 @@ textarea {
   background-color: transparent;
   color: var(--claude-input-text);
   border: none;
-  border-radius: 8px;
-  padding: 12px 60px 12px 16px;
+  border-radius: 16px; /* Match the input-wrapper */
+  padding: 10px 60px 10px 14px; /* Adjusted padding */
   resize: none;
   font-family: inherit;
   font-size: inherit;
@@ -361,12 +376,16 @@ textarea {
   outline: none !important; /* Ensure no outline on focus */
   line-height: 1.5;
   box-shadow: none !important; /* Remove any box shadow on focus */
+  overflow-y: auto; /* Allow scrolling when content exceeds max height */
+  width: 100%; /* Take full width */
+  box-sizing: border-box; /* Include padding in width calculation */
 }
 
 .input-actions {
   position: absolute;
-  right: 8px;
-  bottom: 8px;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -396,7 +415,7 @@ button {
   background-color: var(--claude-primary);
   color: white;
   border: none;
-  border-radius: 6px;
+  border-radius: 16px; /* Match input field radius */
   padding: 6px 12px;
   cursor: pointer;
   font-family: inherit;
@@ -410,6 +429,27 @@ button {
 
 button:hover {
   background-color: var(--claude-dark);
+}
+
+/* Make the send button more like the image */
+#sendButton {
+  background-color: transparent;
+  border: none;
+  color: var(--claude-primary);
+  padding: 6px;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+}
+
+#sendButton:hover {
+  background-color: rgba(90, 50, 251, 0.1);
+}
+
+#sendButton svg {
+  width: 18px;
+  height: 18px;
+  margin: 0;
 }
 
 button:disabled {
@@ -436,6 +476,8 @@ button svg {
   min-height: 20px; /* Ensure minimum height */
   position: relative; /* Ensure it's in the layout flow */
   overflow: visible; /* Prevent content from being cut off */
+  width: 100%; /* Full width */
+  box-sizing: border-box; /* Include padding in width calculation */
 }
 
 .claude-attribution {
@@ -632,11 +674,14 @@ button svg {
   z-index: 99999;
   overflow: auto;
   max-height: 300px;
+  min-height: 40px;
   background-color: var(--vscode-dropdown-background, #252526);
   border: 1px solid var(--vscode-focusBorder, #5A32FB);
   border-radius: 6px;
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.5);
   pointer-events: auto;
+  min-width: 280px;
+  padding: 4px;
 }
 
 .context-menu {
@@ -650,7 +695,7 @@ button svg {
 }
 
 .context-menu-item {
-  padding: 8px 10px;
+  padding: 10px 12px;
   cursor: pointer;
   border-bottom: 1px solid var(--vscode-editorGroup-border, #444);
   display: flex;
@@ -660,6 +705,7 @@ button svg {
   font-size: 13px;
   margin-bottom: 2px;
   border-radius: 3px;
+  min-height: 38px;
 }
 
 .context-menu-item:hover {
@@ -756,6 +802,7 @@ button svg {
 .highlight-container {
   position: relative;
   flex: 1;
+  width: 100%; /* Take full width */
 }
 
 .highlight-layer {
@@ -769,6 +816,7 @@ button svg {
   overflow: hidden;
   color: transparent;
   background: transparent;
+  width: 100%; /* Take full width */
 }
 
 .highlight-layer mark {

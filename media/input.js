@@ -128,6 +128,7 @@
     globalContextMenu.style.width = 'auto';
     globalContextMenu.style.minWidth = '300px';
     globalContextMenu.style.maxWidth = '500px';
+    globalContextMenu.style.minHeight = '40px';
     
     // Position near the cursor in the input field
     // Find the @ symbol and position menu below it
@@ -149,9 +150,16 @@
       document.body.removeChild(tempSpan);
       
       // Position the menu below the @ symbol
-      const lineHeight = parseInt(window.getComputedStyle(input).lineHeight);
-      globalContextMenu.style.top = `${inputRect.top + lineHeight + window.scrollY}px`;
-      globalContextMenu.style.left = `${inputRect.left + atPos + window.scrollX}px`;
+      const lineHeight = parseInt(window.getComputedStyle(input).lineHeight) || 20;
+      const topPosition = inputRect.top + lineHeight + window.scrollY;
+      const leftPosition = inputRect.left + atPos + window.scrollX;
+      
+      // Ensure menu stays within viewport
+      globalContextMenu.style.top = `${topPosition}px`;
+      globalContextMenu.style.left = `${leftPosition}px`;
+      
+      // Make sure menu is visible by forcing a reflow
+      document.body.offsetHeight;
     } else {
       // Fallback positioning
       globalContextMenu.style.top = `${inputRect.bottom + window.scrollY + 5}px`;
@@ -229,7 +237,7 @@
     let finalContent = itemsHtml;
     if (itemsHtml.length === 0) {
       finalContent = `
-        <div class="context-menu-item not-selectable">
+        <div class="context-menu-item not-selectable" style="min-height: 40px;">
           <div class="context-menu-item-content">
             <span class="codicon codicon-info"></span>
             <div class="context-menu-text">No results found</div>
@@ -241,7 +249,7 @@
     // Add loading indicator if searching
     if (isSearchLoading) {
       finalContent = `
-        <div class="context-menu-item loading">
+        <div class="context-menu-item loading" style="min-height: 40px;">
           <div class="loading-spinner"></div>
           <span>Searching...</span>
         </div>
@@ -256,10 +264,10 @@
     `;
     
     // Set the HTML content of the global menu
-    globalMenu.innerHTML = menuHTML;
+    globalContextMenu.innerHTML = menuHTML;
     
     // Add click event listeners to menu items
-    const menuItemElements = globalMenu.querySelectorAll('.context-menu-item:not(.not-selectable):not(.loading)');
+    const menuItemElements = globalContextMenu.querySelectorAll('.context-menu-item:not(.not-selectable):not(.loading)');
     menuItemElements.forEach((item, index) => {
       item.addEventListener('click', () => handleContextMenuSelect(index));
       item.addEventListener('mouseenter', () => {
@@ -375,8 +383,7 @@
     cursorPosition = messageInputElement.selectionStart;
     const inputValue = messageInputElement.value;
     
-    // Debug the input and cursor position
-    console.log("Input value:", inputValue, "Position:", cursorPosition);
+    // Get input value and cursor position
     
     // Always show menu if we detect an @ character
     const beforeCursor = inputValue.slice(0, cursorPosition);
@@ -386,19 +393,19 @@
     // Check if there's text after the @ that would disqualify showing the menu
     const showMenu = hasAtSymbol && shouldShowContextMenu(inputValue, cursorPosition);
     
-    console.log("Show menu:", showMenu, "Has @ symbol:", hasAtSymbol, "At index:", atIndex);
+    // Determine context menu visibility based on @ symbol position
     
     // Update context menu visibility
     if (showMenu !== contextMenuVisible) {
       contextMenuVisible = showMenu;
       contextMenuSelectedIndex = contextMenuVisible ? 0 : -1;
-      console.log("Context menu visibility changed to:", contextMenuVisible);
+      // Update context menu selected index when visibility changes
     }
     
     // If showing context menu, update search query and trigger search
     if (contextMenuVisible) {
       const newSearchQuery = beforeCursor.slice(atIndex + 1);
-      console.log("Search query:", newSearchQuery);
+      // Extract search query from text after @ symbol
       
       // Show default items immediately regardless of query
       if (newSearchQuery.length === 0) {
@@ -515,16 +522,38 @@
     messageInputElement.addEventListener('click', handleInputChange);
     messageInputElement.addEventListener('select', handleInputChange);
     
-    // Auto-resize textarea as content grows
-    messageInputElement.addEventListener('input', () => {
+    // Function to resize textarea based on content
+    function autoResizeTextarea() {
+      // Store the current scroll position
+      const scrollPos = window.scrollY;
+      
       // Reset height to auto to get the correct scrollHeight
       messageInputElement.style.height = 'auto';
+      
+      // Calculate border and padding (if any)
+      const style = window.getComputedStyle(messageInputElement);
+      const borderHeight = parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth);
+      
       // Set the height to scrollHeight + border
-      messageInputElement.style.height = (messageInputElement.scrollHeight) + 'px';
+      const newHeight = Math.min(
+        Math.max(messageInputElement.scrollHeight + borderHeight, 24), // Min height is 24px
+        200 // Max height is 200px
+      );
+      
+      messageInputElement.style.height = newHeight + 'px';
       
       // Update highlight layer size and scroll position
       updateHighlights();
-    });
+      
+      // Restore scroll position
+      window.scrollTo(0, scrollPos);
+    }
+    
+    // Auto-resize textarea as content grows
+    messageInputElement.addEventListener('input', autoResizeTextarea);
+    
+    // Also resize on window resize
+    window.addEventListener('resize', autoResizeTextarea);
     
     // Handle scrolling in the textarea
     messageInputElement.addEventListener('scroll', () => {
@@ -631,22 +660,35 @@
   function init() {
     console.log("Initializing terminal input UI");
     
-    // Log element references for debugging
-    console.log("Context menu container:", contextMenuContainer);
-    console.log("Message input:", messageInputElement);
-    console.log("Context button:", contextButtonElement);
-    console.log("Highlight layer:", highlightLayerElement);
+    // Check critical elements and log warnings if missing
+    if (!contextMenuContainer) {
+      console.warn("Context menu container element not found");
+    }
+    if (!messageInputElement) {
+      console.warn("Message input element not found");
+    }
+    if (!contextButtonElement) {
+      console.warn("Context button element not found");
+    }
+    if (!highlightLayerElement) {
+      console.warn("Highlight layer element not found");
+    }
     
     // Set initial height for textarea
     if (messageInputElement) {
-      messageInputElement.style.height = 'auto';
-      messageInputElement.style.height = (messageInputElement.scrollHeight) + 'px';
+      // Initially set to the minimum height (single line)
+      messageInputElement.style.height = '24px';
+      
+      // If there's content already (e.g. after a refresh), adjust height automatically
+      if (messageInputElement.value) {
+        autoResizeTextarea();
+      }
     }
     
     // Set container height based on terminal status
     if (terminalStatusBanner && !terminalStatusBanner.classList.contains('hidden')) {
-      // If banner is visible, ensure container has enough height
-      document.querySelector('.chat-container').style.maxHeight = '280px';
+      // If banner is visible, adjust container as needed
+      document.querySelector('.chat-container').style.maxHeight = 'none';
     }
     
     // Initialize highlight layer
