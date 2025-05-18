@@ -26,11 +26,66 @@
   let isSearchLoading = false;
   let justDeletedSpaceAfterMention = false;
   
+  // Slash command state
+  let slashCommandVisible = false;
+  let slashCommandSelectedIndex = -1;
+  let slashCommandQuery = '';
+  let slashCommands = [];
+  
   // Base context menu items
   const baseContextItems = [
     { type: 'problems', value: 'problems', label: 'Problems', description: 'Workspace problems' },
     { type: 'terminal', value: 'terminal', label: 'Terminal', description: 'Terminal output' }
   ];
+  
+  // Slash commands
+  const ALL_SLASH_COMMANDS = [
+    { command: '/bug', description: 'Report bugs (sends conversation to Anthropic)', icon: '🐛' },
+    { command: '/clear', description: 'Clear conversation history', icon: '🗑️' },
+    { command: '/compact', description: 'Compact conversation with optional focus instructions', icon: '📦' },
+    { command: '/config', description: 'View/modify configuration', icon: '⚙️' },
+    { command: '/cost', description: 'Show token usage statistics', icon: '💰' },
+    { command: '/doctor', description: 'Checks the health of your Claude Code installation', icon: '🏥' },
+    { command: '/help', description: 'Get usage help', icon: '❓' },
+    { command: '/init', description: 'Initialize project with CLAUDE.md guide', icon: '🚀' },
+    { command: '/login', description: 'Switch Anthropic accounts', icon: '🔐' },
+    { command: '/logout', description: 'Sign out from your Anthropic account', icon: '🚪' },
+    { command: '/memory', description: 'Edit CLAUDE.md memory files', icon: '🧠' },
+    { command: '/pr_comments', description: 'View pull request comments', icon: '💬' },
+    { command: '/review', description: 'Request code review', icon: '👀' },
+    { command: '/status', description: 'View account and system statuses', icon: '📊' },
+    { command: '/terminal-setup', description: 'Install Shift+Enter key binding for newlines', icon: '⌨️' },
+    { command: '/vim', description: 'Enter vim mode for alternating insert and command modes', icon: '📝' },
+  ];
+
+  // Function to filter slash commands based on query
+  function filterSlashCommands(query) {
+    const searchTerm = query.toLowerCase();
+    return ALL_SLASH_COMMANDS.filter(cmd => 
+      cmd.command.toLowerCase().includes(searchTerm) ||
+      cmd.description.toLowerCase().includes(searchTerm)
+    );
+  }
+  
+  // Function to check if slash command menu should be shown
+  function shouldShowSlashCommands(text, position) {
+    // Check if text starts with "/" (at the beginning of input or after newline)
+    const beforeCursor = text.slice(0, position);
+    const lines = beforeCursor.split('\n');
+    const currentLine = lines[lines.length - 1];
+    
+    // Only show if current line starts with "/" and no space before cursor
+    if (currentLine.startsWith('/')) {
+      const afterSlash = currentLine.substring(1, position - (beforeCursor.length - currentLine.length));
+      // Don't show if there's a space after the slash
+      if (afterSlash.includes(' ')) {
+        return false;
+      }
+      return true;
+    }
+    
+    return false;
+  }
 
   // Function to handle sending a message
   function sendMessage() {
@@ -92,6 +147,155 @@
     }
     
     return true;
+  }
+
+  // Function to render the slash command menu
+  function renderSlashCommandMenu() {
+    // First, remove any existing slash command menu
+    const existingMenu = document.getElementById('global-slash-command-menu');
+    if (existingMenu) {
+      existingMenu.remove();
+    }
+    
+    // If we shouldn't show the menu, just return
+    if (!slashCommandVisible) {
+      return;
+    }
+    
+    // Create a new slash command menu element
+    const globalSlashMenu = document.createElement('div');
+    globalSlashMenu.id = 'global-slash-command-menu';
+    globalSlashMenu.className = 'slash-command-menu-container';
+    
+    // Get input wrapper position for menu placement
+    const inputWrapper = document.querySelector('.input-wrapper');
+    const inputRect = inputWrapper ? inputWrapper.getBoundingClientRect() : document.getElementById('messageInput').getBoundingClientRect();
+    
+    // Set styles to ensure visibility
+    globalSlashMenu.style.position = 'fixed';
+    globalSlashMenu.style.zIndex = '999999';
+    globalSlashMenu.style.backgroundColor = 'var(--vscode-dropdown-background, #252526)';
+    globalSlashMenu.style.border = '2px solid var(--vscode-focusBorder, #5A32FB)';
+    globalSlashMenu.style.borderRadius = '16px';
+    globalSlashMenu.style.boxShadow = '0 8px 16px rgba(0,0,0,0.5)';
+    globalSlashMenu.style.overflow = 'hidden';
+    globalSlashMenu.style.maxHeight = '300px';
+    globalSlashMenu.style.minHeight = '40px';
+    
+    // Position the menu directly below the input field, aligned with its edges
+    globalSlashMenu.style.width = `${inputRect.width}px`;
+    globalSlashMenu.style.top = `${inputRect.bottom + window.scrollY + 4}px`;
+    globalSlashMenu.style.left = `${inputRect.left + window.scrollX}px`;
+    
+    // Append to body
+    document.body.appendChild(globalSlashMenu);
+    
+    // Create menu items HTML
+    const itemsHtml = slashCommands.map((command, index) => {
+      const isSelected = index === slashCommandSelectedIndex;
+      
+      return `
+        <div class="slash-command-menu-item ${isSelected ? 'selected' : ''}" data-index="${index}">
+          <div class="slash-command-item-content">
+            <span class="slash-command-icon">${command.icon || '/'}</span>
+            <div class="slash-command-text">
+              <div class="slash-command-name">${command.command}</div>
+              <div class="slash-command-description">${command.description}</div>
+            </div>
+          </div>
+        </div>
+      `;
+    }).join('');
+    
+    // Create the final menu HTML
+    const menuHTML = `
+      <div class="slash-command-menu">
+        ${itemsHtml || '<div class="slash-command-menu-item not-selectable">No matching commands</div>'}
+      </div>
+    `;
+    
+    // Set the HTML content
+    globalSlashMenu.innerHTML = menuHTML;
+    
+    // Add event listeners
+    setTimeout(() => {
+      const menuItemElements = globalSlashMenu.querySelectorAll('.slash-command-menu-item:not(.not-selectable)');
+      menuItemElements.forEach((item) => {
+        const itemIndex = parseInt(item.getAttribute('data-index'));
+        
+        // Add click handler
+        item.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          handleSlashCommandSelect(itemIndex);
+        });
+        
+        // Add hover handler
+        item.addEventListener('mouseenter', () => {
+          slashCommandSelectedIndex = itemIndex;
+          updateSelectedSlashMenuItem();
+        });
+      });
+    }, 10);
+  }
+  
+  // Function to update selected slash command menu item visual state
+  function updateSelectedSlashMenuItem() {
+    const globalSlashMenu = document.getElementById('global-slash-command-menu');
+    if (!globalSlashMenu) return;
+    
+    const menuItems = globalSlashMenu.querySelectorAll('.slash-command-menu-item:not(.not-selectable)');
+    menuItems.forEach((item, index) => {
+      if (index === slashCommandSelectedIndex) {
+        item.classList.add('selected');
+        
+        // Scroll the selected item into view if needed
+        item.scrollIntoView({ 
+          block: 'nearest',
+          inline: 'nearest',
+          behavior: 'smooth'
+        });
+      } else {
+        item.classList.remove('selected');
+      }
+    });
+  }
+  
+  // Function to handle slash command selection
+  function handleSlashCommandSelect(index) {
+    if (index < 0 || index >= slashCommands.length) {
+      return;
+    }
+    
+    const selectedCommand = slashCommands[index];
+    
+    // Replace the current line with the selected command
+    if (messageInputElement) {
+      const text = messageInputElement.value;
+      const lines = text.split('\n');
+      const currentLineIndex = text.slice(0, messageInputElement.selectionStart).split('\n').length - 1;
+      
+      // Replace the current line with the selected command
+      lines[currentLineIndex] = selectedCommand.command + ' ';
+      messageInputElement.value = lines.join('\n');
+      
+      // Set cursor position after the command
+      const newPosition = lines.slice(0, currentLineIndex).join('\n').length + 
+                         (currentLineIndex > 0 ? 1 : 0) + 
+                         selectedCommand.command.length + 1;
+      messageInputElement.setSelectionRange(newPosition, newPosition);
+      messageInputElement.focus();
+      
+      // Update highlights
+      updateHighlights();
+      
+      // Auto-resize textarea
+      autoResizeTextarea();
+      
+      // Hide slash command menu
+      slashCommandVisible = false;
+      renderSlashCommandMenu();
+    }
   }
 
   // Function to render the context menu
@@ -273,6 +477,13 @@
     menuItems.forEach((item, index) => {
       if (index === contextMenuSelectedIndex) {
         item.classList.add('selected');
+        
+        // Scroll the selected item into view if needed
+        item.scrollIntoView({ 
+          block: 'nearest',
+          inline: 'nearest',
+          behavior: 'smooth'
+        });
       } else {
         item.classList.remove('selected');
       }
@@ -388,64 +599,117 @@
     }
   }, 250);
 
-  // Handle input changes to show/hide context menu
+  // Handle input changes to show/hide context menu or slash commands
   function handleInputChange() {
     cursorPosition = messageInputElement.selectionStart;
     const inputValue = messageInputElement.value;
     
-    // Get input value and cursor position
+    // Check for slash commands first
+    const showSlashMenu = shouldShowSlashCommands(inputValue, cursorPosition);
     
-    // Always show menu if we detect an @ character
+    // Check for @ mentions
     const beforeCursor = inputValue.slice(0, cursorPosition);
     const atIndex = beforeCursor.lastIndexOf('@');
     const hasAtSymbol = atIndex !== -1;
+    const showContextMenu = hasAtSymbol && shouldShowContextMenu(inputValue, cursorPosition);
     
-    // Check if there's text after the @ that would disqualify showing the menu
-    const showMenu = hasAtSymbol && shouldShowContextMenu(inputValue, cursorPosition);
-    
-    // Determine context menu visibility based on @ symbol position
-    
-    // Update context menu visibility
-    if (showMenu !== contextMenuVisible) {
-      contextMenuVisible = showMenu;
-      contextMenuSelectedIndex = contextMenuVisible ? 0 : -1;
-      // Update context menu selected index when visibility changes
-    }
-    
-    // If showing context menu, update search query and trigger search
-    if (contextMenuVisible) {
-      const newSearchQuery = beforeCursor.slice(atIndex + 1);
-      // Extract search query from text after @ symbol
+    // Handle slash command menu
+    if (showSlashMenu) {
+      // Hide context menu if visible
+      contextMenuVisible = false;
+      renderContextMenu();
       
-      // Show default items immediately regardless of query
-      if (newSearchQuery.length === 0) {
-        searchResults = [];
-        searchQuery = '';
-      } 
-      // Only trigger search if query changed and is not empty
-      else if (newSearchQuery !== searchQuery) {
-        searchQuery = newSearchQuery;
-        const requestId = `search-${Date.now()}`;
-        currentSearchRequestId = requestId;
-        
-        if (newSearchQuery.length > 0) {
-          searchFilesDebounced(searchQuery, requestId);
-        }
+      // Show slash command menu
+      slashCommandVisible = true;
+      slashCommandSelectedIndex = 0;
+      
+      // Extract query for slash commands
+      const lines = beforeCursor.split('\n');
+      const currentLine = lines[lines.length - 1];
+      const queryAfterSlash = currentLine.substring(1);
+      
+      // Filter slash commands based on query
+      if (queryAfterSlash.length === 0) {
+        slashCommands = ALL_SLASH_COMMANDS;
+      } else {
+        slashCommands = filterSlashCommands(queryAfterSlash);
       }
+      
+      renderSlashCommandMenu();
     } else {
-      searchQuery = '';
+      // Hide slash command menu if visible
+      if (slashCommandVisible) {
+        slashCommandVisible = false;
+        renderSlashCommandMenu();
+      }
+      
+      // Handle context menu
+      if (showContextMenu !== contextMenuVisible) {
+        contextMenuVisible = showContextMenu;
+        contextMenuSelectedIndex = contextMenuVisible ? 0 : -1;
+      }
+      
+      // If showing context menu, update search query and trigger search
+      if (contextMenuVisible) {
+        const newSearchQuery = beforeCursor.slice(atIndex + 1);
+        
+        // Show default items immediately regardless of query
+        if (newSearchQuery.length === 0) {
+          searchResults = [];
+          searchQuery = '';
+        } 
+        // Only trigger search if query changed and is not empty
+        else if (newSearchQuery !== searchQuery) {
+          searchQuery = newSearchQuery;
+          const requestId = `search-${Date.now()}`;
+          currentSearchRequestId = requestId;
+          
+          if (newSearchQuery.length > 0) {
+            searchFilesDebounced(searchQuery, requestId);
+          }
+        }
+      } else {
+        searchQuery = '';
+      }
+      
+      renderContextMenu();
     }
     
     // Update the highlight layer
     updateHighlights();
-    
-    // Render context menu
-    renderContextMenu();
   }
 
   // Function to handle key navigation in context menu
   function handleKeyDown(e) {
-    if (contextMenuVisible) {
+    if (slashCommandVisible) {
+      switch (e.key) {
+        case 'ArrowDown':
+          e.preventDefault();
+          slashCommandSelectedIndex = Math.min(slashCommandSelectedIndex + 1, slashCommands.length - 1);
+          updateSelectedSlashMenuItem();
+          break;
+          
+        case 'ArrowUp':
+          e.preventDefault();
+          slashCommandSelectedIndex = Math.max(slashCommandSelectedIndex - 1, 0);
+          updateSelectedSlashMenuItem();
+          break;
+          
+        case 'Enter':
+        case 'Tab':
+          if (slashCommandSelectedIndex >= 0) {
+            e.preventDefault();
+            handleSlashCommandSelect(slashCommandSelectedIndex);
+          }
+          break;
+          
+        case 'Escape':
+          e.preventDefault();
+          slashCommandVisible = false;
+          renderSlashCommandMenu();
+          break;
+      }
+    } else if (contextMenuVisible) {
       switch (e.key) {
         case 'ArrowDown':
           e.preventDefault();
@@ -651,21 +915,32 @@
     }
   });
   
-  // Click event listener for document to close context menu when clicking outside
+  // Click event listener for document to close menus when clicking outside
   document.addEventListener('mousedown', (e) => {
-    // Get the global context menu element if it exists
+    // Get the global menus if they exist
     const globalContextMenu = document.getElementById('global-context-menu');
+    const globalSlashMenu = document.getElementById('global-slash-command-menu');
     
     // Check if click is outside the context menu and input
-    const isClickOutside = 
+    const isClickOutsideContext = 
       !globalContextMenu?.contains(e.target) &&
       !contextMenuContainer?.contains(e.target) && 
       !messageInputElement?.contains(e.target) &&
       e.target !== contextButtonElement;
       
-    if (isClickOutside && contextMenuVisible) {
+    if (isClickOutsideContext && contextMenuVisible) {
       contextMenuVisible = false;
       renderContextMenu();
+    }
+    
+    // Check if click is outside the slash command menu and input
+    const isClickOutsideSlash = 
+      !globalSlashMenu?.contains(e.target) &&
+      !messageInputElement?.contains(e.target);
+      
+    if (isClickOutsideSlash && slashCommandVisible) {
+      slashCommandVisible = false;
+      renderSlashCommandMenu();
     }
   });
   

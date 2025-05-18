@@ -64,11 +64,20 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
       (message) => {
         switch (message.command) {
           case "sendToTerminal":
-            this._sendToTerminal(message.text);
+            // Check if it's a slash command
+            if (message.text.trim().startsWith('/')) {
+              this._handleSlashCommand(message.text.trim());
+            } else {
+              this._sendToTerminal(message.text);
+            }
             return;
             
           case "searchFiles":
             this._handleFileSearch(message.query, message.mentionsRequestId);
+            return;
+            
+          case "searchCommits":
+            this._handleCommitSearch(message.query, message.mentionsRequestId);
             return;
         }
       },
@@ -152,6 +161,12 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
         });
       }
     }
+  }
+  
+  private _handleSlashCommand(command: string) {
+    // For Claude Code, slash commands are sent directly as-is to the interactive session
+    // The Claude Code CLI will handle parsing and executing them
+    this._sendToTerminal(command);
   }
   
   private _getHtmlForWebview(webview: vscode.Webview) {
