@@ -4,7 +4,7 @@ import { ClaudeTerminalInputProvider } from './ui/claudeTerminalInputProvider';
 // Store a reference to the Claude terminal
 let claudeTerminal: vscode.Terminal | undefined;
 
-// Store a reference to the input provider
+// Store references to providers
 let claudeTerminalInputProvider: ClaudeTerminalInputProvider | undefined;
 
 /**
@@ -57,13 +57,9 @@ export function activate(context: vscode.ExtensionContext) {
   // Register Terminal Input Provider
   claudeTerminalInputProvider = new ClaudeTerminalInputProvider(context.extensionUri, terminal);
   context.subscriptions.push(
-    vscode.window.registerWebviewViewProvider('claudeCodeInputView', claudeTerminalInputProvider, {
-      webviewOptions: {
-        retainContextWhenHidden: true
-      }
-    })
+    vscode.window.registerWebviewViewProvider('claudeCodeInputView', claudeTerminalInputProvider)
   );
-
+  
   // Register command to launch Claude Code in a terminal
   const launchClaudeCodeTerminalCommand = vscode.commands.registerCommand('claude-code-extension.launchClaudeCodeTerminal', () => {
     const terminal = ensureClaudeTerminal(context);

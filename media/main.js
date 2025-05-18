@@ -6,6 +6,29 @@ const messagesContainer = document.getElementById('messages');
 const messageInput = document.getElementById('messageInput');
 const sendButton = document.getElementById('sendButton');
 const resetButton = document.getElementById('resetButton');
+const contextButtonElement = document.getElementById('contextButton');
+const highlightLayerElement = document.getElementById('highlightLayer');
+const contextMenuContainer = document.getElementById('contextMenuContainer');
+
+// Context menu elements and state
+let contextMenuVisible = false;
+let contextMenuSelectedIndex = -1;
+let searchQuery = '';
+let searchResults = [];
+let cursorPosition = 0;
+let currentFilePaths = [];
+let isSearchLoading = false;
+let justDeletedSpaceAfterMention = false;
+
+// RegExp for detecting @ mentions
+const mentionRegex = /@((?:\/|\w+:\/\/)[^\s]+?|[a-f0-9]{7,40}\b|problems\b|terminal\b|git-changes\b)(?=[.,;:!?]?(?=[\s\r\n]|$))/;
+const mentionRegexGlobal = new RegExp(mentionRegex.source, 'g');
+
+// Base context menu items
+const baseContextItems = [
+  { type: 'problems', label: 'Problems', description: 'Workspace problems' },
+  { type: 'terminal', label: 'Terminal', description: 'Terminal output' }
+];
 
 // State
 let isWaitingForResponse = false;
@@ -28,7 +51,50 @@ document.addEventListener('DOMContentLoaded', () => {
   messageInput.focus();
   
   // Auto-resize textarea
-  messageInput.addEventListener('input', autoResizeTextarea);
+  messageInput.addEventListener('input', () => {
+    autoResizeTextarea();
+    updateHighlights();
+  });
+  
+  // Set up context menu functionality
+  if (messageInput) {
+    // Listen for input changes to show/hide context menu
+    messageInput.addEventListener('input', handleInputChange);
+    
+    // Listen for click/selection changes
+    messageInput.addEventListener('click', handleInputChange);
+    messageInput.addEventListener('select', handleInputChange);
+    
+    // Handle scrolling in the textarea
+    messageInput.addEventListener('scroll', () => {
+      if (highlightLayerElement) {
+        highlightLayerElement.scrollTop = messageInput.scrollTop;
+        highlightLayerElement.scrollLeft = messageInput.scrollLeft;
+      }
+    });
+  }
+  
+  // Event listener for context button (if exists)
+  if (contextButtonElement) {
+    contextButtonElement.addEventListener('click', handleContextButtonClick);
+  }
+  
+  // Click event listener for document to close context menu when clicking outside
+  document.addEventListener('click', (e) => {
+    // Check if click is outside the context menu and input
+    const isClickOutside = 
+      !contextMenuContainer?.contains(e.target) && 
+      !messageInput?.contains(e.target) &&
+      e.target !== contextButtonElement;
+      
+    if (isClickOutside && contextMenuVisible) {
+      contextMenuVisible = false;
+      renderContextMenu();
+    }
+  });
+  
+  // Initialize highlight layer
+  updateHighlights();
   
   // Attempt to restore from local webview state first
   const previousState = vscode.getState();
@@ -46,7 +112,38 @@ document.addEventListener('DOMContentLoaded', () => {
 sendButton.addEventListener('click', sendMessage);
 resetButton.addEventListener('click', resetConversation);
 messageInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && !e.shiftKey) {
+  if (contextMenuVisible) {
+    // Handle context menu navigation
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        const items = Array.isArray(searchResults) && searchResults.length > 0
+          ? searchResults : baseContextItems;
+        contextMenuSelectedIndex = Math.min(contextMenuSelectedIndex + 1, items.length - 1);
+        renderContextMenu();
+        break;
+        
+      case 'ArrowUp':
+        e.preventDefault();
+        contextMenuSelectedIndex = Math.max(contextMenuSelectedIndex - 1, 0);
+        renderContextMenu();
+        break;
+        
+      case 'Enter':
+      case 'Tab':
+        if (contextMenuSelectedIndex >= 0) {
+          e.preventDefault();
+          handleContextMenuSelect(contextMenuSelectedIndex);
+        }
+        break;
+        
+      case 'Escape':
+        e.preventDefault();
+        contextMenuVisible = false;
+        renderContextMenu();
+        break;
+    }
+  } else if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault();
     sendMessage();
   }
@@ -151,6 +248,288 @@ function handleRestoreMessageHistory(messages, status) {
 }
 
 // Functions
+// Function to update highlights in the text area
+function updateHighlights() {
+  if (!highlightLayerElement || !messageInput) return;
+
+  let processedText = messageInput.value;
+
+  // Replace special characters with HTML entities for safety
+  processedText = processedText
+    .replace(/\n$/, '\n\n')
+    .replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' })[c] || c)
+    // Highlight @mentions
+    .replace(mentionRegexGlobal, '<mark class="mention-highlight">$&</mark>');
+
+  highlightLayerElement.innerHTML = processedText;
+  // Match scroll position
+  highlightLayerElement.scrollTop = messageInput.scrollTop;
+  highlightLayerElement.scrollLeft = messageInput.scrollLeft;
+}
+
+// Function to check if context menu should be shown
+function shouldShowContextMenu(text, position) {
+  const beforeCursor = text.slice(0, position);
+  const atIndex = beforeCursor.lastIndexOf('@');
+
+  if (atIndex === -1) {
+    return false;
+  }
+
+  const textAfterAt = beforeCursor.slice(atIndex + 1);
+
+  // Check if there's any whitespace after the '@'
+  if (/\s/.test(textAfterAt)) {
+    return false;
+  }
+
+  // Don't show the menu if it's a URL
+  if (textAfterAt.toLowerCase().startsWith('http')) {
+    return false;
+  }
+
+  // Don't show the menu if it's already a problems or terminal
+  if (textAfterAt.toLowerCase().startsWith('problems') || textAfterAt.toLowerCase().startsWith('terminal')) {
+    return false;
+  }
+
+  // Show the menu if there's just '@' or '@' followed by some text (but not a URL)
+  return true;
+}
+
+// Function to render the context menu
+function renderContextMenu() {
+  if (!contextMenuContainer) return;
+
+  // Show/hide context menu
+  contextMenuContainer.style.display = contextMenuVisible ? 'block' : 'none';
+  
+  if (!contextMenuVisible) return;
+
+  // Use search results if available, otherwise use basic filter
+  const filteredItems = Array.isArray(searchResults) && searchResults.length > 0
+    ? searchResults.map(result => ({
+        type: result.type,
+        value: result.path,
+        label: result.label || result.path.split('/').pop()
+      }))
+    : baseContextItems;
+
+  // Create menu items HTML
+  const menuItems = filteredItems.map((item, index) => {
+    const isSelected = index === contextMenuSelectedIndex;
+    
+    // Determine icon based on item type
+    let icon = 'file';
+    if (item.type === 'folder') {
+      icon = 'folder';
+    } else if (item.type === 'git') {
+      icon = 'git-commit';
+    } else if (item.type === 'problems') {
+      icon = 'warning';
+    } else if (item.type === 'terminal') {
+      icon = 'terminal';
+    }
+    
+    // Format based on item type
+    let itemContent = '';
+    if (item.type === 'git') {
+      // Git commit formatting
+      itemContent = `
+        <div class="git-option">
+          <span>${item.label || item.value || ''}</span>
+          ${item.description ? `<span class="description">${item.description}</span>` : ''}
+        </div>
+      `;
+    } else if (item.value) {
+      // File path formatting for items with a value 
+      itemContent = `
+        <span class="path-option">
+          <span>/</span>
+          <span class="path-text">${item.value.startsWith('/') ? item.value.substring(1) : item.value}</span>
+        </span>
+      `;
+    } else {
+      // For items without a value like "Problems" or "Terminal"
+      itemContent = `<span>${item.label || item.type}</span>`;
+    }
+    
+    return `
+      <div class="context-menu-item ${isSelected ? 'selected' : ''}" data-index="${index}">
+        <div class="context-menu-item-content">
+          <span class="codicon codicon-${icon}"></span>
+          <div class="context-menu-text">
+            ${itemContent}
+          </div>
+        </div>
+        <span class="codicon codicon-add"></span>
+      </div>
+    `;
+  });
+
+  // If no results found
+  if (filteredItems.length === 0) {
+    menuItems.push(`
+      <div class="context-menu-item not-selectable">
+        <div class="context-menu-item-content">
+          <span class="codicon codicon-info"></span>
+          <div class="context-menu-text">No results found</div>
+        </div>
+      </div>
+    `);
+  }
+
+  // Add loading state if searching
+  if (isSearchLoading) {
+    menuItems.unshift(`
+      <div class="context-menu-item loading">
+        <div class="loading-spinner"></div>
+        <span>Searching...</span>
+      </div>
+    `);
+  }
+
+  // Build the menu HTML
+  const menuHTML = `
+    <div class="context-menu">
+      ${menuItems.join('')}
+    </div>
+  `;
+
+  // Update the context menu container
+  contextMenuContainer.innerHTML = menuHTML;
+
+  // Add click event listeners to menu items
+  document.querySelectorAll('.context-menu-item:not(.not-selectable):not(.loading)').forEach((item, index) => {
+    item.addEventListener('click', () => handleContextMenuSelect(index));
+    item.addEventListener('mouseenter', () => {
+      contextMenuSelectedIndex = index;
+      renderContextMenu();
+    });
+  });
+}
+
+// Function to insert a mention at the cursor position
+function insertMention(text, position, value) {
+  const beforeCursor = text.slice(0, position);
+  const afterCursor = text.slice(position);
+
+  // Find the position of the last '@' symbol before the cursor
+  const lastAtIndex = beforeCursor.lastIndexOf('@');
+
+  let newValue;
+  let mentionIndex;
+
+  if (lastAtIndex !== -1) {
+    // If there's an '@' symbol, replace everything after it with the new mention
+    const beforeMention = text.slice(0, lastAtIndex);
+    newValue = beforeMention + '@' + value + ' ' + afterCursor.replace(/^[^\s]*/, '');
+    mentionIndex = lastAtIndex;
+  } else {
+    // If there's no '@' symbol, insert the mention at the cursor position
+    newValue = beforeCursor + '@' + value + ' ' + afterCursor;
+    mentionIndex = position;
+  }
+
+  return { newValue, mentionIndex };
+}
+
+// Function to handle context menu selection
+function handleContextMenuSelect(index) {
+  const items = Array.isArray(searchResults) && searchResults.length > 0
+    ? searchResults.map(result => ({
+        type: result.type,
+        value: result.path,
+        label: result.label || result.path.split('/').pop()
+      }))
+    : baseContextItems;
+  
+  if (index < 0 || index >= items.length) return;
+  
+  const selectedItem = items[index];
+  
+  // Insert the selected item as a mention
+  if (messageInput) {
+    const { newValue, mentionIndex } = insertMention(
+      messageInput.value,
+      cursorPosition,
+      selectedItem.value
+    );
+
+    // Update the input value
+    messageInput.value = newValue;
+    
+    // Update cursor position
+    const newPosition = mentionIndex + selectedItem.value.length + 2; // +2 for the @ and the space after
+    messageInput.setSelectionRange(newPosition, newPosition);
+    messageInput.focus();
+    
+    // Update highlights
+    updateHighlights();
+    
+    // Hide context menu
+    contextMenuVisible = false;
+    renderContextMenu();
+  }
+}
+
+// Handle input changes to show/hide context menu
+function handleInputChange() {
+  cursorPosition = messageInput.selectionStart;
+  const inputValue = messageInput.value;
+  
+  // Check if context menu should be shown
+  const showMenu = shouldShowContextMenu(inputValue, cursorPosition);
+  
+  // Update context menu visibility
+  if (showMenu !== contextMenuVisible) {
+    contextMenuVisible = showMenu;
+    contextMenuSelectedIndex = contextMenuVisible ? 0 : -1;
+  }
+  
+  // If showing context menu, update search query
+  if (contextMenuVisible) {
+    const beforeCursor = inputValue.slice(0, cursorPosition);
+    const atIndex = beforeCursor.lastIndexOf('@');
+    searchQuery = beforeCursor.slice(atIndex + 1);
+  } else {
+    searchQuery = '';
+  }
+  
+  // Update the highlight layer
+  updateHighlights();
+  
+  // Render context menu
+  renderContextMenu();
+}
+
+// Function to handle context button click
+function handleContextButtonClick() {
+  // Focus the textarea first
+  messageInput.focus();
+  
+  // If input is empty, just insert @
+  if (!messageInput.value.trim()) {
+    messageInput.value = '@';
+    messageInput.setSelectionRange(1, 1);
+    handleInputChange();
+    return;
+  }
+  
+  // If input ends with space or is empty, just append @
+  if (messageInput.value.endsWith(' ')) {
+    messageInput.value += '@';
+    messageInput.setSelectionRange(messageInput.value.length, messageInput.value.length);
+    handleInputChange();
+    return;
+  }
+  
+  // Otherwise add space then @
+  messageInput.value += ' @';
+  messageInput.setSelectionRange(messageInput.value.length, messageInput.value.length);
+  handleInputChange();
+}
+
 function sendMessage() {
   const text = messageInput.value.trim();
   if (text === '' || isWaitingForResponse) return;
@@ -161,6 +540,15 @@ function sendMessage() {
   // Clear input and set loading state
   messageInput.value = '';
   messageInput.style.height = 'auto';
+  
+  // Update highlights
+  updateHighlights();
+  
+  // Hide context menu if visible
+  if (contextMenuVisible) {
+    contextMenuVisible = false;
+    renderContextMenu();
+  }
   
   // Send message to extension
   vscode.postMessage({
