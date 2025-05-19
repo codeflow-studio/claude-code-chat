@@ -966,6 +966,29 @@
           updateImagePreview();
         }
         break;
+        
+      case 'droppedPathsResolved':
+        // Handle resolved paths from dropped files/folders
+        if (message.paths && message.paths.length > 0) {
+          insertDroppedPaths(message.paths);
+        }
+        break;
+        
+      case 'droppedImagesResolved':
+        // Handle resolved image paths from VSCode drops
+        if (message.imagePaths && message.imagePaths.length > 0) {
+          message.imagePaths.forEach(path => {
+            const fileName = path.split('/').pop() || path.split('\\').pop() || 'image';
+            pendingImages.push({
+              name: fileName,
+              type: 'image/*', // We don't know the exact type from path
+              path: path,
+              isFromClipboard: false
+            });
+          });
+          updateImagePreview();
+        }
+        break;
     }
   });
   
@@ -1115,31 +1138,218 @@
     });
   }
 
-  // Handle drag and drop
+  // Handle drag and drop for files/folders and images
   if (messageInputElement) {
-    messageInputElement.addEventListener('dragover', (e) => {
+    const inputWrapper = document.querySelector('.input-wrapper');
+    const dropTarget = inputWrapper || messageInputElement;
+    
+    // Add drag event listeners
+    dropTarget.addEventListener('dragover', (e) => {
       e.preventDefault();
       e.dataTransfer.dropEffect = 'copy';
-      messageInputElement.classList.add('drag-over');
+      dropTarget.classList.add('drag-over');
     });
 
-    messageInputElement.addEventListener('dragleave', () => {
-      messageInputElement.classList.remove('drag-over');
+    dropTarget.addEventListener('dragleave', (e) => {
+      // Only remove the class if we're leaving the drop target completely
+      if (!dropTarget.contains(e.relatedTarget)) {
+        dropTarget.classList.remove('drag-over');
+      }
     });
 
-    messageInputElement.addEventListener('drop', (e) => {
+    dropTarget.addEventListener('drop', (e) => {
       e.preventDefault();
-      messageInputElement.classList.remove('drag-over');
+      dropTarget.classList.remove('drag-over');
       
-      const files = Array.from(e.dataTransfer.files).filter(file => 
+      const dataTransfer = e.dataTransfer;
+      const items = dataTransfer.items;
+      const files = dataTransfer.files;
+      
+      // Handle internal VSCode drag (from Explorer)
+      const vscodePaths = dataTransfer.getData('CodeFiles');
+      const vscodeFolders = dataTransfer.getData('CodeFolders');
+      
+      if (vscodePaths || vscodeFolders) {
+        // Handle VSCode internal drag
+        const imagePathsInfo = [];
+        const nonImagePathsInfo = [];
+        
+        // Parse VSCode paths (they come as stringified arrays)
+        try {
+          if (vscodePaths) {
+            const filePaths = JSON.parse(vscodePaths);
+            filePaths.forEach(path => {
+              // Check if the path is for an image file
+              const lowerPath = path.toLowerCase();
+              if (lowerPath.endsWith('.png') || lowerPath.endsWith('.jpg') || 
+                  lowerPath.endsWith('.jpeg') || lowerPath.endsWith('.gif') || 
+                  lowerPath.endsWith('.webp') || lowerPath.endsWith('.svg')) {
+                imagePathsInfo.push({
+                  vscodeUri: path,
+                  type: 'image'
+                });
+              } else {
+                nonImagePathsInfo.push({
+                  vscodeUri: path,
+                  type: 'file'
+                });
+              }
+            });
+          }
+          
+          if (vscodeFolders) {
+            const folderPaths = JSON.parse(vscodeFolders);
+            folderPaths.forEach(path => {
+              nonImagePathsInfo.push({
+                vscodeUri: path,
+                type: 'directory'
+              });
+            });
+          }
+          
+          // Handle images first if any
+          if (imagePathsInfo.length > 0) {
+            vscode.postMessage({
+              command: 'resolveDroppedImages',
+              imagesInfo: imagePathsInfo
+            });
+          }
+          
+          // Then handle non-image paths
+          if (nonImagePathsInfo.length > 0) {
+            vscode.postMessage({
+              command: 'resolveDroppedPaths',
+              pathsInfo: nonImagePathsInfo
+            });
+          }
+        } catch (error) {
+          console.error('Error parsing VSCode paths:', error);
+        }
+        return;
+      }
+      
+      // Check if dropped items contain images for image preview
+      // Process images BEFORE handling path mentions to preserve image functionality
+      const imageFiles = Array.from(files).filter(file => 
         file.type.startsWith('image/')
       );
       
-      if (files.length > 0) {
-        // For drag-drop, we need to save to temp since we can't access the original path
-        handleImageSelection(files, true);
+      if (imageFiles.length > 0) {
+        // Handle image files separately for preview
+        handleImageSelection(imageFiles, false);
+      }
+      
+      // Handle external file drops (from Finder, etc.)
+      // Only process non-image files for path mentions
+      if (items && items.length > 0) {
+        const pathsInfo = [];
+        
+        // Process each dropped item
+        for (let i = 0; i < items.length; i++) {
+          const item = items[i];
+          
+          if (item.kind === 'file') {
+            const file = item.getAsFile();
+            
+            // Skip if no file
+            if (!file) continue;
+            
+            // Skip image files for path mentions since they're already handled for preview
+            if (file.type && file.type.startsWith('image/')) {
+              continue;
+            }
+            
+            // Try different methods to get the file path
+            const entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null;
+            
+            // Debug logging to understand what data we're getting
+            console.log('File drop debug:');
+            console.log('- file.name:', file.name);
+            console.log('- file.path:', file.path);
+            console.log('- file.webkitRelativePath:', file.webkitRelativePath);
+            console.log('- entry:', entry);
+            if (entry) {
+              console.log('- entry.fullPath:', entry.fullPath);
+              console.log('- entry.isFile:', entry.isFile);
+            }
+            
+            if (entry) {
+              // Use FileSystem API if available
+              // NOTE: entry.fullPath may just be the filename for external drops
+              const potentialPath = entry.fullPath || file.path || null;
+              pathsInfo.push({
+                name: entry.name,
+                path: potentialPath,
+                type: entry.isFile ? 'file' : 'directory',
+                externalPath: true
+              });
+            } else if (file.path) {
+              // Use file.path if available (Electron/VSCode provides this)
+              pathsInfo.push({
+                name: file.name,
+                path: file.path,
+                type: 'file',
+                externalPath: true
+              });
+            } else {
+              // Fallback: just use the filename and let the extension try to resolve it
+              pathsInfo.push({
+                name: file.name,
+                type: 'file',
+                externalPath: true,
+                needsFullPath: true
+              });
+            }
+          }
+        }
+        
+        // If we have paths or names, send to extension for processing
+        if (pathsInfo.length > 0) {
+          vscode.postMessage({
+            command: 'resolveDroppedPaths',
+            pathsInfo: pathsInfo
+          });
+        }
       }
     });
+  }
+  
+  // Function to insert dropped file/folder paths as mentions
+  function insertDroppedPaths(paths) {
+    if (!messageInputElement || paths.length === 0) return;
+    
+    const currentValue = messageInputElement.value;
+    const cursorPosition = messageInputElement.selectionStart;
+    
+    // Build the mentions string
+    const mentions = paths.map(path => `@${path}`).join(' ');
+    
+    // Insert at cursor position
+    const beforeCursor = currentValue.slice(0, cursorPosition);
+    const afterCursor = currentValue.slice(cursorPosition);
+    
+    // Add space before if needed
+    const needsSpaceBefore = beforeCursor.length > 0 && !beforeCursor.endsWith(' ') && !beforeCursor.endsWith('\n');
+    const spaceBefore = needsSpaceBefore ? ' ' : '';
+    
+    // Add space after if needed
+    const needsSpaceAfter = afterCursor.length > 0 && !afterCursor.startsWith(' ') && !afterCursor.startsWith('\n');
+    const spaceAfter = needsSpaceAfter ? ' ' : '';
+    
+    // Construct the new value
+    const newValue = beforeCursor + spaceBefore + mentions + spaceAfter + afterCursor;
+    messageInputElement.value = newValue;
+    
+    // Set cursor position after the inserted mentions
+    const newCursorPosition = cursorPosition + spaceBefore.length + mentions.length + spaceAfter.length;
+    messageInputElement.setSelectionRange(newCursorPosition, newCursorPosition);
+    
+    // Update highlights and resize
+    updateHighlights();
+    autoResizeTextarea();
+    
+    // Focus the input
+    messageInputElement.focus();
   }
 
   // Add keyboard shortcut for image paste (Ctrl/Cmd+V)
@@ -1207,8 +1417,4 @@
   
   // Run initialization
   init();
-  
-  // Removed debugging code that forced the context menu to show after a delay
-  // The renderContextMenu function is now updated to correctly show the menu
-  // with proper positioning and z-index
 })();

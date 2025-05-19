@@ -44,7 +44,7 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
 
   public resolveWebviewView(
     webviewView: vscode.WebviewView,
-    context: vscode.WebviewViewResolveContext,
+    _context: vscode.WebviewViewResolveContext,
     _token: vscode.CancellationToken
   ) {
     this._view = webviewView;
@@ -96,6 +96,14 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
             
           case "selectImageFiles":
             this._handleImageFileSelection();
+            return;
+            
+          case "resolveDroppedPaths":
+            this._handleDroppedPaths(message);
+            return;
+            
+          case "resolveDroppedImages":
+            this._handleDroppedImages(message);
             return;
         }
       },
@@ -248,6 +256,272 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
     }
   }
   
+  private async _handleDroppedPaths(message: any) {
+    try {
+      const path = require('path');  // eslint-disable-line @typescript-eslint/no-var-requires
+      const workspaceFolders = vscode.workspace.workspaceFolders;
+      const workspaceRoot = workspaceFolders?.[0]?.uri.fsPath;
+      
+      const resolvedPaths: string[] = [];
+      
+      console.log('Handling dropped paths:', message.pathsInfo);
+      
+      // Handle new format with pathsInfo
+      if (message.pathsInfo) {
+        for (const info of message.pathsInfo) {
+          console.log('Processing path info:', info);
+          if (info.vscodeUri) {
+            // Handle VSCode internal URIs (from Explorer drag)
+            try {
+              const uri = vscode.Uri.parse(info.vscodeUri);
+              const fsPath = uri.fsPath;
+              
+              if (workspaceRoot) {
+                const relativePath = path.relative(workspaceRoot, fsPath);
+                
+                // If the relative path doesn't start with ".." and exists, it's in the workspace
+                if (!relativePath.startsWith('..') && !path.isAbsolute(relativePath)) {
+                  // Use relative path for workspace files
+                  resolvedPaths.push(relativePath);
+                } else {
+                  // Use absolute path for files outside workspace
+                  resolvedPaths.push(fsPath);
+                }
+              } else {
+                // No workspace, use absolute path
+                resolvedPaths.push(fsPath);
+              }
+            } catch (error) {
+              console.error('Error parsing VSCode URI:', error);
+              // Try as file path if URI parsing fails
+              if (info.vscodeUri.startsWith('file://')) {
+                const filePath = info.vscodeUri.substring(7);
+                resolvedPaths.push(filePath);
+              }
+            }
+          } else if (info.externalPath && (info.path || info.name)) {
+            // Handle external file drops from Finder
+            if (info.path) {
+              // We have a path - check if it's already absolute or needs resolution
+              let resolvedPath = info.path;
+              
+              // If the path starts with '/' it might be a fullPath from the entry object
+              // which is often just the filename with a leading slash for external drops
+              if (resolvedPath.startsWith('/') && !resolvedPath.includes('/Users/') && !resolvedPath.includes('/home/')) {
+                // This is likely just a filename with a leading slash
+                resolvedPath = resolvedPath.substring(1); // Remove the leading slash
+              }
+              
+              // Check if this looks like just a filename
+              if (!path.isAbsolute(resolvedPath) || path.dirname(resolvedPath) === '/' || path.dirname(resolvedPath) === '.') {
+                // This is likely just a filename from external drop
+                console.log(`External drop appears to be just filename: ${resolvedPath}`);
+                resolvedPaths.push(resolvedPath);
+              } else {
+                // Try to resolve as absolute path
+                const absolutePath = await this._resolveAbsolutePath(resolvedPath);
+                if (absolutePath) {
+                  resolvedPath = absolutePath;
+                }
+                
+                // Handle workspace relative paths
+                if (workspaceRoot) {
+                  const relativePath = path.relative(workspaceRoot, resolvedPath);
+                  
+                  if (!relativePath.startsWith('..') && !path.isAbsolute(relativePath)) {
+                    resolvedPaths.push(relativePath);
+                  } else {
+                    resolvedPaths.push(resolvedPath);
+                  }
+                } else {
+                  resolvedPaths.push(resolvedPath);
+                }
+              }
+            } else if (info.name) {
+              // Just have filename
+              console.log(`External drop with filename only: ${info.name}`);
+              resolvedPaths.push(info.name);
+            }
+          } else if (info.externalPath && info.path) {
+            // Legacy handling - kept for backward compatibility
+            const absolutePath = info.path;
+            
+            if (workspaceRoot) {
+              // Check if the file is within the workspace
+              const relativePath = path.relative(workspaceRoot, absolutePath);
+              
+              // If the relative path doesn't start with ".." and exists, it's in the workspace
+              if (!relativePath.startsWith('..') && !path.isAbsolute(relativePath)) {
+                // Use relative path for workspace files
+                resolvedPaths.push(relativePath);
+              } else {
+                // Use absolute path for files outside workspace
+                resolvedPaths.push(absolutePath);
+              }
+            } else {
+              // No workspace, use the absolute path
+              resolvedPaths.push(absolutePath);
+            }
+          } else if (info.path) {
+            // Regular path from browser (may need resolution)
+            const absolutePath = await this._resolveAbsolutePath(info.path);
+            
+            if (absolutePath && workspaceRoot) {
+              // Check if the file is within the workspace
+              const relativePath = path.relative(workspaceRoot, absolutePath);
+              
+              // If the relative path doesn't start with ".." and exists, it's in the workspace
+              if (!relativePath.startsWith('..') && !path.isAbsolute(relativePath)) {
+                // Use relative path for workspace files
+                resolvedPaths.push(relativePath);
+              } else {
+                // Use absolute path for files outside workspace
+                resolvedPaths.push(absolutePath);
+              }
+            } else {
+              // No workspace or couldn't resolve, use the original path
+              resolvedPaths.push(info.path);
+            }
+          } else if (info.name) {
+            // Just have a filename - try to find it in workspace first
+            const foundPath = await this._resolveFileName(info.name, workspaceRoot);
+            resolvedPaths.push(foundPath);
+          }
+        }
+      }
+      // Handle old format with fileNames (backward compatibility)
+      else if (message.fileNames) {
+        for (const fileName of message.fileNames) {
+          resolvedPaths.push(await this._resolveFileName(fileName, workspaceRoot));
+        }
+      }
+      
+      // Send resolved paths back to webview
+      if (this._view) {
+        this._view.webview.postMessage({
+          command: 'droppedPathsResolved',
+          paths: resolvedPaths
+        });
+      }
+    } catch (error) {
+      console.error('Error resolving dropped paths:', error);
+      // Send empty array as fallback
+      if (this._view) {
+        this._view.webview.postMessage({
+          command: 'droppedPathsResolved',
+          paths: []
+        });
+      }
+    }
+  }
+  
+  private async _handleDroppedImages(message: any) {
+    try {
+      const resolvedImagePaths: string[] = [];
+      
+      if (message.imagesInfo) {
+        for (const info of message.imagesInfo) {
+          if (info.vscodeUri) {
+            // Handle VSCode internal URIs (from Explorer drag)
+            try {
+              const uri = vscode.Uri.parse(info.vscodeUri);
+              resolvedImagePaths.push(uri.fsPath);
+            } catch (error) {
+              console.error('Error parsing VSCode image URI:', error);
+            }
+          }
+        }
+      }
+      
+      // Send resolved image paths back to webview
+      if (this._view && resolvedImagePaths.length > 0) {
+        this._view.webview.postMessage({
+          command: 'droppedImagesResolved',
+          imagePaths: resolvedImagePaths
+        });
+      }
+    } catch (error) {
+      console.error('Error resolving dropped images:', error);
+    }
+  }
+  
+  private async _resolveAbsolutePath(browserPath: string): Promise<string | null> {
+    try {
+      const fs = require('fs');  // eslint-disable-line @typescript-eslint/no-var-requires
+      
+      console.log('Resolving absolute path for:', browserPath);
+      
+      // Browser paths often start with "file://" or just "/"
+      let cleanPath = browserPath;
+      if (cleanPath.startsWith('file://')) {
+        cleanPath = cleanPath.substring(7);
+      }
+      // On Windows, paths might have an extra slash that needs to be removed
+      if (process.platform === 'win32' && cleanPath.startsWith('/')) {
+        cleanPath = cleanPath.substring(1);
+      }
+      // Decode URI components (handle spaces and special characters)
+      cleanPath = decodeURIComponent(cleanPath);
+      
+      console.log('Clean path:', cleanPath);
+      
+      // Check if the file/directory exists
+      try {
+        await fs.promises.access(cleanPath);
+        console.log('Path exists:', cleanPath);
+        return cleanPath;
+      } catch {
+        // Try without modifications
+        try {
+          await fs.promises.access(browserPath);
+          console.log('Original path exists:', browserPath);
+          return browserPath;
+        } catch {
+          console.log('Path not found:', browserPath);
+          return null;
+        }
+      }
+    } catch (error) {
+      console.error('Error resolving absolute path:', error);
+      return null;
+    }
+  }
+  
+  private async _resolveFileName(fileName: string, workspaceRoot: string | undefined): Promise<string> {
+    try {
+      const fs = require('fs');  // eslint-disable-line @typescript-eslint/no-var-requires
+      const path = require('path');  // eslint-disable-line @typescript-eslint/no-var-requires
+      
+      if (!workspaceRoot) {
+        // No workspace, just return the filename
+        return fileName;
+      }
+      
+      // First, try to find the file in the workspace
+      const files = await vscode.workspace.findFiles(`**/${fileName}`, null, 1);
+      
+      if (files.length > 0) {
+        // Found in workspace, return relative path
+        const relativePath = path.relative(workspaceRoot, files[0].fsPath);
+        return relativePath;
+      }
+      
+      // Try to check if it's in the workspace root
+      const possiblePath = path.join(workspaceRoot, fileName);
+      try {
+        await fs.promises.access(possiblePath);
+        // File exists in workspace root, return just the filename
+        return fileName;
+      } catch {
+        // File not found in workspace, return the original filename
+        return fileName;
+      }
+    } catch (error) {
+      console.error('Error resolving file name:', error);
+      return fileName;
+    }
+  }
+  
   private async _handleMessageWithImages(text: string, images: any[]) {
     try {
       const imagePaths: string[] = [];
@@ -264,7 +538,7 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
             const tempPath = await this._imageManager!.saveImage(image.data, image.name, image.type);
             
             // Verify the file was actually created
-            const fs = require('fs');
+            const fs = require('fs');  // eslint-disable-line @typescript-eslint/no-var-requires
             if (fs.existsSync(tempPath)) {
               // Double-check the file is readable
               try {
@@ -286,7 +560,7 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
             }
           } else if (image.path) {
             // Use the original path for file selections and drag-drop
-            const fs = require('fs');
+            const fs = require('fs');  // eslint-disable-line @typescript-eslint/no-var-requires
             try {
               await fs.promises.access(image.path, fs.constants.R_OK);
               imagePaths.push(image.path);

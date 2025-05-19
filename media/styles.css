@@ -365,6 +365,13 @@ body {
   box-shadow: 0 0 0 1px var(--claude-primary) !important; /* Add subtle glow on focus */
 }
 
+.input-wrapper.drag-over {
+  border-color: var(--claude-secondary);
+  background-color: rgba(90, 50, 251, 0.1);
+  box-shadow: 0 0 10px rgba(90, 50, 251, 0.3);
+  transition: all 0.2s ease;
+}
+
 textarea {
   flex: 1;
   background-color: transparent;
@@ -1343,6 +1350,17 @@ button svg {
 /* Input container with drag over state */
 .input-container.drag-over {
   border-color: var(--claude-primary);
+}
+
+/* Input wrapper drag over state */
+.input-wrapper.drag-over {
+  outline: 2px dashed var(--claude-primary);
+  outline-offset: 2px;
+  transition: outline-color 0.2s ease;
+}
+
+.input-wrapper.drag-over .highlight-container {
+  background-color: rgba(90, 50, 251, 0.05);
 }
 
 /* Message images (in chat) */

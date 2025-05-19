@@ -1,4 +1,4 @@
-import { ContextMenuOptionType, ContextMenuQueryItem, SearchResult } from '../../utils/context-mentions';
+import { ContextMenuOptionType, ContextMenuQueryItem } from '../../utils/context-mentions';
 
 /**
  * Generates the HTML for the context menu displayed when typing '@'
@@ -22,8 +22,8 @@ export function createContextMenuHtml(
                 const isSelected = index === selectedIndex;
                 const isSelectable = option.type !== ContextMenuOptionType.NoResults && option.type !== ContextMenuOptionType.URL;
                 
-                let icon = getIconForOption(option);
-                let content = renderOptionContent(option);
+                const icon = getIconForOption(option);
+                const content = renderOptionContent(option);
                 let rightIcon = '';
                 
                 if ((option.type === ContextMenuOptionType.File || 
