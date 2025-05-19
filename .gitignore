@@ -3,5 +3,8 @@ node_modules
 .vscode-test/
 *.vsix
 .DS_Store
+dist/
 
-**/.claude/settings.local.json
+**/.claude
+.memory-bank
+CLAUDE.md

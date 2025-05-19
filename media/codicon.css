@@ -1,0 +1,31 @@
+/* VS Code codicon simplified set for context menus */
+@font-face {
+  font-family: 'codicon';
+  src: url('https://raw.githubusercontent.com/microsoft/vscode-codicons/main/dist/codicon.ttf') format('truetype');
+}
+
+.codicon {
+  font-family: 'codicon';
+  font-display: block;
+  line-height: 1;
+  font-weight: normal;
+  font-style: normal;
+  font-variant: normal;
+  text-transform: none;
+  letter-spacing: normal;
+  -webkit-font-feature-settings: "liga";
+  font-feature-settings: "liga";
+  -webkit-font-smoothing: antialiased;
+}
+
+.codicon-file:before { content: '\ea7b'; }
+.codicon-folder:before { content: '\ea83'; }
+.codicon-warning:before { content: '\ea6c'; }
+.codicon-terminal:before { content: '\ea85'; }
+.codicon-link:before { content: '\eb16'; }
+.codicon-git-commit:before { content: '\ea8f'; }
+.codicon-info:before { content: '\ea74'; }
+.codicon-add:before { content: '\ea60'; }
+.codicon-chevron-right:before { content: '\eab4'; }
+.codicon-loading:before { content: '\eb19'; }
+.codicon-modifier-spin:before { content: '\eada'; }

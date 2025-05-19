@@ -1,252 +1,1365 @@
+/* Base styles */
 :root {
-  --vscode-background: var(--vscode-editor-background);
-  --vscode-foreground: var(--vscode-editor-foreground);
-  --vscode-highlight: var(--vscode-editor-selectionBackground);
-  --claude-color: #AB68FF;
-  --user-message-bg: var(--vscode-editor-background);
-  --claude-message-bg: rgba(171, 104, 255, 0.1);
-  --input-bg: var(--vscode-input-background);
-  --input-fg: var(--vscode-input-foreground);
-  --button-bg: var(--vscode-button-background);
-  --button-fg: var(--vscode-button-foreground);
-  --button-hover-bg: var(--vscode-button-hoverBackground);
-  --border-color: var(--vscode-panel-border);
-  --code-block-bg: var(--vscode-editor-inactiveSelectionBackground);
-  --inline-code-bg: var(--vscode-editor-inactiveSelectionBackground);
+  --text-color: var(--vscode-editor-foreground, #e9e9e9);
+  --bg-color: var(--vscode-editor-background, #1e1e1e);
+  --input-bg: var(--vscode-input-background, #3c3c3c);
+  --input-fg: var(--vscode-input-foreground, #cccccc);
+  --button-bg: var(--vscode-button-background, #0e639c);
+  --button-fg: var(--vscode-button-foreground, #ffffff);
+  --button-hover-bg: var(--vscode-button-hoverBackground, #1177bb);
+  --border-color: var(--vscode-widget-border, #474747);
+  
+  /* Claude specific colors */
+  --claude-primary: #5A32FB;
+  --claude-secondary: #9E8CFC;
+  --claude-light: #E8E8FD;
+  --claude-dark: #2D1A7C;
+  --claude-bg: #1E1E1E;
+  --claude-input-bg: #2D2D2D;
+  --claude-message-bg: transparent;
+  --claude-user-message-bg: transparent;
+  --claude-border: #3E3E3E;
+  --claude-active: #5A32FB;
+  --claude-input-focus: #5A32FB;
+  --claude-input-text: var(--text-color);
+  
+  /* Status colors */
+  --warning-color: #F2C94C;
+  --error-color: #E25141;
+  --success-color: #57B894;
+
+  /* Other UI elements */
+  --shadow-color: rgba(0, 0, 0, 0.15);
+  --scrollbar-thumb: var(--vscode-scrollbarSlider-background, #6e6e6e);
+  --scrollbar-thumb-hover: var(--vscode-scrollbarSlider-hoverBackground, #8a8a8a);
+  --scrollbar-thumb-active: var(--vscode-scrollbarSlider-activeBackground, #9e9e9e);
 }
 
 body {
-  font-family: var(--vscode-font-family);
   padding: 0;
   margin: 0;
-  color: var(--vscode-foreground);
-  background-color: var(--vscode-background);
-  font-size: var(--vscode-font-size);
+  color: var(--text-color);
+  font-family: var(--vscode-font-family, 'Segoe UI', 'SF Pro Display', system-ui, -apple-system, sans-serif);
+  font-size: var(--vscode-font-size, 14px);
+  background-color: var(--bg-color);
+  line-height: 1.5;
+  height: 100%;
+  overflow: hidden;
 }
 
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scrollbar-thumb-hover);
+}
+
+::-webkit-scrollbar-thumb:active {
+  background-color: var(--scrollbar-thumb-active);
+}
+
+/* Chat container styles */
 .chat-container {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  padding: 10px;
-  box-sizing: border-box;
+  max-height: 100vh;
+  overflow: hidden;
+  background-color: var(--bg-color);
+}
+
+/* Special style for terminal input container */
+.chat-container.input-only {
+  max-height: none; /* Remove fixed height limitation */
+  height: auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 80px; /* Minimum height to fit all elements */
+  width: 100%; /* Ensure container takes full width */
+  box-sizing: border-box; /* Include padding in width calculation */
+  padding: 0; /* Remove any potential padding */
+  margin: 0; /* Remove any potential margin */
+}
+
+.chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--claude-border);
+  background-color: var(--bg-color);
+}
+
+.chat-title {
+  display: flex;
+  align-items: center;
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.chat-title .claude-icon {
+  margin-right: 8px;
+}
+
+.chat-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.chat-actions button {
+  background-color: transparent;
+  color: var(--text-color);
+  border: 1px solid var(--claude-border);
+  border-radius: 4px;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.chat-actions button:hover {
+  background-color: var(--claude-input-bg);
+}
+
+/* Terminal status banner */
+.terminal-status-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background-color: rgba(242, 201, 76, 0.1);
+  border-left: 3px solid var(--warning-color);
+  margin: 0 0 8px 0;
+  font-size: 13px;
+  flex-shrink: 0; /* Prevent banner from shrinking */
+  min-height: 20px; /* Ensure consistent height */
+}
+
+.terminal-status-banner.hidden {
+  display: none;
+  height: 0;
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
+}
+
+.terminal-status-icon {
+  font-size: 16px;
+}
+
+.terminal-status-message {
+  flex: 1;
 }
 
 .messages {
   flex: 1;
   overflow-y: auto;
-  margin-bottom: 10px;
-  padding: 10px;
-  border: 1px solid var(--border-color);
-  border-radius: 3px;
-}
-
-.message {
-  margin-bottom: 15px;
-  padding: 10px;
-  border-radius: 6px;
-  max-width: 85%;
-  word-wrap: break-word;
-}
-
-.message.user {
-  background-color: var(--user-message-bg);
-  margin-left: auto;
-  border: 1px solid var(--border-color);
-}
-
-.message.claude {
-  background-color: var(--claude-message-bg);
-  margin-right: auto;
-  border-left: 3px solid var(--claude-color);
-}
-
-.message-header {
+  padding: 24px 16px;
   display: flex;
-  justify-content: space-between;
-  margin-bottom: 5px;
-  font-size: 0.8em;
-  color: var(--vscode-descriptionForeground);
+  flex-direction: column;
+  gap: 20px;
+  margin-bottom: 8px;
+}
+
+.message-group {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.message-sender {
+  font-size: 14px;
+  margin-bottom: 6px;
+  font-weight: 500;
+  color: var(--text-color);
+  display: flex;
+  align-items: center;
 }
 
 .message-sender.claude {
-  color: var(--claude-color);
-  font-weight: bold;
+  color: var(--claude-primary);
 }
 
-.message-text {
-  white-space: pre-wrap;
-  line-height: 1.5;
-}
-
-/* Improved Code Blocks */
-.code-block-container {
-  margin: 10px 0;
-  border-radius: 5px;
-  overflow: hidden;
-  background-color: var(--code-block-bg);
-  border: 1px solid var(--border-color);
-}
-
-.code-block-header {
-  display: flex;
-  justify-content: space-between;
+.message-sender .avatar {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  margin-right: 8px;
+  display: inline-flex;
   align-items: center;
-  padding: 4px 8px;
-  background-color: rgba(0, 0, 0, 0.2);
-  font-family: var(--vscode-editor-font-family);
-  font-size: 0.8em;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: bold;
+  color: white;
 }
 
-.code-language {
-  text-transform: uppercase;
-  opacity: 0.8;
+.message-sender .avatar.claude {
+  background-color: var(--claude-primary);
 }
 
-.code-block-copy {
-  background: transparent;
-  border: 1px solid var(--border-color);
-  color: var(--vscode-foreground);
-  font-size: 0.8em;
-  padding: 2px 6px;
-  cursor: pointer;
-  border-radius: 3px;
+.message-sender .avatar.user {
+  background-color: var(--vscode-badge-background, #4d4d4d);
 }
 
-.code-block-copy:hover {
-  background-color: rgba(255, 255, 255, 0.1);
+/* Message content styling */
+.message {
+  padding: 0;
+  border-radius: 0;
+  box-shadow: none;
+  line-height: 1.6;
+  overflow-wrap: break-word;
+  width: 100%;
+  font-size: 14px;
 }
 
-.code-block {
-  margin: 0;
-  padding: 10px;
+.message.user {
+  background-color: var(--claude-user-message-bg);
+  border: none;
+  align-self: flex-start;
+}
+
+.message.assistant {
+  background-color: var(--claude-message-bg);
+  border: none;
+  align-self: flex-start;
+}
+
+.message p {
+  margin: 0 0 16px 0;
+}
+
+.message p:last-child {
+  margin-bottom: 0;
+}
+
+.message pre {
+  background-color: var(--claude-input-bg);
+  padding: 16px;
+  border-radius: 6px;
   overflow-x: auto;
-  font-family: var(--vscode-editor-font-family);
-  font-size: 0.9em;
-  line-height: 1.4;
+  margin: 16px 0;
+  border: 1px solid var(--claude-border);
+  font-family: var(--vscode-editor-font-family, 'Menlo', 'Monaco', 'Courier New', monospace);
 }
 
-code.inline-code {
-  font-family: var(--vscode-editor-font-family);
-  background-color: var(--inline-code-bg);
-  padding: 2px 4px;
-  border-radius: 3px;
-  font-size: 0.9em;
+.message code {
+  font-family: var(--vscode-editor-font-family, 'Menlo', 'Monaco', 'Courier New', monospace);
+  font-size: calc(var(--vscode-editor-font-size) * 0.9);
+  padding: 2px 6px;
+  background-color: var(--claude-input-bg);
+  border-radius: 4px;
 }
 
-/* Markdown styling */
-.message-text h1, 
-.message-text h2, 
-.message-text h3 {
-  margin-top: 16px;
-  margin-bottom: 8px;
+.message pre code {
+  padding: 0;
+  background-color: transparent;
+  border-radius: 0;
+}
+
+.message ul, .message ol {
+  margin: 8px 0;
+  padding-left: 24px;
+}
+
+.message li {
+  margin-bottom: 6px;
+}
+
+.message li:last-child {
+  margin-bottom: 0;
+}
+
+.message h1, 
+.message h2, 
+.message h3, 
+.message h4, 
+.message h5, 
+.message h6 {
+  margin: 16px 0 8px 0;
   font-weight: 600;
 }
 
-.message-text h1 {
-  font-size: 1.5em;
-  border-bottom: 1px solid var(--border-color);
-  padding-bottom: 4px;
+.message h1 {
+  font-size: 1.4em;
 }
 
-.message-text h2 {
+.message h2 {
   font-size: 1.3em;
 }
 
-.message-text h3 {
-  font-size: 1.1em;
+.message h3 {
+  font-size: 1.2em;
 }
 
-.message-text ul, 
-.message-text ol {
-  padding-left: 20px;
-  margin: 8px 0;
+.message blockquote {
+  margin: 16px 0;
+  padding-left: 16px;
+  border-left: 3px solid var(--claude-border);
+  color: var(--vscode-descriptionForeground, #cccccc);
 }
 
-.message-text li {
-  margin-bottom: 4px;
-}
-
-.message-text a {
-  color: var(--vscode-textLink-foreground);
-  text-decoration: none;
-}
-
-.message-text a:hover {
-  text-decoration: underline;
-}
-
-.message-text strong {
-  font-weight: 600;
-}
-
-.message-text em {
-  font-style: italic;
-}
-
+/* Input area styles */
 .input-container {
   display: flex;
-  margin-bottom: 10px;
+  flex-direction: column;
+  padding: 16px;
+  border-top: 1px solid var(--claude-border);
+  background-color: var(--bg-color);
+  position: relative;
+  width: 100%; /* Take full width */
+  box-sizing: border-box; /* Include padding in width calculation */
+}
+
+/* Special styles for input-only view */
+.input-only .input-container {
+  flex: 1;
+  border-top: none;
+  display: flex;
+  flex-direction: column;
+  overflow: visible; /* Prevent content from being cut off */
+  padding: 16px; /* Uniform padding */
+  max-height: none; /* Remove maximum height limit */
+  width: 100%; /* Full width */
+  box-sizing: border-box; /* Include padding in width calculation */
+  margin: 0; /* Remove any potential margin */
+  align-items: stretch; /* Make children stretch to full width */
+}
+
+.input-only textarea {
+  min-height: 48px; /* Match input-wrapper height */
+  max-height: 200px; /* Increase maximum height to allow for more content */
+}
+
+.input-wrapper {
+  flex: 1;
+  display: flex;
+  position: relative;
+  border: 2px solid var(--claude-primary); /* Thicker border with Claude primary color */
+  border-radius: 16px; /* Increased border radius */
+  background-color: var(--bg-color); /* Use the main background color */
+  overflow: hidden;
+  width: 100%; /* Take full width */
+  min-width: 100%; /* Ensure minimum width */
+  max-width: 100%; /* Prevent exceeding container width */
+  box-sizing: border-box; /* Include border in width calculation */
+  margin: 0 auto; /* Center horizontally if needed */
+  align-self: stretch; /* Stretch to container width */
+  min-height: 48px; /* Adjusted for true single-line height */
+  max-height: 200px; /* Allow expansion up to 200px */
+  overflow-y: visible; /* Allow content to expand */
+}
+
+.input-wrapper:focus-within {
+  border-color: var(--claude-primary); /* Change border color on focus */
+  outline: none;
+  box-shadow: 0 0 0 1px var(--claude-primary) !important; /* Add subtle glow on focus */
 }
 
 textarea {
   flex: 1;
-  height: 60px;
-  padding: 8px;
-  border: 1px solid var(--border-color);
-  border-radius: 3px;
+  background-color: transparent;
+  color: var(--claude-input-text);
+  border: none;
+  border-radius: 16px; /* Match the input-wrapper */
+  padding: 12px 60px 12px 14px; /* Reduced vertical padding for single line */
   resize: none;
-  background-color: var(--input-bg);
-  color: var(--input-fg);
-  font-family: var(--vscode-font-family);
+  font-family: inherit;
+  font-size: inherit;
+  min-height: 48px; /* Match input-wrapper min-height */
+  max-height: 200px;
+  outline: none !important; /* Ensure no outline on focus */
+  line-height: 24px; /* Fixed line height */
+  box-shadow: none !important; /* Remove any box shadow on focus */
+  overflow-y: auto; /* Allow scrolling when content exceeds max height */
+  width: 100%; /* Take full width */
+  box-sizing: border-box; /* Include padding in width calculation */
 }
 
-textarea:focus {
-  outline: 1px solid var(--vscode-focusBorder);
+.input-actions {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.context-button {
+  background-color: transparent;
+  color: var(--vscode-editor-foreground);
+  border: 1px solid var(--vscode-input-border);
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  transition: background-color 0.2s ease;
+}
+
+.context-button:hover {
+  background-color: var(--vscode-button-secondaryHoverBackground);
 }
 
 button {
-  background-color: var(--button-bg);
-  color: var(--button-fg);
+  background-color: var(--claude-primary);
+  color: white;
   border: none;
-  padding: 8px 12px;
-  margin-left: 5px;
-  border-radius: 3px;
+  border-radius: 16px; /* Match input field radius */
+  padding: 6px 12px;
   cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s ease;
 }
 
 button:hover {
-  background-color: var(--button-hover-bg);
+  background-color: var(--claude-dark);
 }
 
-.actions {
+/* Make the send button more like the image */
+#sendButton {
+  background-color: transparent;
+  border: none;
+  color: var(--claude-primary);
+  padding: 6px;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+}
+
+#sendButton:hover {
+  background-color: rgba(90, 50, 251, 0.1);
+}
+
+#sendButton svg {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+button svg {
+  width: 14px;
+  height: 14px;
+  margin-left: 6px;
+}
+
+/* Bottom utility row */
+.utility-row {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  padding: 8px 16px;
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground, #8a8a8a);
+  border-top: 1px solid var(--claude-border);
+  flex-shrink: 0; /* Prevent footer from shrinking */
+  margin-top: auto; /* Push to bottom */
+  min-height: 20px; /* Ensure minimum height */
+  position: relative; /* Ensure it's in the layout flow */
+  overflow: visible; /* Prevent content from being cut off */
+  width: 100%; /* Full width */
+  box-sizing: border-box; /* Include padding in width calculation */
 }
 
-.actions button {
-  margin-left: 10px;
+.claude-attribution {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+  line-height: 16px;
+}
+
+.claude-version {
+  display: flex;
+  align-items: center;
 }
 
 /* Loading indicator */
 .loading {
   display: flex;
   align-items: center;
-  justify-content: center;
-  margin: 10px 0;
+  padding: 8px 0;
+  margin: 0 0 0 28px;
 }
 
-.loading-spinner {
-  border: 3px solid rgba(255, 255, 255, 0.3);
+.loading .dots {
+  display: flex;
+}
+
+.loading .dot {
+  width: 6px;
+  height: 6px;
+  margin: 0 3px;
+  background-color: var(--claude-primary);
   border-radius: 50%;
-  border-top: 3px solid var(--claude-color);
-  width: 16px;
-  height: 16px;
-  animation: spin 1s linear infinite;
-  margin-right: 8px;
+  animation: pulse 1.5s infinite;
+  opacity: 0.7;
+}
+
+.loading .dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.loading .dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(0.7); opacity: 0.5; }
+  50% { transform: scale(1); opacity: 0.9; }
+}
+
+/* Claude flower spinner */
+.claude-flower-spinner {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  animation: spin 2s linear infinite;
 }
 
 @keyframes spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
+}
+
+/* Utilities */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* Message actions */
+.message-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.message:hover + .message-actions,
+.message-actions:hover {
+  opacity: 1;
+}
+
+.action-button {
+  background: transparent;
+  color: var(--vscode-descriptionForeground, #8a8a8a);
+  border: 1px solid var(--claude-border);
+  padding: 4px 8px;
+  font-size: 12px;
+  cursor: pointer;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.action-button:hover {
+  background-color: var(--claude-input-bg);
+  color: var(--text-color);
+}
+
+.action-button svg {
+  width: 12px;
+  height: 12px;
+  margin: 0;
+}
+
+/* Claude flower icon */
+.claude-flower {
+  color: var(--claude-primary);
+}
+
+/* Tooltip */
+.tooltip {
+  position: relative;
+}
+
+.tooltip::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 8px;
+  background-color: var(--vscode-editorHoverWidget-background, #252526);
+  color: var(--vscode-editorHoverWidget-foreground, #cccccc);
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s, visibility 0.2s;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.tooltip:hover::after {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Terminal input component styles */
+.terminal-input-container {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.terminal-info {
+  margin-bottom: 10px;
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground, #8a8a8a);
+  padding: 4px 8px;
+  background-color: var(--claude-input-bg);
+  border-radius: 4px;
+  border-left: 3px solid var(--claude-primary);
+}
+
+/* Help section */
+.input-help {
+  margin-top: 16px;
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground, #8a8a8a);
+  padding: 8px;
+  border-radius: 4px;
+  background-color: var(--claude-input-bg);
+}
+
+.input-help h4 {
+  margin: 0 0 6px 0;
+  font-size: 13px;
+}
+
+.input-help ul {
+  margin: 0;
+  padding-left: 16px;
+}
+
+.input-help li {
+  margin-bottom: 4px;
+}
+
+/* Context menu styling */
+.context-menu-container {
+  position: fixed;
+  z-index: 99999;
+  overflow: hidden;
+  max-height: 300px;
+  min-height: 40px;
+  background-color: var(--vscode-dropdown-background, #252526);
+  border: 2px solid var(--vscode-focusBorder, #5A32FB);
+  border-radius: 16px;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.5);
+  pointer-events: auto;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.context-menu {
+  display: flex;
+  flex-direction: column;
+  max-height: 284px; /* Container max height minus padding */
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 8px;
+  margin: 0;
+  width: 100%;
+  box-sizing: border-box;
+  scroll-behavior: smooth;
+}
+
+.context-menu-item {
+  padding: 10px 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--vscode-foreground);
+  font-size: 13px;
+  margin-bottom: 2px;
+  border-radius: 8px;
+  min-height: 38px;
+}
+
+.context-menu-item:first-child {
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
+.context-menu-item:last-child {
+  border-bottom-left-radius: 8px;
+  border-bottom-right-radius: 8px;
+  margin-bottom: 0;
+}
+
+.context-menu-item:hover {
+  background-color: var(--vscode-list-hoverBackground, #2a2d2e);
+}
+
+.context-menu-item.selected {
+  color: var(--vscode-list-activeSelectionForeground, white);
+  background-color: var(--vscode-list-activeSelectionBackground, #5A32FB);
+}
+
+.context-menu-item.not-selectable {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.context-menu-item-content {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.context-menu-item .codicon {
+  margin-right: 8px;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.context-menu-text {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.git-option {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  width: 100%;
+}
+
+.git-option .description {
+  font-size: 0.85em;
+  opacity: 0.7;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+}
+
+.path-option {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  overflow: hidden;
+}
+
+.path-option .path-text {
+  direction: rtl;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.loading-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--vscode-foreground);
+  border-radius: 50%;
+  border-top-color: transparent;
+  animation: spin 1s linear infinite;
+  margin-right: 8px;
+}
+
+.context-menu-item.loading {
+  display: flex;
+  align-items: center;
+  opacity: 0.7;
+}
+
+/* Highlight for mentions in the text area */
+.mention-highlight {
+  background-color: var(--vscode-editor-selectionBackground);
+  color: var(--vscode-editor-selectionForeground);
+  border-radius: 2px;
+}
+
+/* Input area with highlight layer */
+.highlight-container {
+  position: relative;
+  flex: 1;
+  width: 100%; /* Take full width */
+}
+
+.highlight-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  white-space: pre-wrap;
+  overflow: hidden;
+  color: transparent;
+  background: transparent;
+  width: 100%; /* Take full width */
+  padding: 12px 60px 12px 14px; /* Match textarea padding */
+  line-height: 24px; /* Match textarea line height */
+  min-height: 48px; /* Match textarea min-height */
+}
+
+.highlight-layer mark {
+  background-color: var(--vscode-editor-selectionBackground);
+  border-radius: 3px;
+  color: transparent;
+}
+
+/* Slash command menu styles */
+.slash-command-menu-container {
+  position: fixed;
+  z-index: 999999;
+  background-color: var(--vscode-dropdown-background, #252526);
+  border: 2px solid var(--vscode-focusBorder, #5A32FB);
+  border-radius: 16px;
+  box-shadow: 0 8px 16px rgba(0,0,0,0.5);
+  overflow: hidden;
+  max-height: 300px;
+  min-height: 40px;
+}
+
+.slash-command-menu {
+  display: flex;
+  flex-direction: column;
+  max-height: 284px; /* Container max height minus padding */
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 8px;
+  margin: 0;
+  width: 100%;
+  box-sizing: border-box;
+  scroll-behavior: smooth;
+}
+
+.slash-command-menu-item {
+  padding: 10px 12px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  color: var(--vscode-foreground);
+  font-size: 13px;
+  margin-bottom: 2px;
+  border-radius: 8px;
+  min-height: 45px;
+}
+
+.slash-command-menu-item:first-child {
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
+.slash-command-menu-item:last-child {
+  border-bottom-left-radius: 8px;
+  border-bottom-right-radius: 8px;
+  margin-bottom: 0;
+}
+
+.slash-command-menu-item:hover {
+  background-color: var(--vscode-list-hoverBackground, #2a2d2e);
+}
+
+.slash-command-menu-item.selected {
+  color: var(--vscode-list-activeSelectionForeground, white);
+  background-color: var(--vscode-list-activeSelectionBackground, #5A32FB);
+}
+
+.slash-command-menu-item.not-selectable {
+  cursor: default;
+  opacity: 0.7;
+  justify-content: center;
+}
+
+.slash-command-item-content {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.slash-command-icon {
+  margin-right: 10px;
+  font-size: 16px;
+  flex-shrink: 0;
+  width: 20px;
+  text-align: center;
+}
+
+.slash-command-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.slash-command-name {
+  font-weight: 500;
+  color: var(--vscode-foreground);
+  margin-bottom: 2px;
+}
+
+.slash-command-description {
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground, #888);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Image handling styles */
+.image-button {
+  background-color: transparent;
+  color: var(--vscode-editor-foreground);
+  border: 1px solid var(--vscode-input-border);
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  transition: background-color 0.2s ease;
+}
+
+.image-button:hover {
+  background-color: var(--vscode-button-secondaryHoverBackground);
+}
+
+.image-preview-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px;
+  background-color: var(--claude-input-bg);
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+
+.image-preview {
+  position: relative;
+  width: 80px;
+  height: 80px;
+  border-radius: 4px;
+  overflow: hidden;
+  background-color: var(--vscode-editor-background);
+}
+
+.image-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.image-preview-remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 20px;
+  height: 20px;
+  background-color: rgba(0, 0, 0, 0.7);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.image-preview:hover .image-preview-remove {
+  opacity: 1;
+}
+
+.image-preview-remove:hover {
+  background-color: rgba(226, 81, 65, 0.8);
+}
+
+/* Drag and drop styles */
+.drop-zone {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(90, 50, 251, 0.1);
+  border: 2px dashed var(--claude-primary);
+  pointer-events: none;
+  z-index: 10;
+}
+
+.drop-zone.active {
+  display: flex;
+}
+
+.drop-zone-text {
+  font-size: 16px;
+  color: var(--claude-primary);
+  font-weight: 500;
+}
+
+/* Images in messages */
+.message img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  margin: 8px 0;
+}
+
+.message-image-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.message-image-grid img {
+  width: 100%;
+  height: auto;
+  object-fit: cover;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.message-image-grid img:hover {
+  opacity: 0.9;
+}
+
+/* Responsive adjustments */
+@media (max-width: 480px) {
+  .message {
+    max-width: 100%;
+  }
+  
+  .input-container {
+    padding: 8px;
+  }
+  
+  .messages {
+    padding: 16px 8px;
+  }
+}
+
+/* Image lightbox styles */
+.image-lightbox {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.9);
+  z-index: 999999;
+  cursor: pointer;
+  padding: 20px;
+}
+
+.image-lightbox.active {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lightbox-image {
+  max-width: 90%;
+  max-height: 90vh;
+  object-fit: contain;
+  cursor: default;
+}
+
+.lightbox-close {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  width: 32px;
+  height: 32px;
+  background-color: rgba(255, 255, 255, 0.1);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 24px;
+  transition: background-color 0.2s;
+}
+
+.lightbox-close:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+/* File attachment extension */
+.attachment-preview {
+  padding: 12px;
+  background-color: var(--claude-input-bg);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.attachment-preview:hover {
+  background-color: var(--vscode-list-hoverBackground);
+}
+
+.attachment-icon {
+  font-size: 24px;
+  color: var(--claude-primary);
+}
+
+.attachment-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.attachment-name {
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.attachment-size {
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground);
+}
+
+/* Image upload button */
+.image-button {
+  color: var(--claude-primary);
+  background: transparent;
+  border: none;
+  padding: 6px 8px;
+  cursor: pointer;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  height: 30px;
+  width: 30px;
+  transition: background-color 0.2s ease;
+}
+
+.image-button:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+
+/* Input actions at bottom - outside the input box */
+.input-bottom-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  padding-left: 4px;
+}
+
+.input-bottom-actions .context-button,
+.input-bottom-actions .image-button {
+  width: 28px;
+  height: 28px;
+  padding: 6px;
+  font-size: 14px;
+  color: var(--vscode-foreground);
+  opacity: 0.6;
+  transition: opacity 0.2s ease, background-color 0.2s ease;
+  background-color: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.input-bottom-actions .context-button:hover,
+.input-bottom-actions .image-button:hover {
+  opacity: 1;
+  background-color: var(--vscode-list-hoverBackground);
+}
+
+.input-bottom-actions .context-button {
+  font-weight: bold;
+  font-size: 16px;
+}
+
+.input-bottom-actions .image-button svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Image preview container */
+.image-preview-container {
+  display: none;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--claude-border);
+  background: var(--bg-color);
+}
+
+/* Image preview item */
+.image-preview-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px;
+  border: 1px solid var(--claude-border);
+  border-radius: 6px;
+  background: var(--claude-input-bg);
+  max-width: 150px;
+  transition: all 0.2s ease;
+}
+
+.image-preview-item:hover {
+  border-color: var(--claude-primary);
+}
+
+/* Preview icon for file-based images */
+.preview-icon {
+  width: 80px;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 40px;
+  background: var(--vscode-editor-background);
+  border-radius: 4px;
+}
+
+/* Image thumbnail */
+.preview-thumbnail {
+  width: 80px;
+  height: 80px;
+  object-fit: cover;
+  border-radius: 4px;
+  display: block;
+}
+
+/* Image filename */
+.preview-name {
+  font-size: 12px;
+  color: var(--text-color);
+  margin-top: 4px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+  max-width: 100%;
+}
+
+/* Remove button for image preview */
+.image-remove-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: var(--error-color);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.8;
+  transition: opacity 0.2s ease;
+}
+
+.image-remove-btn:hover {
+  opacity: 1;
+}
+
+/* Drag and drop overlay */
+.drag-over {
+  position: relative;
+}
+
+.drag-over::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--claude-primary);
+  opacity: 0.1;
+  border: 2px dashed var(--claude-primary);
+  border-radius: 6px;
+  pointer-events: none;
+}
+
+/* Input container with drag over state */
+.input-container.drag-over {
+  border-color: var(--claude-primary);
+}
+
+/* Message images (in chat) */
+.message-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.message-image {
+  max-width: 200px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.message-image:hover {
+  transform: scale(1.02);
 }

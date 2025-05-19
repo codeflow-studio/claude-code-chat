@@ -1,193 +1,178 @@
 import * as vscode from 'vscode';
-import { ClaudeCodeClient } from './api/claudeCodeClient';
-import { ChatWebviewProvider } from './ui/chatWebviewProvider';
-import { SelectionHandler } from './selectionHandler';
-import { ErrorHandler, ClaudeCodeError, ErrorType } from './errorHandler';
-import { SettingsManager } from './settings';
+import { ClaudeTerminalInputProvider } from './ui/claudeTerminalInputProvider';
 
-export function activate(context: vscode.ExtensionContext) {
-  console.log('Claude Code extension is now active');
-  
-  // Create instances of our services
-  const claudeCodeClient = new ClaudeCodeClient();
-  const chatWebviewProvider = new ChatWebviewProvider(context);
-  const selectionHandler = new SelectionHandler();
-  const errorHandler = ErrorHandler.getInstance();
-  const settingsManager = SettingsManager.getInstance();
-  
-  // Register the webview provider
-  context.subscriptions.push(
-    vscode.window.registerWebviewViewProvider(
-      'claude-code-chat', // Must match the id in package.json
-      chatWebviewProvider
-    )
-  );
-  
-  // Auto-start Claude Code if enabled in settings
-  if (settingsManager.isAutoStartEnabled()) {
-    claudeCodeClient.start().then(success => {
-      if (success) {
-        errorHandler.showInformation('Claude Code auto-started successfully');
+// Store a reference to the Claude terminal
+let claudeTerminal: vscode.Terminal | undefined;
+
+// Store references to providers
+let claudeTerminalInputProvider: ClaudeTerminalInputProvider | undefined;
+
+/**
+ * Ensures that a Claude Code terminal exists and is initialized
+ */
+function ensureClaudeTerminal(context: vscode.ExtensionContext): vscode.Terminal {
+  // Create terminal if it doesn't exist or was closed
+  if (!claudeTerminal || claudeTerminal.exitStatus) {
+    claudeTerminal = vscode.window.createTerminal({
+      name: 'Claude Code',
+      iconPath: vscode.Uri.joinPath(context.extensionUri, 'resources', 'claude-icon.svg'),
+      cwd: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
+    });
+    
+    // Register disposal when VSCode closes
+    context.subscriptions.push({
+      dispose: () => {
+        claudeTerminal?.dispose();
       }
-    }).catch(error => {
-      errorHandler.handleError(error);
     });
   }
   
-  // Register the startChat command
-  let startChatDisposable = vscode.commands.registerCommand('claude-code.startChat', async () => {
-    try {
-      // Open the chat panel
-      const panel = chatWebviewProvider.createOrShow();
-      
-      // Start Claude Code process if not already running
-      if (!claudeCodeClient.isActive()) {
-        errorHandler.showInformation('Starting Claude Code...');
-        
-        const started = await claudeCodeClient.start();
-        if (started) {
-          errorHandler.showInformation('Claude Code started successfully');
-          
-          // Load existing conversation, if any
-          const context = claudeCodeClient.getConversationContext();
-          await chatWebviewProvider.updateFromContext(context);
-        }
-      }
-    } catch (error) {
-      errorHandler.handleError(error, chatWebviewProvider);
-    }
-  });
+  return claudeTerminal;
+}
 
-  // Register the sendMessage command
-  let sendMessageDisposable = vscode.commands.registerCommand('claude-code.sendMessage', async (messageText?: string) => {
-    try {
-      if (!claudeCodeClient.isActive()) {
-        const startNow = await vscode.window.showInformationMessage(
-          'Claude Code is not running. Start it now?',
-          'Yes', 'No'
-        );
-        
-        if (startNow === 'Yes') {
-          const started = await claudeCodeClient.start();
-          if (!started) {
-            return;
-          }
-        } else {
-          return;
-        }
-      }
+/**
+ * Starts Claude Code in the terminal
+ */
+function startClaudeCodeInTerminal(terminal: vscode.Terminal): void {
+  // Run Claude Code in the terminal
+  terminal.sendText('claude');
+}
 
-      // If no message was provided, open the panel and let the user type one
-      if (!messageText) {
-        chatWebviewProvider.createOrShow();
-        return;
-      }
+export function activate(context: vscode.ExtensionContext) {
+  console.log('Claude Code extension is now active!');
 
-      // Add the user's message to the chat
-      await chatWebviewProvider.addMessage('user', messageText);
-      
-      // Set loading state in UI
-      await chatWebviewProvider.setLoading(true);
-      
-      try {
-        const response = await claudeCodeClient.sendMessage(messageText);
-        
-        // Add Claude's response to the chat
-        await chatWebviewProvider.addMessage('claude', response.message);
-      } finally {
-        // Clear loading state
-        await chatWebviewProvider.setLoading(false);
-      }
-    } catch (error) {
-      errorHandler.handleError(error, chatWebviewProvider);
-    }
-  });
-
-  // Register the askAboutSelection command
-  let askAboutSelectionDisposable = vscode.commands.registerCommand('claude-code.askAboutSelection', async () => {
-    try {
-      // Get the current selection
-      const selection = selectionHandler.getCurrentSelection();
-      if (!selection) {
-        throw new ClaudeCodeError(
-          ErrorType.INVALID_SELECTION,
-          'No code selected. Please select some code first.'
-        );
-      }
-
-      // Ask the user what they want to know about the selection
-      const userQuery = await vscode.window.showInputBox({
-        prompt: 'What would you like to know about this code?',
-        placeHolder: 'E.g., "Explain this code" or "How can I improve this?"'
-      });
-
-      if (!userQuery) {
-        return; // User cancelled
-      }
-
-      // Create the full message with the code selection
-      const message = `${userQuery}\n\nHere's the code (${selection.language}) from ${selection.fileName}:\n\n\`\`\`${selection.language}\n${selection.text}\n\`\`\``;
-
-      // Open the chat panel
-      chatWebviewProvider.createOrShow();
-
-      // Execute the sendMessage command with the constructed message
-      vscode.commands.executeCommand('claude-code.sendMessage', message);
-    } catch (error) {
-      errorHandler.handleError(error, chatWebviewProvider);
-    }
-  });
+  // Create and ensure the Claude terminal
+  const terminal = ensureClaudeTerminal(context);
   
-  // Register the clearConversation command
-  let clearConversationDisposable = vscode.commands.registerCommand('claude-code.clearConversation', async () => {
-    try {
-      // Clear the conversation context
-      claudeCodeClient.clearConversationContext();
-      
-      // Clear the UI
-      await chatWebviewProvider.clearMessages();
-      
-      errorHandler.showInformation('Conversation cleared');
-    } catch (error) {
-      errorHandler.handleError(error, chatWebviewProvider);
-    }
-  });
+  // Check if we should auto-start
+  const config = vscode.workspace.getConfiguration('claude-code-extension');
+  const autoStart = config.get('autoStartOnActivation', true);
   
-  // Register the newConversation command
-  let newConversationDisposable = vscode.commands.registerCommand('claude-code.newConversation', async () => {
-    try {
-      // Clear the current conversation
-      claudeCodeClient.clearConversationContext();
-      
-      // Clear the UI
-      await chatWebviewProvider.clearMessages();
-      
-      errorHandler.showInformation('New conversation started');
-    } catch (error) {
-      errorHandler.handleError(error, chatWebviewProvider);
-    }
-  });
-
-  // Clean up resources when the extension is deactivated
+  if (autoStart) {
+    // Show terminal in background and start Claude Code automatically
+    terminal.show(false); // false preserves focus on current editor
+    startClaudeCodeInTerminal(terminal);
+  }
+  
+  // Register Terminal Input Provider
+  claudeTerminalInputProvider = new ClaudeTerminalInputProvider(context.extensionUri, terminal, context);
   context.subscriptions.push(
-    startChatDisposable,
-    sendMessageDisposable,
-    askAboutSelectionDisposable,
-    clearConversationDisposable,
-    newConversationDisposable,
-    {
-      dispose: () => {
-        try {
-          claudeCodeClient.stop();
-        } catch (error) {
-          console.error('Error stopping Claude Code client:', error);
+    vscode.window.registerWebviewViewProvider('claudeCodeInputView', claudeTerminalInputProvider)
+  );
+  
+  // Register command to launch Claude Code in a terminal
+  const launchClaudeCodeTerminalCommand = vscode.commands.registerCommand('claude-code-extension.launchClaudeCodeTerminal', () => {
+    const terminal = ensureClaudeTerminal(context);
+    
+    // Show the terminal in background
+    terminal.show(false);
+    
+    // Start Claude Code in the terminal
+    startClaudeCodeInTerminal(terminal);
+    
+    // Update the terminal reference in the input provider
+    if (claudeTerminalInputProvider) {
+      claudeTerminalInputProvider.updateTerminal(terminal);
+    }
+    
+    // Focus the input view
+    vscode.commands.executeCommand('claudeCodeInputView.focus');
+  });
+
+  context.subscriptions.push(launchClaudeCodeTerminalCommand);
+  
+  // Add restart command
+  const restartClaudeCodeCommand = vscode.commands.registerCommand('claude-code-extension.restartClaudeCode', () => {
+    if (claudeTerminal) {
+      // Clear the terminal
+      claudeTerminal.sendText('\u0003'); // Send CTRL+C
+      claudeTerminal.sendText('clear'); // Clear the terminal
+      
+      // Start Claude Code again
+      startClaudeCodeInTerminal(claudeTerminal);
+      
+      // Show terminal in background and focus the input
+      claudeTerminal.show(false);
+      vscode.commands.executeCommand('claudeCodeInputView.focus');
+    } else {
+      // Terminal was killed, recreate it
+      const newTerminal = ensureClaudeTerminal(context);
+      newTerminal.show(false);
+      startClaudeCodeInTerminal(newTerminal);
+      
+      // Update the terminal reference in the input provider
+      if (claudeTerminalInputProvider) {
+        claudeTerminalInputProvider.updateTerminal(newTerminal);
+      }
+      
+      vscode.commands.executeCommand('claudeCodeInputView.focus');
+    }
+  });
+  
+  context.subscriptions.push(restartClaudeCodeCommand);
+  
+  // Terminal lifecycle event handlers
+  context.subscriptions.push(
+    vscode.window.onDidCloseTerminal(closedTerminal => {
+      if (closedTerminal === claudeTerminal) {
+        console.log('Claude terminal was closed by user');
+        claudeTerminal = undefined;
+        
+        // Update UI provider to indicate terminal is closed
+        if (claudeTerminalInputProvider) {
+          claudeTerminalInputProvider.notifyTerminalClosed();
         }
       }
-    }
+    })
   );
+  
+  // Handle input to killed terminal
+  const handleSendToClosedTerminal = vscode.commands.registerCommand('claude-code-extension.sendToClosedTerminal', (message: string) => {
+    // Terminal was killed, recreate it
+    const newTerminal = ensureClaudeTerminal(context);
+    
+    // Show the terminal but in the background (preserveActive: false)
+    newTerminal.show(false);
+    
+    // Start Claude Code before sending the message
+    startClaudeCodeInTerminal(newTerminal);
+    
+    // Wait a bit for Claude to initialize
+    setTimeout(() => {
+      // Send text without executing it
+      newTerminal.sendText(message, false);
+      
+      // Add a small delay to ensure the text is properly buffered
+      setTimeout(() => {
+        // Then send Enter key to execute
+        newTerminal.sendText('', true);
+      }, 50);
+      
+      // Update the terminal reference in the input provider
+      if (claudeTerminalInputProvider) {
+        claudeTerminalInputProvider.updateTerminal(newTerminal);
+      }
+      
+      // Return focus to the input view after a delay
+      setTimeout(() => {
+        vscode.commands.executeCommand('claudeCodeInputView.focus');
+      }, 150);
+    }, 1000);
+  });
+  
+  context.subscriptions.push(handleSendToClosedTerminal);
+  
+  // Focus terminal input view if we auto-started
+  if (autoStart) {
+    vscode.commands.executeCommand('claudeCodeInputView.focus');
+  }
 }
 
 export function deactivate() {
-  // Clean up resources when the extension is deactivated
-  console.log('Claude Code extension has been deactivated');
+  // Clean up resources when extension is deactivated
+  if (claudeTerminal) {
+    console.log('Closing Claude terminal on deactivation');
+    claudeTerminal.dispose();
+    claudeTerminal = undefined;
+  }
 }
