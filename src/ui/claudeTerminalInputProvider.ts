@@ -121,7 +121,10 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
       return;
     }
     
-    // Send text to terminal without any show operations
+    // Show the terminal in the background (preserves focus)
+    this._terminal.show(false);
+    
+    // Send text to terminal
     this._terminal.sendText(text, false);
     
     // Add a small delay to ensure the text is properly buffered
