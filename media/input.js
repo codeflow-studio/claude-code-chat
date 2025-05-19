@@ -809,7 +809,7 @@
     
     // Set the height to scrollHeight + border
     const newHeight = Math.min(
-      Math.max(messageInputElement.scrollHeight + borderHeight, 24), // Min height is 24px
+      Math.max(messageInputElement.scrollHeight + borderHeight, 48), // Min height is 48px to match wrapper
       200 // Max height is 200px
     );
     
@@ -1157,8 +1157,8 @@
     
     // Set initial height for textarea
     if (messageInputElement) {
-      // Initially set to the minimum height (single line)
-      messageInputElement.style.height = '24px';
+      // Initially set to the minimum height
+      messageInputElement.style.height = '48px';
       
       // If there's content already (e.g. after a refresh), adjust height automatically
       if (messageInputElement.value) {

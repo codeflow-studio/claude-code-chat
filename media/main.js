@@ -832,6 +832,11 @@ function scrollToBottom() {
 function autoResizeTextarea() {
   messageInput.style.height = 'auto';
   messageInput.style.height = Math.min(messageInput.scrollHeight, 200) + 'px';
+  
+  // Ensure minimum height of 48px
+  if (parseInt(messageInput.style.height) < 48) {
+    messageInput.style.height = '48px';
+  }
 }
 
 function copyMessageText(content) {

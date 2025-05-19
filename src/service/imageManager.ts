@@ -172,9 +172,14 @@ export class ImageManager {
   
   formatImageReferences(imagePaths: string[]): string {
     if (imagePaths.length === 0) return '';
-    
-    return imagePaths
-      .map((path, index) => `\nImage${index + 1} path: '${path}'`)
-      .join('');
+    const instructions = `\n\n### Please find the attached images below:\n\n`;
+    const imageCount = imagePaths.length;
+    if (imageCount === 1) {
+      return `${instructions}Attached Image => '${imagePaths[0]}'`;
+    }
+      const imageList = imagePaths
+        .map((path, index) => `Attached Image ${index + 1} => '${path}'`)
+        .join('\n');
+      return `${instructions}${imageList}`;
   }
 }

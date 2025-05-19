@@ -311,6 +311,7 @@ body {
 /* Input area styles */
 .input-container {
   display: flex;
+  flex-direction: column;
   padding: 16px;
   border-top: 1px solid var(--claude-border);
   background-color: var(--bg-color);
@@ -326,7 +327,7 @@ body {
   display: flex;
   flex-direction: column;
   overflow: visible; /* Prevent content from being cut off */
-  padding: 16px 16px; /* Horizontal padding */
+  padding: 16px; /* Uniform padding */
   max-height: none; /* Remove maximum height limit */
   width: 100%; /* Full width */
   box-sizing: border-box; /* Include padding in width calculation */
@@ -335,7 +336,7 @@ body {
 }
 
 .input-only textarea {
-  min-height: 24px; /* Single line height initially */
+  min-height: 48px; /* Match input-wrapper height */
   max-height: 200px; /* Increase maximum height to allow for more content */
 }
 
@@ -353,6 +354,9 @@ body {
   box-sizing: border-box; /* Include border in width calculation */
   margin: 0 auto; /* Center horizontally if needed */
   align-self: stretch; /* Stretch to container width */
+  min-height: 48px; /* Adjusted for true single-line height */
+  max-height: 200px; /* Allow expansion up to 200px */
+  overflow-y: visible; /* Allow content to expand */
 }
 
 .input-wrapper:focus-within {
@@ -367,14 +371,14 @@ textarea {
   color: var(--claude-input-text);
   border: none;
   border-radius: 16px; /* Match the input-wrapper */
-  padding: 10px 60px 10px 14px; /* Adjusted padding */
+  padding: 12px 60px 12px 14px; /* Reduced vertical padding for single line */
   resize: none;
   font-family: inherit;
   font-size: inherit;
-  min-height: 24px;
+  min-height: 48px; /* Match input-wrapper min-height */
   max-height: 200px;
   outline: none !important; /* Ensure no outline on focus */
-  line-height: 1.5;
+  line-height: 24px; /* Fixed line height */
   box-shadow: none !important; /* Remove any box shadow on focus */
   overflow-y: auto; /* Allow scrolling when content exceeds max height */
   width: 100%; /* Take full width */
@@ -830,6 +834,9 @@ button svg {
   color: transparent;
   background: transparent;
   width: 100%; /* Take full width */
+  padding: 12px 60px 12px 14px; /* Match textarea padding */
+  line-height: 24px; /* Match textarea line height */
+  min-height: 48px; /* Match textarea min-height */
 }
 
 .highlight-layer mark {
@@ -1185,6 +1192,49 @@ button svg {
 
 .image-button:hover {
   background: var(--vscode-list-hoverBackground);
+}
+
+/* Input actions at bottom - outside the input box */
+.input-bottom-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  padding-left: 4px;
+}
+
+.input-bottom-actions .context-button,
+.input-bottom-actions .image-button {
+  width: 28px;
+  height: 28px;
+  padding: 6px;
+  font-size: 14px;
+  color: var(--vscode-foreground);
+  opacity: 0.6;
+  transition: opacity 0.2s ease, background-color 0.2s ease;
+  background-color: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.input-bottom-actions .context-button:hover,
+.input-bottom-actions .image-button:hover {
+  opacity: 1;
+  background-color: var(--vscode-list-hoverBackground);
+}
+
+.input-bottom-actions .context-button {
+  font-weight: bold;
+  font-size: 16px;
+}
+
+.input-bottom-actions .image-button svg {
+  width: 16px;
+  height: 16px;
 }
 
 /* Image preview container */

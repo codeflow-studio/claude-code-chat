@@ -383,20 +383,22 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
                 <textarea id="messageInput" placeholder="Type your task here..." rows="1"></textarea>
               </div>
               <div class="input-actions">
-                <button id="contextButton" title="Add Context (@)" class="context-button">
-                  @
-                </button>
-                <button id="imageButton" title="Attach image" class="image-button">
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M9 1H3.5C2.67157 1 2 1.67157 2 2.5V13.5C2 14.3284 2.67157 15 3.5 15H12.5C13.3284 15 14 14.3284 14 13.5V6M9 1L14 6M9 1V6H14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                  </svg>
-                </button>
                 <button id="sendButton" title="Send to Claude Terminal">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" fill="currentColor"/>
                   </svg>
                 </button>
               </div>
+            </div>
+            <div class="input-bottom-actions">
+              <button id="contextButton" title="Add Context (@)" class="context-button">
+                @
+              </button>
+              <button id="imageButton" title="Attach image" class="image-button">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M9 1H3.5C2.67157 1 2 1.67157 2 2.5V13.5C2 14.3284 2.67157 15 3.5 15H12.5C13.3284 15 14 14.3284 14 13.5V6M9 1L14 6M9 1V6H14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
             </div>
             <div id="contextMenuContainer" class="context-menu-container" style="display: none;"></div>
             <div id="imagePreviewContainer" class="image-preview-container"></div>
