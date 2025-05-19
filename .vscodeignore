@@ -15,3 +15,10 @@ vsc-extension-quickstart.md
 PRD.md
 CLAUDE.md
 **/.DS_Store
+.memory-bank/**
+README-PUBLISHER.md
+MARKETPLACE-DESCRIPTION.md
+PUBLISH-CHECKLIST.md
+DISTRIBUTION-SUMMARY.md
+CONTRIBUTING.md
+src/**

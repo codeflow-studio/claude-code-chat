@@ -1,22 +1,41 @@
 # Claude Code Assistant for VSCode
 
-A VSCode extension that integrates Anthropic's Claude Code command-line AI coding assistant directly into Visual Studio Code.
+![Claude Code](resources/claude-icon.png)
+
+*Unofficial integration* of Anthropic's Claude Code AI assistant into Visual Studio Code. Get intelligent coding assistance without leaving your editor.
+
+> **Disclaimer**: This is an unofficial extension not affiliated with Anthropic. It integrates with the official Claude Code CLI tool which must be installed separately.
 
 ## Features
 
-- Seamless integration of Claude Code into VSCode
-- Dedicated chat panel in the sidebar
-- Maintain persistent Claude Code sessions
-- Context-aware interactions with your workspace
-- Image support: Attach images via drag-drop, paste, or file selection
-- @mentions for workspace problems and terminal output
-- Slash commands for quick access to Claude Code features
+### 🤖 AI-Powered Coding Assistant
+- **Seamless Integration**: Access Claude Code directly from VSCode's sidebar
+- **Persistent Sessions**: Maintain conversations across your coding sessions
+- **Context-Aware**: Claude understands your workspace and current files
+
+### 🖼️ Visual Context Support
+- **Drag & Drop Images**: Simply drag images into the chat
+- **Paste Screenshots**: Ctrl/Cmd+V to paste images directly
+- **File Selection**: Use the image button to browse and attach files
+- **Multiple Formats**: Supports JPG, PNG, GIF, WebP, and SVG
+
+### 💬 Smart Interactions
+- **@mentions**: Reference workspace problems and terminal output
+- **Slash Commands**: Quick access to Claude's powerful features
+- **Markdown Support**: Rich formatting with syntax highlighting
+- **Code Actions**: Copy code blocks with one click
+
+### 🎨 Beautiful Interface
+- **Claude-Styled UI**: Familiar interface matching Claude's design
+- **Dark/Light Theme**: Adapts to your VSCode theme
+- **Status Indicators**: Real-time feedback on Claude's state
+- **Clear History**: Easy conversation management
 
 ## Prerequisites
 
-- VSCode 1.70.0 or newer
-- Claude Code CLI installed on your system
-- Authentication with Anthropic services
+- Visual Studio Code 1.70.0 or newer
+- [Claude Code CLI](https://docs.anthropic.com/claude/docs/claude-code) installed on your system
+- Active Claude account with authentication
 
 ## Building the Extension
 
@@ -53,19 +72,33 @@ You can also install the extension using the VSCode CLI:
 code --install-extension claude-code-extension-0.0.1.vsix
 ```
 
+## Getting Started
+
+1. Install the extension from the VSCode Marketplace
+2. Open the Claude Code panel from the sidebar (look for the Claude icon)
+3. The extension will automatically start Claude Code when activated
+4. Start chatting with Claude about your code!
+
 ## Usage
 
-### Working with Images
+### 💬 Basic Chat
+- Type your questions or requests in the input area
+- Press Enter or click Send to submit
+- Claude will respond with helpful suggestions and code
 
-The extension supports attaching images to your messages:
+### 🖼️ Working with Images
+- **Drag & Drop**: Drag image files directly onto the input area
+- **Paste**: Copy an image and paste with Ctrl/Cmd+V 
+- **Browse**: Click the 📎 button to select image files
+- Supported: JPG, PNG, GIF, WebP, SVG
 
-1. **File Selection**: Click the image button (📎) in the input area
-2. **Drag and Drop**: Drag image files onto the input area
-3. **Paste**: Copy an image and paste with Ctrl/Cmd+V
+### 🔧 Advanced Features
+- **@mentions**: Type @ to reference problems or terminal output
+- **Slash Commands**: Type / to see available commands
+- **Clear Chat**: Click the clear button to start fresh
+- **Restart Claude**: Use the restart button if needed
 
-Supported formats: JPG, PNG, GIF, WebP, SVG
-
-Images are temporarily saved and their paths are sent to Claude Code. See [Using Images](docs/using-images.md) for detailed documentation.
+See our [documentation](https://github.com/anthropic/claude-code-extension/tree/main/docs) for detailed guides.
 
 ## Development
 
@@ -76,6 +109,22 @@ Images are temporarily saved and their paths are sent to Claude Code. See [Using
 - `npm run test` - Run tests
 - `npm run vsix` - Create VSIX package for installation
 
+## Support
+
+- 📖 [Documentation](https://github.com/codeflow-studio/claude-code-extension/tree/main/docs)
+- 🐛 [Report Issues](https://github.com/codeflow-studio/claude-code-extension/issues)
+- 💬 [Discussions](https://github.com/codeflow-studio/claude-code-extension/discussions)
+
 ## License
 
-[Add license information here]
+MIT License - see [LICENSE.md](LICENSE.md) for details
+
+## Contributing
+
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
+
+---
+
+Made with ❤️ by [CodeFlow Studio](https://github.com/codeflow-studio)
+
+*This is an unofficial extension. Claude and Claude Code are trademarks of Anthropic, PBC.*

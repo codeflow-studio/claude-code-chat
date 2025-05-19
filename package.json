@@ -1,12 +1,32 @@
 {
   "name": "claude-code-extension",
-  "displayName": "Claude Code",
-  "description": "Claude Code terminal input for VS Code",
+  "displayName": "Claude Code Assistant for VSCode",
+  "description": "Unofficial integration of Anthropic's Claude Code AI assistant into VSCode",
   "version": "0.0.1",
-  "publisher": "anthropic",
+  "publisher": "codeflow-studio",
+  "icon": "resources/claude-icon.png",
   "repository": {
     "type": "git",
-    "url": "https://github.com/anthropic/claude-code-extension"
+    "url": "https://github.com/codeflow-studio/claude-code-extension"
+  },
+  "bugs": {
+    "url": "https://github.com/codeflow-studio/claude-code-extension/issues"
+  },
+  "homepage": "https://github.com/codeflow-studio/claude-code-extension#readme",
+  "license": "MIT",
+  "keywords": [
+    "ai",
+    "claude",
+    "code assistant",
+    "anthropic",
+    "coding",
+    "artificial intelligence",
+    "unofficial",
+    "codeflow"
+  ],
+  "galleryBanner": {
+    "color": "#1E1E1E",
+    "theme": "dark"
   },
   "engines": {
     "vscode": "^1.100.0"
