@@ -1357,10 +1357,31 @@ button svg {
   outline: 2px dashed var(--claude-primary);
   outline-offset: 2px;
   transition: outline-color 0.2s ease;
+  position: relative;
 }
 
 .input-wrapper.drag-over .highlight-container {
   background-color: rgba(90, 50, 251, 0.05);
+}
+
+/* Drag hint display */
+.input-wrapper[data-drag-hint]::before {
+  content: attr(data-drag-hint);
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: var(--vscode-editor-background);
+  padding: 8px 16px;
+  border-radius: 4px;
+  border: 1px solid var(--claude-primary);
+  color: var(--claude-primary);
+  font-weight: 500;
+  font-size: 14px;
+  z-index: 1000;
+  pointer-events: none;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 /* Message images (in chat) */

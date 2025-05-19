@@ -291,27 +291,44 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
   
   private async _handleDroppedImages(message: any) {
     try {
-      const resolvedImagePaths: string[] = [];
+      const fs = require('fs');  // eslint-disable-line @typescript-eslint/no-var-requires
+      const tempImagePaths: string[] = [];
       
-      if (message.imagesInfo) {
-        for (const info of message.imagesInfo) {
-          if (info.vscodeUri) {
-            // Handle VSCode internal URIs (from Explorer drag)
-            try {
-              const uri = vscode.Uri.parse(info.vscodeUri);
-              resolvedImagePaths.push(uri.fsPath);
-            } catch (error) {
-              console.error('Error parsing VSCode image URI:', error);
+      if (message.uris && message.uris.length > 0) {
+        for (const uriString of message.uris) {
+          try {
+            // Parse the URI and get the file system path
+            const uri = vscode.Uri.parse(uriString);
+            const fsPath = uri.fsPath;
+            
+            // Verify this is an image file
+            const imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.bmp', '.ico'];
+            const hasImageExtension = imageExtensions.some(ext => fsPath.toLowerCase().endsWith(ext));
+            
+            if (hasImageExtension) {
+              // Read the image file
+              const imageBuffer = await fs.promises.readFile(fsPath);
+              const base64Data = imageBuffer.toString('base64');
+              const dataUri = `data:image/*;base64,${base64Data}`;
+              
+              // Extract file name
+              const fileName = fsPath.split('/').pop() || fsPath.split('\\').pop() || 'image';
+              
+              // Save to temporary file
+              const tempPath = await this._imageManager!.saveImage(dataUri, fileName, 'image/*');
+              tempImagePaths.push(tempPath);
             }
+          } catch (error) {
+            console.error('Error processing image URI:', error);
           }
         }
       }
       
-      // Send resolved image paths back to webview
-      if (this._view && resolvedImagePaths.length > 0) {
+      // Send resolved temporary image paths back to webview
+      if (this._view && tempImagePaths.length > 0) {
         this._view.webview.postMessage({
           command: 'droppedImagesResolved',
-          imagePaths: resolvedImagePaths
+          imagePaths: tempImagePaths
         });
       }
     } catch (error) {
@@ -440,6 +457,30 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
               imagePaths.push(image.path);
             } catch (error) {
               console.error(`Cannot access file: ${image.path}`, error);
+              failedImages.push(image.name);
+            }
+          } else if (image.isExternalDrop && image.data) {
+            // Handle external drops (from Finder/File Manager) that have data but no path
+            const tempPath = await this._imageManager!.saveImage(image.data, image.name, image.type);
+            
+            // Verify the file was actually created
+            const fs = require('fs');  // eslint-disable-line @typescript-eslint/no-var-requires
+            if (fs.existsSync(tempPath)) {
+              try {
+                await fs.promises.access(tempPath, fs.constants.R_OK);
+                imagePaths.push(tempPath);
+              } catch (accessError) {
+                console.error(`File created but not readable: ${tempPath}`, accessError);
+                failedImages.push(image.name);
+                // Try to clean up the inaccessible file
+                try {
+                  await this._imageManager!.removeImage(tempPath);
+                } catch (cleanupError) {
+                  console.error('Failed to clean up inaccessible file:', cleanupError);
+                }
+              }
+            } else {
+              console.error(`File was not created successfully: ${tempPath}`);
               failedImages.push(image.name);
             }
           }

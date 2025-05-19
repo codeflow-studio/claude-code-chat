@@ -975,7 +975,7 @@
         break;
         
       case 'droppedImagesResolved':
-        // Handle resolved image paths from VSCode drops
+        // Handle resolved image paths from VSCode drops (already saved to temp)
         if (message.imagePaths && message.imagePaths.length > 0) {
           message.imagePaths.forEach(path => {
             const fileName = path.split('/').pop() || path.split('\\').pop() || 'image';
@@ -983,7 +983,9 @@
               name: fileName,
               type: 'image/*', // We don't know the exact type from path
               path: path,
-              isFromClipboard: false
+              isFromClipboard: false,
+              // Important: path is already a temp file, no need to save again
+              alreadySaved: true
             });
           });
           updateImagePreview();
@@ -1148,23 +1150,45 @@
       e.preventDefault();
       e.dataTransfer.dropEffect = 'copy';
       dropTarget.classList.add('drag-over');
+      
+      // Show hint if Shift key is not pressed
+      if (!e.shiftKey) {
+        dropTarget.dataset.dragHint = 'Hold Shift key to drop files';
+      } else {
+        dropTarget.dataset.dragHint = 'Drop files here';
+      }
     });
 
     dropTarget.addEventListener('dragleave', (e) => {
       // Only remove the class if we're leaving the drop target completely
       if (!dropTarget.contains(e.relatedTarget)) {
         dropTarget.classList.remove('drag-over');
+        delete dropTarget.dataset.dragHint;
       }
     });
 
     dropTarget.addEventListener('drop', (e) => {
       e.preventDefault();
       dropTarget.classList.remove('drag-over');
+      delete dropTarget.dataset.dragHint;
+      
+      // Debug: log all available data types
+      console.log('Available data types:', Array.from(e.dataTransfer.types));
       
       // Get all the URIs from the drop event
       let uris = [];
+      
+      // Check multiple data types for file URIs
       const resourceUrlsData = e.dataTransfer.getData('resourceurls');
       const vscodeUriListData = e.dataTransfer.getData('application/vnd.code.uri-list');
+      const uriListData = e.dataTransfer.getData('text/uri-list');
+      const plainTextData = e.dataTransfer.getData('text/plain');
+      
+      // Log all data types for debugging
+      console.log('resourceurls:', resourceUrlsData);
+      console.log('application/vnd.code.uri-list:', vscodeUriListData);
+      console.log('text/uri-list:', uriListData);
+      console.log('text/plain:', plainTextData);
       
       // Try 'resourceurls' first (used for multi-select)
       if (resourceUrlsData) {
@@ -1182,19 +1206,116 @@
         uris = vscodeUriListData.split('\n').map(uri => uri.trim());
       }
       
+      // Try text/uri-list (common for file drops)
+      if (uris.length === 0 && uriListData) {
+        uris = uriListData.split('\n').map(uri => uri.trim()).filter(uri => uri);
+      }
+      
+      // Try plain text (some systems use this for file:// URLs)
+      if (uris.length === 0 && plainTextData && plainTextData.startsWith('file://')) {
+        uris = plainTextData.split('\n').map(uri => uri.trim()).filter(uri => uri);
+      }
+      
       // Filter for valid schemes (file or vscode-file) and non-empty strings
-      const validUris = uris.filter(uri => uri && (uri.startsWith('vscode-file:') || uri.startsWith('file:')));
+      const validUris = uris.filter(uri => uri && (uri.startsWith('vscode-file:') || uri.startsWith('file://')));
       
       if (validUris.length > 0) {
-        // Send URIs to extension for processing
-        vscode.postMessage({
-          command: 'resolveDroppedPaths',
-          uris: validUris
+        console.log('Found valid URIs:', validUris);
+        
+        // Separate image URIs from other file URIs
+        const imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.bmp', '.ico'];
+        const imageUris = [];
+        const fileUris = [];
+        
+        validUris.forEach(uri => {
+          const lowerUri = uri.toLowerCase();
+          const isImage = imageExtensions.some(ext => lowerUri.endsWith(ext));
+          
+          if (isImage) {
+            imageUris.push(uri);
+          } else {
+            fileUris.push(uri);
+          }
         });
+        
+        // Handle image URIs
+        if (imageUris.length > 0) {
+          console.log('Found image URIs:', imageUris);
+          // Send image URIs to extension for path resolution
+          vscode.postMessage({
+            command: 'resolveDroppedImages',
+            uris: imageUris
+          });
+        }
+        
+        // Handle regular file URIs
+        if (fileUris.length > 0) {
+          console.log('Found file URIs:', fileUris);
+          // Send file URIs to extension for path resolution
+          vscode.postMessage({
+            command: 'resolveDroppedPaths',
+            uris: fileUris
+          });
+        }
+        
         return;
       }
       
-      // Handle external file drops from Finder/File Manager
+      // Handle external file drops from Finder/File Manager using the File API
+      const files = e.dataTransfer.files;
+      if (files.length > 0) {
+        console.log('Files dropped:', files.length);
+        
+        // Separate image and non-image files
+        const imageFiles = [];
+        const nonImageFiles = [];
+        
+        Array.from(files).forEach(file => {
+          if (file.type && file.type.startsWith('image/')) {
+            imageFiles.push(file);
+          } else {
+            nonImageFiles.push(file);
+          }
+        });
+        
+        // Handle images for preview
+        if (imageFiles.length > 0) {
+          // For external drops, we need to read the file content and save to temp
+          // Since we can't access the full path in webview
+          imageFiles.forEach(file => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+              pendingImages.push({
+                name: file.name,
+                type: file.type,
+                data: e.target.result,
+                isFromClipboard: false,
+                // Mark as external drop so it gets saved to temp
+                isExternalDrop: true
+              });
+              updateImagePreview();
+            };
+            reader.onerror = (error) => {
+              console.error('Error reading file:', error);
+              vscode.postMessage({
+                command: 'showError',
+                message: `Failed to read file: ${file.name}`
+              });
+            };
+            reader.readAsDataURL(file);
+          });
+        }
+        
+        // Create file paths for mentions (just the filename since we can't access full path)
+        if (nonImageFiles.length > 0) {
+          const filePaths = nonImageFiles.map(file => file.name);
+          insertDroppedPaths(filePaths);
+        }
+        
+        return;
+      }
+      
+      // Handle text drops
       const text = e.dataTransfer.getData('text');
       if (text) {
         // Insert text directly at cursor position
@@ -1211,17 +1332,6 @@
         updateHighlights();
         autoResizeTextarea();
         messageInputElement.focus();
-        return;
-      }
-      
-      // Handle image drops separately
-      const files = e.dataTransfer.files;
-      const imageFiles = Array.from(files).filter(file => 
-        file.type.startsWith('image/')
-      );
-      
-      if (imageFiles.length > 0) {
-        handleImageSelection(imageFiles, false);
       }
     });
   }
