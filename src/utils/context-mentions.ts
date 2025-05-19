@@ -1,8 +1,8 @@
 /**
  * Regular expression for matching context mentions using '@' syntax.
- * Matches file paths, URLs, and special keywords (problems, terminal)
+ * Matches file paths, URLs, and special keywords (problems)
  */
-export const mentionRegex = /@((?:\/|\w+:\/\/)[^\s]+?|[a-f0-9]{7,40}\b|problems\b|terminal\b|git-changes\b)(?=[.,;:!?]?(?=[\s\r\n]|$))/;
+export const mentionRegex = /@((?:\/|\w+:\/\/)[^\s]+?|[a-f0-9]{7,40}\b|problems\b|git-changes\b)(?=[.,;:!?]?(?=[\s\r\n]|$))/;
 export const mentionRegexGlobal = new RegExp(mentionRegex.source, 'g');
 
 /**
@@ -80,7 +80,6 @@ export enum ContextMenuOptionType {
     File = "file",
     Folder = "folder",
     Problems = "problems",
-    Terminal = "terminal",
     URL = "url",
     Git = "git",
     NoResults = "noResults",
@@ -119,8 +118,8 @@ export function shouldShowContextMenu(text: string, position: number): boolean {
         return false;
     }
 
-    // Don't show the menu if it's a problems or terminal
-    if (textAfterAt.toLowerCase().startsWith("problems") || textAfterAt.toLowerCase().startsWith("terminal")) {
+    // Don't show the menu if it's problems
+    if (textAfterAt.toLowerCase().startsWith("problems")) {
         return false;
     }
 
@@ -173,7 +172,6 @@ export function getContextMenuOptions(
         return [
             { type: ContextMenuOptionType.URL },
             { type: ContextMenuOptionType.Problems },
-            { type: ContextMenuOptionType.Terminal },
             { type: ContextMenuOptionType.Git },
             { type: ContextMenuOptionType.Folder },
             { type: ContextMenuOptionType.File },
@@ -195,9 +193,6 @@ export function getContextMenuOptions(
     }
     if ("problems".startsWith(lowerQuery)) {
         suggestions.push({ type: ContextMenuOptionType.Problems });
-    }
-    if ("terminal".startsWith(lowerQuery)) {
-        suggestions.push({ type: ContextMenuOptionType.Terminal });
     }
     if (query.startsWith("http")) {
         suggestions.push({ type: ContextMenuOptionType.URL, value: query });

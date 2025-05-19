@@ -16,7 +16,7 @@
   const imagePreviewContainer = document.getElementById('imagePreviewContainer');
   
   // RegExp for detecting @ mentions
-  const mentionRegex = /@((?:\/|\w+:\/\/)[^\s]+?|[a-f0-9]{7,40}\b|problems\b|terminal\b|git-changes\b)(?=[.,;:!?]?(?=[\s\r\n]|$))/;
+  const mentionRegex = /@((?:\/|\w+:\/\/)[^\s]+?|[a-f0-9]{7,40}\b|problems\b|git-changes\b)(?=[.,;:!?]?(?=[\s\r\n]|$))/;
   const mentionRegexGlobal = new RegExp(mentionRegex.source, 'g');
   
   // Context menu state
@@ -40,8 +40,7 @@
   
   // Base context menu items
   const baseContextItems = [
-    { type: 'problems', value: 'problems', label: 'Problems', description: 'Workspace problems' },
-    { type: 'terminal', value: 'terminal', label: 'Terminal', description: 'Terminal output' }
+    { type: 'problems', value: 'problems', label: 'Problems', description: 'Workspace problems' }
   ];
   
   // Slash commands
@@ -395,8 +394,6 @@
         icon = 'git-commit';
       } else if (item.type === 'problems') {
         icon = 'warning';
-      } else if (item.type === 'terminal') {
-        icon = 'terminal';
       }
       
       // Format based on item type

@@ -31,7 +31,6 @@ export function createContextMenuHtml(
                      option.type === ContextMenuOptionType.Git) && !option.value) {
                     rightIcon = '<span class="codicon codicon-chevron-right"></span>';
                 } else if (option.type === ContextMenuOptionType.Problems || 
-                           option.type === ContextMenuOptionType.Terminal ||
                            ((option.type === ContextMenuOptionType.File || 
                              option.type === ContextMenuOptionType.Folder || 
                              option.type === ContextMenuOptionType.Git) && option.value)) {
@@ -68,8 +67,6 @@ function getIconForOption(option: ContextMenuQueryItem): string {
             return "folder";
         case ContextMenuOptionType.Problems:
             return "warning";
-        case ContextMenuOptionType.Terminal:
-            return "terminal";
         case ContextMenuOptionType.URL:
             return "link";
         case ContextMenuOptionType.Git:
@@ -88,8 +85,6 @@ function renderOptionContent(option: ContextMenuQueryItem): string {
     switch (option.type) {
         case ContextMenuOptionType.Problems:
             return `<span>Problems</span>`;
-        case ContextMenuOptionType.Terminal:
-            return `<span>Terminal</span>`;
         case ContextMenuOptionType.URL:
             return `<span>Paste URL to fetch contents</span>`;
         case ContextMenuOptionType.NoResults:
