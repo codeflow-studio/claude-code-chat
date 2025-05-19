@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Enhanced Drag and Drop Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            padding: 20px;
+            background: #1e1e1e;
+            color: #e9e9e9;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        .drop-area {
+            border: 2px dashed #474747;
+            border-radius: 10px;
+            padding: 40px;
+            text-align: center;
+            margin: 20px 0;
+            transition: all 0.3s ease;
+            background: #2d2d2d;
+        }
+        
+        .drop-area.drag-over {
+            border-color: #5A32FB;
+            background-color: rgba(90, 50, 251, 0.1);
+            box-shadow: 0 0 10px rgba(90, 50, 251, 0.3);
+        }
+        
+        .output {
+            margin-top: 20px;
+            padding: 20px;
+            background: #2d2d2d;
+            border-radius: 10px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: 'SF Mono', Consolas, monospace;
+            font-size: 14px;
+        }
+        
+        .file-item {
+            padding: 10px;
+            margin: 10px 0;
+            background: #3c3c3c;
+            border-radius: 5px;
+            border-left: 3px solid #5A32FB;
+        }
+        
+        .file-item.external {
+            border-left-color: #F2C94C;
+        }
+        
+        .file-path {
+            color: #9E8CFC;
+            font-weight: 500;
+        }
+        
+        .file-type {
+            color: #6e6e6e;
+            font-size: 12px;
+            margin-top: 5px;
+        }
+        
+        h1 {
+            color: #5A32FB;
+            text-align: center;
+        }
+        
+        .info {
+            background: #3c3c3c;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        
+        .mention {
+            background: rgba(90, 50, 251, 0.2);
+            color: #E8E8FD;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'SF Mono', Consolas, monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Enhanced Drag and Drop Test</h1>
+        
+        <div class="info">
+            <p><strong>Instructions:</strong></p>
+            <ul>
+                <li>Drag files from your workspace folder to see <span class="mention">@relative/path</span></li>
+                <li>Drag files from outside the workspace to see <span class="mention">@/absolute/path</span></li>
+                <li>The extension will determine the appropriate path format automatically</li>
+            </ul>
+        </div>
+        
+        <div class="drop-area" id="dropArea">
+            <p>Drag and drop files or folders here</p>
+            <p style="color: #6e6e6e; font-size: 14px;">Files from workspace will use relative paths<br>External files will use absolute paths</p>
+        </div>
+        
+        <div class="output" id="output" style="display: none;">
+            <h3>Dropped Files:</h3>
+            <div id="fileList"></div>
+        </div>
+    </div>
+
+    <script>
+        const dropArea = document.getElementById('dropArea');
+        const output = document.getElementById('output');
+        const fileList = document.getElementById('fileList');
+        
+        // Simulated workspace root for testing
+        const WORKSPACE_ROOT = '/Users/quang.tranminh/Projects/new-ios/claude-code-extension';
+
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropArea.addEventListener(eventName, () => dropArea.classList.add('drag-over'), false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, () => dropArea.classList.remove('drag-over'), false);
+        });
+
+        dropArea.addEventListener('drop', handleDrop, false);
+
+        function handleDrop(e) {
+            const dt = e.dataTransfer;
+            const items = dt.items;
+            
+            output.style.display = 'block';
+            fileList.innerHTML = '';
+
+            if (items && items.length > 0) {
+                for (let i = 0; i < items.length; i++) {
+                    const item = items[i];
+                    if (item.kind === 'file') {
+                        const entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null;
+                        
+                        if (entry) {
+                            processEntry(entry);
+                        } else {
+                            const file = item.getAsFile();
+                            if (file) {
+                                processFile(file);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        function processEntry(entry) {
+            const fullPath = entry.fullPath;
+            const isInWorkspace = fullPath.startsWith(WORKSPACE_ROOT);
+            
+            let displayPath;
+            if (isInWorkspace) {
+                displayPath = fullPath.substring(WORKSPACE_ROOT.length + 1);
+            } else {
+                displayPath = fullPath;
+            }
+            
+            const fileItem = document.createElement('div');
+            fileItem.className = isInWorkspace ? 'file-item' : 'file-item external';
+            fileItem.innerHTML = `
+                <div class="file-path">@${displayPath}</div>
+                <div class="file-type">
+                    ${entry.isFile ? 'File' : 'Directory'} • 
+                    ${isInWorkspace ? 'Workspace (Relative Path)' : 'External (Absolute Path)'}
+                </div>
+            `;
+            fileList.appendChild(fileItem);
+        }
+        
+        function processFile(file) {
+            const fileItem = document.createElement('div');
+            fileItem.className = 'file-item';
+            fileItem.innerHTML = `
+                <div class="file-path">@${file.name}</div>
+                <div class="file-type">
+                    File • Name only (would be resolved by extension)
+                </div>
+            `;
+            fileList.appendChild(fileItem);
+        }
+    </script>
+</body>
+</html>

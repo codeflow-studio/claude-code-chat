@@ -1,4 +1,4 @@
-import { ContextMenuOptionType, ContextMenuQueryItem, SearchResult } from '../../utils/context-mentions';
+import { ContextMenuOptionType, ContextMenuQueryItem } from '../../utils/context-mentions';
 
 /**
  * Generates the HTML for the context menu displayed when typing '@'
@@ -22,8 +22,8 @@ export function createContextMenuHtml(
                 const isSelected = index === selectedIndex;
                 const isSelectable = option.type !== ContextMenuOptionType.NoResults && option.type !== ContextMenuOptionType.URL;
                 
-                let icon = getIconForOption(option);
-                let content = renderOptionContent(option);
+                const icon = getIconForOption(option);
+                const content = renderOptionContent(option);
                 let rightIcon = '';
                 
                 if ((option.type === ContextMenuOptionType.File || 
@@ -31,7 +31,6 @@ export function createContextMenuHtml(
                      option.type === ContextMenuOptionType.Git) && !option.value) {
                     rightIcon = '<span class="codicon codicon-chevron-right"></span>';
                 } else if (option.type === ContextMenuOptionType.Problems || 
-                           option.type === ContextMenuOptionType.Terminal ||
                            ((option.type === ContextMenuOptionType.File || 
                              option.type === ContextMenuOptionType.Folder || 
                              option.type === ContextMenuOptionType.Git) && option.value)) {
@@ -68,8 +67,6 @@ function getIconForOption(option: ContextMenuQueryItem): string {
             return "folder";
         case ContextMenuOptionType.Problems:
             return "warning";
-        case ContextMenuOptionType.Terminal:
-            return "terminal";
         case ContextMenuOptionType.URL:
             return "link";
         case ContextMenuOptionType.Git:
@@ -88,8 +85,6 @@ function renderOptionContent(option: ContextMenuQueryItem): string {
     switch (option.type) {
         case ContextMenuOptionType.Problems:
             return `<span>Problems</span>`;
-        case ContextMenuOptionType.Terminal:
-            return `<span>Terminal</span>`;
         case ContextMenuOptionType.URL:
             return `<span>Paste URL to fetch contents</span>`;
         case ContextMenuOptionType.NoResults:

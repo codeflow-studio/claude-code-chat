@@ -152,7 +152,6 @@ export class SlashCommandSuggestions {
   }
 
   private position(targetElement: HTMLElement) {
-    const rect = targetElement.getBoundingClientRect();
     const containerRect = targetElement.closest('.input-container')?.getBoundingClientRect();
     
     if (containerRect) {

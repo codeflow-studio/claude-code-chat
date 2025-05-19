@@ -16,7 +16,7 @@
   const imagePreviewContainer = document.getElementById('imagePreviewContainer');
   
   // RegExp for detecting @ mentions
-  const mentionRegex = /@((?:\/|\w+:\/\/)[^\s]+?|[a-f0-9]{7,40}\b|problems\b|terminal\b|git-changes\b)(?=[.,;:!?]?(?=[\s\r\n]|$))/;
+  const mentionRegex = /@((?:\/|\w+:\/\/)[^\s]+?|[a-f0-9]{7,40}\b|problems\b|git-changes\b)(?=[.,;:!?]?(?=[\s\r\n]|$))/;
   const mentionRegexGlobal = new RegExp(mentionRegex.source, 'g');
   
   // Context menu state
@@ -40,8 +40,7 @@
   
   // Base context menu items
   const baseContextItems = [
-    { type: 'problems', value: 'problems', label: 'Problems', description: 'Workspace problems' },
-    { type: 'terminal', value: 'terminal', label: 'Terminal', description: 'Terminal output' }
+    { type: 'problems', value: 'problems', label: 'Problems', description: 'Workspace problems' }
   ];
   
   // Slash commands
@@ -395,8 +394,6 @@
         icon = 'git-commit';
       } else if (item.type === 'problems') {
         icon = 'warning';
-      } else if (item.type === 'terminal') {
-        icon = 'terminal';
       }
       
       // Format based on item type
@@ -969,6 +966,31 @@
           updateImagePreview();
         }
         break;
+        
+      case 'droppedPathsResolved':
+        // Handle resolved paths from dropped files/folders
+        if (message.paths && message.paths.length > 0) {
+          insertDroppedPaths(message.paths);
+        }
+        break;
+        
+      case 'droppedImagesResolved':
+        // Handle resolved image paths from VSCode drops (already saved to temp)
+        if (message.imagePaths && message.imagePaths.length > 0) {
+          message.imagePaths.forEach(path => {
+            const fileName = path.split('/').pop() || path.split('\\').pop() || 'image';
+            pendingImages.push({
+              name: fileName,
+              type: 'image/*', // We don't know the exact type from path
+              path: path,
+              isFromClipboard: false,
+              // Important: path is already a temp file, no need to save again
+              alreadySaved: true
+            });
+          });
+          updateImagePreview();
+        }
+        break;
     }
   });
   
@@ -1118,31 +1140,238 @@
     });
   }
 
-  // Handle drag and drop
+  // Handle drag and drop for files/folders and images
   if (messageInputElement) {
-    messageInputElement.addEventListener('dragover', (e) => {
+    const inputWrapper = document.querySelector('.input-wrapper');
+    const dropTarget = inputWrapper || messageInputElement;
+    
+    // Add drag event listeners
+    dropTarget.addEventListener('dragover', (e) => {
       e.preventDefault();
       e.dataTransfer.dropEffect = 'copy';
-      messageInputElement.classList.add('drag-over');
-    });
-
-    messageInputElement.addEventListener('dragleave', () => {
-      messageInputElement.classList.remove('drag-over');
-    });
-
-    messageInputElement.addEventListener('drop', (e) => {
-      e.preventDefault();
-      messageInputElement.classList.remove('drag-over');
+      dropTarget.classList.add('drag-over');
       
-      const files = Array.from(e.dataTransfer.files).filter(file => 
-        file.type.startsWith('image/')
-      );
-      
-      if (files.length > 0) {
-        // For drag-drop, we need to save to temp since we can't access the original path
-        handleImageSelection(files, true);
+      // Show hint if Shift key is not pressed
+      if (!e.shiftKey) {
+        dropTarget.dataset.dragHint = 'Hold Shift key to drop files';
+      } else {
+        dropTarget.dataset.dragHint = 'Drop files here';
       }
     });
+
+    dropTarget.addEventListener('dragleave', (e) => {
+      // Only remove the class if we're leaving the drop target completely
+      if (!dropTarget.contains(e.relatedTarget)) {
+        dropTarget.classList.remove('drag-over');
+        delete dropTarget.dataset.dragHint;
+      }
+    });
+
+    dropTarget.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropTarget.classList.remove('drag-over');
+      delete dropTarget.dataset.dragHint;
+      
+      // Debug: log all available data types
+      console.log('Available data types:', Array.from(e.dataTransfer.types));
+      
+      // Get all the URIs from the drop event
+      let uris = [];
+      
+      // Check multiple data types for file URIs
+      const resourceUrlsData = e.dataTransfer.getData('resourceurls');
+      const vscodeUriListData = e.dataTransfer.getData('application/vnd.code.uri-list');
+      const uriListData = e.dataTransfer.getData('text/uri-list');
+      const plainTextData = e.dataTransfer.getData('text/plain');
+      
+      // Log all data types for debugging
+      console.log('resourceurls:', resourceUrlsData);
+      console.log('application/vnd.code.uri-list:', vscodeUriListData);
+      console.log('text/uri-list:', uriListData);
+      console.log('text/plain:', plainTextData);
+      
+      // Try 'resourceurls' first (used for multi-select)
+      if (resourceUrlsData) {
+        try {
+          uris = JSON.parse(resourceUrlsData);
+          uris = uris.map(uri => decodeURIComponent(uri));
+        } catch (error) {
+          console.error('Failed to parse resourceurls JSON:', error);
+          uris = [];
+        }
+      }
+      
+      // Fallback to 'application/vnd.code.uri-list' (newline separated)
+      if (uris.length === 0 && vscodeUriListData) {
+        uris = vscodeUriListData.split('\n').map(uri => uri.trim());
+      }
+      
+      // Try text/uri-list (common for file drops)
+      if (uris.length === 0 && uriListData) {
+        uris = uriListData.split('\n').map(uri => uri.trim()).filter(uri => uri);
+      }
+      
+      // Try plain text (some systems use this for file:// URLs)
+      if (uris.length === 0 && plainTextData && plainTextData.startsWith('file://')) {
+        uris = plainTextData.split('\n').map(uri => uri.trim()).filter(uri => uri);
+      }
+      
+      // Filter for valid schemes (file or vscode-file) and non-empty strings
+      const validUris = uris.filter(uri => uri && (uri.startsWith('vscode-file:') || uri.startsWith('file://')));
+      
+      if (validUris.length > 0) {
+        console.log('Found valid URIs:', validUris);
+        
+        // Separate image URIs from other file URIs
+        const imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.bmp', '.ico'];
+        const imageUris = [];
+        const fileUris = [];
+        
+        validUris.forEach(uri => {
+          const lowerUri = uri.toLowerCase();
+          const isImage = imageExtensions.some(ext => lowerUri.endsWith(ext));
+          
+          if (isImage) {
+            imageUris.push(uri);
+          } else {
+            fileUris.push(uri);
+          }
+        });
+        
+        // Handle image URIs
+        if (imageUris.length > 0) {
+          console.log('Found image URIs:', imageUris);
+          // Send image URIs to extension for path resolution
+          vscode.postMessage({
+            command: 'resolveDroppedImages',
+            uris: imageUris
+          });
+        }
+        
+        // Handle regular file URIs
+        if (fileUris.length > 0) {
+          console.log('Found file URIs:', fileUris);
+          // Send file URIs to extension for path resolution
+          vscode.postMessage({
+            command: 'resolveDroppedPaths',
+            uris: fileUris
+          });
+        }
+        
+        return;
+      }
+      
+      // Handle external file drops from Finder/File Manager using the File API
+      const files = e.dataTransfer.files;
+      if (files.length > 0) {
+        console.log('Files dropped:', files.length);
+        
+        // Separate image and non-image files
+        const imageFiles = [];
+        const nonImageFiles = [];
+        
+        Array.from(files).forEach(file => {
+          if (file.type && file.type.startsWith('image/')) {
+            imageFiles.push(file);
+          } else {
+            nonImageFiles.push(file);
+          }
+        });
+        
+        // Handle images for preview
+        if (imageFiles.length > 0) {
+          // For external drops, we need to read the file content and save to temp
+          // Since we can't access the full path in webview
+          imageFiles.forEach(file => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+              pendingImages.push({
+                name: file.name,
+                type: file.type,
+                data: e.target.result,
+                isFromClipboard: false,
+                // Mark as external drop so it gets saved to temp
+                isExternalDrop: true
+              });
+              updateImagePreview();
+            };
+            reader.onerror = (error) => {
+              console.error('Error reading file:', error);
+              vscode.postMessage({
+                command: 'showError',
+                message: `Failed to read file: ${file.name}`
+              });
+            };
+            reader.readAsDataURL(file);
+          });
+        }
+        
+        // Create file paths for mentions (just the filename since we can't access full path)
+        if (nonImageFiles.length > 0) {
+          const filePaths = nonImageFiles.map(file => file.name);
+          insertDroppedPaths(filePaths);
+        }
+        
+        return;
+      }
+      
+      // Handle text drops
+      const text = e.dataTransfer.getData('text');
+      if (text) {
+        // Insert text directly at cursor position
+        const currentValue = messageInputElement.value;
+        const cursorPos = messageInputElement.selectionStart;
+        const newValue = currentValue.slice(0, cursorPos) + text + currentValue.slice(cursorPos);
+        messageInputElement.value = newValue;
+        
+        // Update cursor position
+        const newCursorPos = cursorPos + text.length;
+        messageInputElement.setSelectionRange(newCursorPos, newCursorPos);
+        
+        // Update highlights and resize
+        updateHighlights();
+        autoResizeTextarea();
+        messageInputElement.focus();
+      }
+    });
+  }
+  
+  // Function to insert dropped file/folder paths as mentions
+  function insertDroppedPaths(paths) {
+    if (!messageInputElement || paths.length === 0) return;
+    
+    const currentValue = messageInputElement.value;
+    const cursorPosition = messageInputElement.selectionStart;
+    
+    // Build the mentions string
+    const mentions = paths.map(path => `@${path}`).join(' ');
+    
+    // Insert at cursor position
+    const beforeCursor = currentValue.slice(0, cursorPosition);
+    const afterCursor = currentValue.slice(cursorPosition);
+    
+    // Add space before if needed
+    const needsSpaceBefore = beforeCursor.length > 0 && !beforeCursor.endsWith(' ') && !beforeCursor.endsWith('\n');
+    const spaceBefore = needsSpaceBefore ? ' ' : '';
+    
+    // Add space after if needed
+    const needsSpaceAfter = afterCursor.length > 0 && !afterCursor.startsWith(' ') && !afterCursor.startsWith('\n');
+    const spaceAfter = needsSpaceAfter ? ' ' : '';
+    
+    // Construct the new value
+    const newValue = beforeCursor + spaceBefore + mentions + spaceAfter + afterCursor;
+    messageInputElement.value = newValue;
+    
+    // Set cursor position after the inserted mentions
+    const newCursorPosition = cursorPosition + spaceBefore.length + mentions.length + spaceAfter.length;
+    messageInputElement.setSelectionRange(newCursorPosition, newCursorPosition);
+    
+    // Update highlights and resize
+    updateHighlights();
+    autoResizeTextarea();
+    
+    // Focus the input
+    messageInputElement.focus();
   }
 
   // Add keyboard shortcut for image paste (Ctrl/Cmd+V)
@@ -1210,8 +1439,4 @@
   
   // Run initialization
   init();
-  
-  // Removed debugging code that forced the context menu to show after a delay
-  // The renderContextMenu function is now updated to correctly show the menu
-  // with proper positioning and z-index
 })();

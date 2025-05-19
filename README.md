@@ -98,7 +98,7 @@ code --install-extension claude-code-extension-0.0.1.vsix
 - **Clear Chat**: Click the clear button to start fresh
 - **Restart Claude**: Use the restart button if needed
 
-See our [documentation](https://github.com/anthropic/claude-code-extension/tree/main/docs) for detailed guides.
+See our [documentation](https://github.com/codeflow-studio/claude-code-chat/tree/main/docs) for detailed guides.
 
 ## Development
 
@@ -111,9 +111,9 @@ See our [documentation](https://github.com/anthropic/claude-code-extension/tree/
 
 ## Support
 
-- 📖 [Documentation](https://github.com/codeflow-studio/claude-code-extension/tree/main/docs)
-- 🐛 [Report Issues](https://github.com/codeflow-studio/claude-code-extension/issues)
-- 💬 [Discussions](https://github.com/codeflow-studio/claude-code-extension/discussions)
+- 📖 [Documentation](https://github.com/codeflow-studio/claude-code-chat/tree/main/docs)
+- 🐛 [Report Issues](https://github.com/codeflow-studio/claude-code-chat/issues)
+- 💬 [Discussions](https://github.com/codeflow-studio/claude-code-chat/discussions)
 
 ## License
 

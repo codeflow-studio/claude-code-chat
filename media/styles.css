@@ -365,6 +365,13 @@ body {
   box-shadow: 0 0 0 1px var(--claude-primary) !important; /* Add subtle glow on focus */
 }
 
+.input-wrapper.drag-over {
+  border-color: var(--claude-secondary);
+  background-color: rgba(90, 50, 251, 0.1);
+  box-shadow: 0 0 10px rgba(90, 50, 251, 0.3);
+  transition: all 0.2s ease;
+}
+
 textarea {
   flex: 1;
   background-color: transparent;
@@ -1232,9 +1239,20 @@ button svg {
   font-size: 16px;
 }
 
-.input-bottom-actions .image-button svg {
-  width: 16px;
-  height: 16px;
+.input-bottom-actions .image-button svg,
+.input-bottom-actions .image-button img {
+  width: 14px;
+  height: 14px;
+}
+
+/* Apply filter to make the image match the text color */
+.vscode-dark .input-bottom-actions .image-button img,
+.vscode-high-contrast .input-bottom-actions .image-button img {
+  filter: brightness(0) saturate(100%) invert(100%);
+}
+
+.vscode-light .input-bottom-actions .image-button img {
+  filter: brightness(0) saturate(100%);
 }
 
 /* Image preview container */
@@ -1343,6 +1361,38 @@ button svg {
 /* Input container with drag over state */
 .input-container.drag-over {
   border-color: var(--claude-primary);
+}
+
+/* Input wrapper drag over state */
+.input-wrapper.drag-over {
+  outline: 2px dashed var(--claude-primary);
+  outline-offset: 2px;
+  transition: outline-color 0.2s ease;
+  position: relative;
+}
+
+.input-wrapper.drag-over .highlight-container {
+  background-color: rgba(90, 50, 251, 0.05);
+}
+
+/* Drag hint display */
+.input-wrapper[data-drag-hint]::before {
+  content: attr(data-drag-hint);
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: var(--vscode-editor-background);
+  padding: 8px 16px;
+  border-radius: 4px;
+  border: 1px solid var(--claude-primary);
+  color: var(--claude-primary);
+  font-weight: 500;
+  font-size: 14px;
+  z-index: 1000;
+  pointer-events: none;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 /* Message images (in chat) */

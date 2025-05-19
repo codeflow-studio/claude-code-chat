@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { getNonce } from "../utils";
 import { searchFiles, getGitCommits } from "../fileSystem";
 import { ImageManager } from "../service/imageManager";
+import { fileServiceClient } from "../api/FileService";
 
 export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = "claudeCodeInputView";
@@ -44,7 +45,7 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
 
   public resolveWebviewView(
     webviewView: vscode.WebviewView,
-    context: vscode.WebviewViewResolveContext,
+    _context: vscode.WebviewViewResolveContext,
     _token: vscode.CancellationToken
   ) {
     this._view = webviewView;
@@ -97,6 +98,14 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
           case "selectImageFiles":
             this._handleImageFileSelection();
             return;
+            
+          case "resolveDroppedPaths":
+            this._handleDroppedPaths(message);
+            return;
+            
+          case "resolveDroppedImages":
+            this._handleDroppedImages(message);
+            return;
         }
       },
       undefined,
@@ -112,7 +121,10 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
       return;
     }
     
-    // Send text to terminal without any show operations
+    // Show the terminal in the background (preserves focus)
+    this._terminal.show(false);
+    
+    // Send text to terminal
     this._terminal.sendText(text, false);
     
     // Add a small delay to ensure the text is properly buffered
@@ -248,6 +260,162 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
     }
   }
   
+  private async _handleDroppedPaths(message: any) {
+    try {
+      const uris: string[] = [];
+      
+      console.log('Handling dropped paths:', message.uris);
+      
+      if (message.uris && message.uris.length > 0) {
+        uris.push(...message.uris);
+      }
+      
+      // Use FileService to get relative paths like cline does
+      const response = await fileServiceClient.getRelativePaths({ uris });
+      
+      // Send resolved paths back to webview
+      if (this._view) {
+        this._view.webview.postMessage({
+          command: 'droppedPathsResolved',
+          paths: response.paths
+        });
+      }
+    } catch (error) {
+      console.error('Error resolving dropped paths:', error);
+      // Send empty array as fallback
+      if (this._view) {
+        this._view.webview.postMessage({
+          command: 'droppedPathsResolved',
+          paths: []
+        });
+      }
+    }
+  }
+  
+  private async _handleDroppedImages(message: any) {
+    try {
+      const fs = require('fs');  // eslint-disable-line @typescript-eslint/no-var-requires
+      const tempImagePaths: string[] = [];
+      
+      if (message.uris && message.uris.length > 0) {
+        for (const uriString of message.uris) {
+          try {
+            // Parse the URI and get the file system path
+            const uri = vscode.Uri.parse(uriString);
+            const fsPath = uri.fsPath;
+            
+            // Verify this is an image file
+            const imageExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.bmp', '.ico'];
+            const hasImageExtension = imageExtensions.some(ext => fsPath.toLowerCase().endsWith(ext));
+            
+            if (hasImageExtension) {
+              // Read the image file
+              const imageBuffer = await fs.promises.readFile(fsPath);
+              const base64Data = imageBuffer.toString('base64');
+              const dataUri = `data:image/*;base64,${base64Data}`;
+              
+              // Extract file name
+              const fileName = fsPath.split('/').pop() || fsPath.split('\\').pop() || 'image';
+              
+              // Save to temporary file
+              const tempPath = await this._imageManager!.saveImage(dataUri, fileName, 'image/*');
+              tempImagePaths.push(tempPath);
+            }
+          } catch (error) {
+            console.error('Error processing image URI:', error);
+          }
+        }
+      }
+      
+      // Send resolved temporary image paths back to webview
+      if (this._view && tempImagePaths.length > 0) {
+        this._view.webview.postMessage({
+          command: 'droppedImagesResolved',
+          imagePaths: tempImagePaths
+        });
+      }
+    } catch (error) {
+      console.error('Error resolving dropped images:', error);
+    }
+  }
+  
+  private async _resolveAbsolutePath(browserPath: string): Promise<string | null> {
+    try {
+      const fs = require('fs');  // eslint-disable-line @typescript-eslint/no-var-requires
+      
+      console.log('Resolving absolute path for:', browserPath);
+      
+      // Browser paths often start with "file://" or just "/"
+      let cleanPath = browserPath;
+      if (cleanPath.startsWith('file://')) {
+        cleanPath = cleanPath.substring(7);
+      }
+      // On Windows, paths might have an extra slash that needs to be removed
+      if (process.platform === 'win32' && cleanPath.startsWith('/')) {
+        cleanPath = cleanPath.substring(1);
+      }
+      // Decode URI components (handle spaces and special characters)
+      cleanPath = decodeURIComponent(cleanPath);
+      
+      console.log('Clean path:', cleanPath);
+      
+      // Check if the file/directory exists
+      try {
+        await fs.promises.access(cleanPath);
+        console.log('Path exists:', cleanPath);
+        return cleanPath;
+      } catch {
+        // Try without modifications
+        try {
+          await fs.promises.access(browserPath);
+          console.log('Original path exists:', browserPath);
+          return browserPath;
+        } catch {
+          console.log('Path not found:', browserPath);
+          return null;
+        }
+      }
+    } catch (error) {
+      console.error('Error resolving absolute path:', error);
+      return null;
+    }
+  }
+  
+  private async _resolveFileName(fileName: string, workspaceRoot: string | undefined): Promise<string> {
+    try {
+      const fs = require('fs');  // eslint-disable-line @typescript-eslint/no-var-requires
+      const path = require('path');  // eslint-disable-line @typescript-eslint/no-var-requires
+      
+      if (!workspaceRoot) {
+        // No workspace, just return the filename
+        return fileName;
+      }
+      
+      // First, try to find the file in the workspace
+      const files = await vscode.workspace.findFiles(`**/${fileName}`, null, 1);
+      
+      if (files.length > 0) {
+        // Found in workspace, return relative path
+        const relativePath = path.relative(workspaceRoot, files[0].fsPath);
+        return relativePath;
+      }
+      
+      // Try to check if it's in the workspace root
+      const possiblePath = path.join(workspaceRoot, fileName);
+      try {
+        await fs.promises.access(possiblePath);
+        // File exists in workspace root, return just the filename
+        return fileName;
+      } catch {
+        // File not found in workspace, return the original filename
+        return fileName;
+      }
+    } catch (error) {
+      console.error('Error resolving file name:', error);
+      return fileName;
+    }
+  }
+  
   private async _handleMessageWithImages(text: string, images: any[]) {
     try {
       const imagePaths: string[] = [];
@@ -264,7 +432,7 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
             const tempPath = await this._imageManager!.saveImage(image.data, image.name, image.type);
             
             // Verify the file was actually created
-            const fs = require('fs');
+            const fs = require('fs');  // eslint-disable-line @typescript-eslint/no-var-requires
             if (fs.existsSync(tempPath)) {
               // Double-check the file is readable
               try {
@@ -286,12 +454,36 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
             }
           } else if (image.path) {
             // Use the original path for file selections and drag-drop
-            const fs = require('fs');
+            const fs = require('fs');  // eslint-disable-line @typescript-eslint/no-var-requires
             try {
               await fs.promises.access(image.path, fs.constants.R_OK);
               imagePaths.push(image.path);
             } catch (error) {
               console.error(`Cannot access file: ${image.path}`, error);
+              failedImages.push(image.name);
+            }
+          } else if (image.isExternalDrop && image.data) {
+            // Handle external drops (from Finder/File Manager) that have data but no path
+            const tempPath = await this._imageManager!.saveImage(image.data, image.name, image.type);
+            
+            // Verify the file was actually created
+            const fs = require('fs');  // eslint-disable-line @typescript-eslint/no-var-requires
+            if (fs.existsSync(tempPath)) {
+              try {
+                await fs.promises.access(tempPath, fs.constants.R_OK);
+                imagePaths.push(tempPath);
+              } catch (accessError) {
+                console.error(`File created but not readable: ${tempPath}`, accessError);
+                failedImages.push(image.name);
+                // Try to clean up the inaccessible file
+                try {
+                  await this._imageManager!.removeImage(tempPath);
+                } catch (cleanupError) {
+                  console.error('Failed to clean up inaccessible file:', cleanupError);
+                }
+              }
+            } else {
+              console.error(`File was not created successfully: ${tempPath}`);
               failedImages.push(image.name);
             }
           }
@@ -354,6 +546,9 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
     );
     const claudeIconPath = webview.asWebviewUri(
       vscode.Uri.joinPath(this._extensionUri, "resources", "claude-icon.svg")
+    );
+    const imageIconPath = webview.asWebviewUri(
+      vscode.Uri.joinPath(this._extensionUri, "resources", "image-svgrepo-com.svg")
     );
     const codiconsCss = webview.asWebviewUri(
       vscode.Uri.joinPath(this._extensionUri, "media", "codicon.css")
@@ -432,9 +627,7 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
                 @
               </button>
               <button id="imageButton" title="Attach image" class="image-button">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M9 1H3.5C2.67157 1 2 1.67157 2 2.5V13.5C2 14.3284 2.67157 15 3.5 15H12.5C13.3284 15 14 14.3284 14 13.5V6M9 1L14 6M9 1V6H14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
+                <img src="${imageIconPath}" width="20" height="20" alt="Attach Image" />
               </button>
             </div>
             <div id="contextMenuContainer" class="context-menu-container" style="display: none;"></div>
