@@ -1239,9 +1239,20 @@ button svg {
   font-size: 16px;
 }
 
-.input-bottom-actions .image-button svg {
-  width: 16px;
-  height: 16px;
+.input-bottom-actions .image-button svg,
+.input-bottom-actions .image-button img {
+  width: 14px;
+  height: 14px;
+}
+
+/* Apply filter to make the image match the text color */
+.vscode-dark .input-bottom-actions .image-button img,
+.vscode-high-contrast .input-bottom-actions .image-button img {
+  filter: brightness(0) saturate(100%) invert(100%);
+}
+
+.vscode-light .input-bottom-actions .image-button img {
+  filter: brightness(0) saturate(100%);
 }
 
 /* Image preview container */

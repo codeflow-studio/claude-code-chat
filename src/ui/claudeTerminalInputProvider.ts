@@ -544,6 +544,9 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
     const claudeIconPath = webview.asWebviewUri(
       vscode.Uri.joinPath(this._extensionUri, "resources", "claude-icon.svg")
     );
+    const imageIconPath = webview.asWebviewUri(
+      vscode.Uri.joinPath(this._extensionUri, "resources", "image-svgrepo-com.svg")
+    );
     const codiconsCss = webview.asWebviewUri(
       vscode.Uri.joinPath(this._extensionUri, "media", "codicon.css")
     );
@@ -621,9 +624,7 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
                 @
               </button>
               <button id="imageButton" title="Attach image" class="image-button">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M9 1H3.5C2.67157 1 2 1.67157 2 2.5V13.5C2 14.3284 2.67157 15 3.5 15H12.5C13.3284 15 14 14.3284 14 13.5V6M9 1L14 6M9 1V6H14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
+                <img src="${imageIconPath}" width="20" height="20" alt="Attach Image" />
               </button>
             </div>
             <div id="contextMenuContainer" class="context-menu-container" style="display: none;"></div>
