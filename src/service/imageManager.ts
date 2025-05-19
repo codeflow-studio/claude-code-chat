@@ -172,7 +172,7 @@ export class ImageManager {
   
   formatImageReferences(imagePaths: string[]): string {
     if (imagePaths.length === 0) return '';
-    const instructions = `\n\n### Please find the attached images below:\n\n`;
+    const instructions = `\n\n### Please read the attached images below:\n`;
     const imageCount = imagePaths.length;
     if (imageCount === 1) {
       return `${instructions}Attached Image => '${imagePaths[0]}'`;

@@ -109,10 +109,25 @@
     
     // Clear input and images after sending
     messageInputElement.value = '';
-    messageInputElement.focus();
     pendingImages = [];
     updateImagePreview();
     updateHighlights();
+    
+    // Reset textarea height to minimum after clearing content
+    autoResizeTextarea();
+    
+    // Aggressively restore focus after any potential focus loss
+    setTimeout(() => {
+      messageInputElement.focus();
+    }, 100);
+    
+    setTimeout(() => {
+      messageInputElement.focus();
+    }, 300);
+    
+    setTimeout(() => {
+      messageInputElement.focus();
+    }, 500);
   }
   
   // Function to update highlights in the text area
@@ -857,6 +872,23 @@
     const message = event.data;
     
     switch (message.command || message.type) {
+      case 'focusInput':
+        // Focus the message input when requested by extension
+        if (messageInputElement) {
+          // Try multiple times to ensure focus is taken
+          messageInputElement.focus();
+          
+          // Also try with a slight delay
+          setTimeout(() => {
+            messageInputElement.focus();
+          }, 10);
+          
+          setTimeout(() => {
+            messageInputElement.focus();
+          }, 50);
+        }
+        break;
+        
       case 'terminalStatus':
         // Update terminal status banner visibility
         if (terminalStatusBanner) {

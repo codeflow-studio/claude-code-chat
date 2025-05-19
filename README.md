@@ -8,6 +8,9 @@ A VSCode extension that integrates Anthropic's Claude Code command-line AI codin
 - Dedicated chat panel in the sidebar
 - Maintain persistent Claude Code sessions
 - Context-aware interactions with your workspace
+- Image support: Attach images via drag-drop, paste, or file selection
+- @mentions for workspace problems and terminal output
+- Slash commands for quick access to Claude Code features
 
 ## Prerequisites
 
@@ -49,6 +52,20 @@ You can also install the extension using the VSCode CLI:
 ```
 code --install-extension claude-code-extension-0.0.1.vsix
 ```
+
+## Usage
+
+### Working with Images
+
+The extension supports attaching images to your messages:
+
+1. **File Selection**: Click the image button (📎) in the input area
+2. **Drag and Drop**: Drag image files onto the input area
+3. **Paste**: Copy an image and paste with Ctrl/Cmd+V
+
+Supported formats: JPG, PNG, GIF, WebP, SVG
+
+Images are temporarily saved and their paths are sent to Claude Code. See [Using Images](docs/using-images.md) for detailed documentation.
 
 ## Development
 

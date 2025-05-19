@@ -112,11 +112,7 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
       return;
     }
     
-    // Ensure terminal exists and is showing
-    this._terminal.show();
-    
-    // Send text to terminal
-    // First send the text without executing it (false parameter)
+    // Send text to terminal without any show operations
     this._terminal.sendText(text, false);
     
     // Add a small delay to ensure the text is properly buffered
@@ -124,6 +120,40 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
       // Then explicitly send Enter key to execute the command
       this._terminal.sendText('', true);
     }, 50);
+    
+    // Return focus to the input view after a delay
+    setTimeout(() => {
+      this._returnFocusToInput();
+    }, 200);
+  }
+  
+  private _returnFocusToInput() {
+    // First, check if we still have the view
+    if (!this._view) return;
+    
+    // Tell the webview to focus its input
+    this._view.webview.postMessage({
+      command: 'focusInput'
+    });
+    
+    // Focus the webview itself multiple times to ensure it takes effect
+    vscode.commands.executeCommand('claudeCodeInputView.focus');
+    
+    setTimeout(() => {
+      // Tell the webview to focus its input again
+      this._view?.webview.postMessage({
+        command: 'focusInput'
+      });
+      vscode.commands.executeCommand('claudeCodeInputView.focus');
+    }, 100);
+    
+    setTimeout(() => {
+      // One more time to be sure
+      this._view?.webview.postMessage({
+        command: 'focusInput'
+      });
+      vscode.commands.executeCommand('claudeCodeInputView.focus');
+    }, 200);
   }
   
   private async _handleFileSearch(query: string, mentionsRequestId: string) {

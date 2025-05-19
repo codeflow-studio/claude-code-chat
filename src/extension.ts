@@ -49,8 +49,8 @@ export function activate(context: vscode.ExtensionContext) {
   const autoStart = config.get('autoStartOnActivation', true);
   
   if (autoStart) {
-    // Show terminal and start Claude Code automatically
-    terminal.show();
+    // Show terminal in background and start Claude Code automatically
+    terminal.show(false); // false preserves focus on current editor
     startClaudeCodeInTerminal(terminal);
   }
   
@@ -64,8 +64,8 @@ export function activate(context: vscode.ExtensionContext) {
   const launchClaudeCodeTerminalCommand = vscode.commands.registerCommand('claude-code-extension.launchClaudeCodeTerminal', () => {
     const terminal = ensureClaudeTerminal(context);
     
-    // Show the terminal
-    terminal.show();
+    // Show the terminal in background
+    terminal.show(false);
     
     // Start Claude Code in the terminal
     startClaudeCodeInTerminal(terminal);
@@ -91,13 +91,13 @@ export function activate(context: vscode.ExtensionContext) {
       // Start Claude Code again
       startClaudeCodeInTerminal(claudeTerminal);
       
-      // Show terminal and focus the input
-      claudeTerminal.show();
+      // Show terminal in background and focus the input
+      claudeTerminal.show(false);
       vscode.commands.executeCommand('claudeCodeInputView.focus');
     } else {
       // Terminal was killed, recreate it
       const newTerminal = ensureClaudeTerminal(context);
-      newTerminal.show();
+      newTerminal.show(false);
       startClaudeCodeInTerminal(newTerminal);
       
       // Update the terminal reference in the input provider
@@ -130,7 +130,9 @@ export function activate(context: vscode.ExtensionContext) {
   const handleSendToClosedTerminal = vscode.commands.registerCommand('claude-code-extension.sendToClosedTerminal', (message: string) => {
     // Terminal was killed, recreate it
     const newTerminal = ensureClaudeTerminal(context);
-    newTerminal.show();
+    
+    // Show the terminal but in the background (preserveActive: false)
+    newTerminal.show(false);
     
     // Start Claude Code before sending the message
     startClaudeCodeInTerminal(newTerminal);
@@ -150,6 +152,11 @@ export function activate(context: vscode.ExtensionContext) {
       if (claudeTerminalInputProvider) {
         claudeTerminalInputProvider.updateTerminal(newTerminal);
       }
+      
+      // Return focus to the input view after a delay
+      setTimeout(() => {
+        vscode.commands.executeCommand('claudeCodeInputView.focus');
+      }, 150);
     }, 1000);
   });
   
