@@ -1161,155 +1161,67 @@
       e.preventDefault();
       dropTarget.classList.remove('drag-over');
       
-      const dataTransfer = e.dataTransfer;
-      const items = dataTransfer.items;
-      const files = dataTransfer.files;
+      // Get all the URIs from the drop event
+      let uris = [];
+      const resourceUrlsData = e.dataTransfer.getData('resourceurls');
+      const vscodeUriListData = e.dataTransfer.getData('application/vnd.code.uri-list');
       
-      // Handle internal VSCode drag (from Explorer)
-      const vscodePaths = dataTransfer.getData('CodeFiles');
-      const vscodeFolders = dataTransfer.getData('CodeFolders');
-      
-      if (vscodePaths || vscodeFolders) {
-        // Handle VSCode internal drag
-        const imagePathsInfo = [];
-        const nonImagePathsInfo = [];
-        
-        // Parse VSCode paths (they come as stringified arrays)
+      // Try 'resourceurls' first (used for multi-select)
+      if (resourceUrlsData) {
         try {
-          if (vscodePaths) {
-            const filePaths = JSON.parse(vscodePaths);
-            filePaths.forEach(path => {
-              // Check if the path is for an image file
-              const lowerPath = path.toLowerCase();
-              if (lowerPath.endsWith('.png') || lowerPath.endsWith('.jpg') || 
-                  lowerPath.endsWith('.jpeg') || lowerPath.endsWith('.gif') || 
-                  lowerPath.endsWith('.webp') || lowerPath.endsWith('.svg')) {
-                imagePathsInfo.push({
-                  vscodeUri: path,
-                  type: 'image'
-                });
-              } else {
-                nonImagePathsInfo.push({
-                  vscodeUri: path,
-                  type: 'file'
-                });
-              }
-            });
-          }
-          
-          if (vscodeFolders) {
-            const folderPaths = JSON.parse(vscodeFolders);
-            folderPaths.forEach(path => {
-              nonImagePathsInfo.push({
-                vscodeUri: path,
-                type: 'directory'
-              });
-            });
-          }
-          
-          // Handle images first if any
-          if (imagePathsInfo.length > 0) {
-            vscode.postMessage({
-              command: 'resolveDroppedImages',
-              imagesInfo: imagePathsInfo
-            });
-          }
-          
-          // Then handle non-image paths
-          if (nonImagePathsInfo.length > 0) {
-            vscode.postMessage({
-              command: 'resolveDroppedPaths',
-              pathsInfo: nonImagePathsInfo
-            });
-          }
+          uris = JSON.parse(resourceUrlsData);
+          uris = uris.map(uri => decodeURIComponent(uri));
         } catch (error) {
-          console.error('Error parsing VSCode paths:', error);
+          console.error('Failed to parse resourceurls JSON:', error);
+          uris = [];
         }
+      }
+      
+      // Fallback to 'application/vnd.code.uri-list' (newline separated)
+      if (uris.length === 0 && vscodeUriListData) {
+        uris = vscodeUriListData.split('\n').map(uri => uri.trim());
+      }
+      
+      // Filter for valid schemes (file or vscode-file) and non-empty strings
+      const validUris = uris.filter(uri => uri && (uri.startsWith('vscode-file:') || uri.startsWith('file:')));
+      
+      if (validUris.length > 0) {
+        // Send URIs to extension for processing
+        vscode.postMessage({
+          command: 'resolveDroppedPaths',
+          uris: validUris
+        });
         return;
       }
       
-      // Check if dropped items contain images for image preview
-      // Process images BEFORE handling path mentions to preserve image functionality
+      // Handle external file drops from Finder/File Manager
+      const text = e.dataTransfer.getData('text');
+      if (text) {
+        // Insert text directly at cursor position
+        const currentValue = messageInputElement.value;
+        const cursorPos = messageInputElement.selectionStart;
+        const newValue = currentValue.slice(0, cursorPos) + text + currentValue.slice(cursorPos);
+        messageInputElement.value = newValue;
+        
+        // Update cursor position
+        const newCursorPos = cursorPos + text.length;
+        messageInputElement.setSelectionRange(newCursorPos, newCursorPos);
+        
+        // Update highlights and resize
+        updateHighlights();
+        autoResizeTextarea();
+        messageInputElement.focus();
+        return;
+      }
+      
+      // Handle image drops separately
+      const files = e.dataTransfer.files;
       const imageFiles = Array.from(files).filter(file => 
         file.type.startsWith('image/')
       );
       
       if (imageFiles.length > 0) {
-        // Handle image files separately for preview
         handleImageSelection(imageFiles, false);
-      }
-      
-      // Handle external file drops (from Finder, etc.)
-      // Only process non-image files for path mentions
-      if (items && items.length > 0) {
-        const pathsInfo = [];
-        
-        // Process each dropped item
-        for (let i = 0; i < items.length; i++) {
-          const item = items[i];
-          
-          if (item.kind === 'file') {
-            const file = item.getAsFile();
-            
-            // Skip if no file
-            if (!file) continue;
-            
-            // Skip image files for path mentions since they're already handled for preview
-            if (file.type && file.type.startsWith('image/')) {
-              continue;
-            }
-            
-            // Try different methods to get the file path
-            const entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null;
-            
-            // Debug logging to understand what data we're getting
-            console.log('File drop debug:');
-            console.log('- file.name:', file.name);
-            console.log('- file.path:', file.path);
-            console.log('- file.webkitRelativePath:', file.webkitRelativePath);
-            console.log('- entry:', entry);
-            if (entry) {
-              console.log('- entry.fullPath:', entry.fullPath);
-              console.log('- entry.isFile:', entry.isFile);
-            }
-            
-            if (entry) {
-              // Use FileSystem API if available
-              // NOTE: entry.fullPath may just be the filename for external drops
-              const potentialPath = entry.fullPath || file.path || null;
-              pathsInfo.push({
-                name: entry.name,
-                path: potentialPath,
-                type: entry.isFile ? 'file' : 'directory',
-                externalPath: true
-              });
-            } else if (file.path) {
-              // Use file.path if available (Electron/VSCode provides this)
-              pathsInfo.push({
-                name: file.name,
-                path: file.path,
-                type: 'file',
-                externalPath: true
-              });
-            } else {
-              // Fallback: just use the filename and let the extension try to resolve it
-              pathsInfo.push({
-                name: file.name,
-                type: 'file',
-                externalPath: true,
-                needsFullPath: true
-              });
-            }
-          }
-        }
-        
-        // If we have paths or names, send to extension for processing
-        if (pathsInfo.length > 0) {
-          vscode.postMessage({
-            command: 'resolveDroppedPaths',
-            pathsInfo: pathsInfo
-          });
-        }
       }
     });
   }

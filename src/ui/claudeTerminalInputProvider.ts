@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { getNonce } from "../utils";
 import { searchFiles, getGitCommits } from "../fileSystem";
 import { ImageManager } from "../service/imageManager";
+import { fileServiceClient } from "../api/FileService";
 
 export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = "claudeCodeInputView";
@@ -258,149 +259,22 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
   
   private async _handleDroppedPaths(message: any) {
     try {
-      const path = require('path');  // eslint-disable-line @typescript-eslint/no-var-requires
-      const workspaceFolders = vscode.workspace.workspaceFolders;
-      const workspaceRoot = workspaceFolders?.[0]?.uri.fsPath;
+      const uris: string[] = [];
       
-      const resolvedPaths: string[] = [];
+      console.log('Handling dropped paths:', message.uris);
       
-      console.log('Handling dropped paths:', message.pathsInfo);
-      
-      // Handle new format with pathsInfo
-      if (message.pathsInfo) {
-        for (const info of message.pathsInfo) {
-          console.log('Processing path info:', info);
-          if (info.vscodeUri) {
-            // Handle VSCode internal URIs (from Explorer drag)
-            try {
-              const uri = vscode.Uri.parse(info.vscodeUri);
-              const fsPath = uri.fsPath;
-              
-              if (workspaceRoot) {
-                const relativePath = path.relative(workspaceRoot, fsPath);
-                
-                // If the relative path doesn't start with ".." and exists, it's in the workspace
-                if (!relativePath.startsWith('..') && !path.isAbsolute(relativePath)) {
-                  // Use relative path for workspace files
-                  resolvedPaths.push(relativePath);
-                } else {
-                  // Use absolute path for files outside workspace
-                  resolvedPaths.push(fsPath);
-                }
-              } else {
-                // No workspace, use absolute path
-                resolvedPaths.push(fsPath);
-              }
-            } catch (error) {
-              console.error('Error parsing VSCode URI:', error);
-              // Try as file path if URI parsing fails
-              if (info.vscodeUri.startsWith('file://')) {
-                const filePath = info.vscodeUri.substring(7);
-                resolvedPaths.push(filePath);
-              }
-            }
-          } else if (info.externalPath && (info.path || info.name)) {
-            // Handle external file drops from Finder
-            if (info.path) {
-              // We have a path - check if it's already absolute or needs resolution
-              let resolvedPath = info.path;
-              
-              // If the path starts with '/' it might be a fullPath from the entry object
-              // which is often just the filename with a leading slash for external drops
-              if (resolvedPath.startsWith('/') && !resolvedPath.includes('/Users/') && !resolvedPath.includes('/home/')) {
-                // This is likely just a filename with a leading slash
-                resolvedPath = resolvedPath.substring(1); // Remove the leading slash
-              }
-              
-              // Check if this looks like just a filename
-              if (!path.isAbsolute(resolvedPath) || path.dirname(resolvedPath) === '/' || path.dirname(resolvedPath) === '.') {
-                // This is likely just a filename from external drop
-                console.log(`External drop appears to be just filename: ${resolvedPath}`);
-                resolvedPaths.push(resolvedPath);
-              } else {
-                // Try to resolve as absolute path
-                const absolutePath = await this._resolveAbsolutePath(resolvedPath);
-                if (absolutePath) {
-                  resolvedPath = absolutePath;
-                }
-                
-                // Handle workspace relative paths
-                if (workspaceRoot) {
-                  const relativePath = path.relative(workspaceRoot, resolvedPath);
-                  
-                  if (!relativePath.startsWith('..') && !path.isAbsolute(relativePath)) {
-                    resolvedPaths.push(relativePath);
-                  } else {
-                    resolvedPaths.push(resolvedPath);
-                  }
-                } else {
-                  resolvedPaths.push(resolvedPath);
-                }
-              }
-            } else if (info.name) {
-              // Just have filename
-              console.log(`External drop with filename only: ${info.name}`);
-              resolvedPaths.push(info.name);
-            }
-          } else if (info.externalPath && info.path) {
-            // Legacy handling - kept for backward compatibility
-            const absolutePath = info.path;
-            
-            if (workspaceRoot) {
-              // Check if the file is within the workspace
-              const relativePath = path.relative(workspaceRoot, absolutePath);
-              
-              // If the relative path doesn't start with ".." and exists, it's in the workspace
-              if (!relativePath.startsWith('..') && !path.isAbsolute(relativePath)) {
-                // Use relative path for workspace files
-                resolvedPaths.push(relativePath);
-              } else {
-                // Use absolute path for files outside workspace
-                resolvedPaths.push(absolutePath);
-              }
-            } else {
-              // No workspace, use the absolute path
-              resolvedPaths.push(absolutePath);
-            }
-          } else if (info.path) {
-            // Regular path from browser (may need resolution)
-            const absolutePath = await this._resolveAbsolutePath(info.path);
-            
-            if (absolutePath && workspaceRoot) {
-              // Check if the file is within the workspace
-              const relativePath = path.relative(workspaceRoot, absolutePath);
-              
-              // If the relative path doesn't start with ".." and exists, it's in the workspace
-              if (!relativePath.startsWith('..') && !path.isAbsolute(relativePath)) {
-                // Use relative path for workspace files
-                resolvedPaths.push(relativePath);
-              } else {
-                // Use absolute path for files outside workspace
-                resolvedPaths.push(absolutePath);
-              }
-            } else {
-              // No workspace or couldn't resolve, use the original path
-              resolvedPaths.push(info.path);
-            }
-          } else if (info.name) {
-            // Just have a filename - try to find it in workspace first
-            const foundPath = await this._resolveFileName(info.name, workspaceRoot);
-            resolvedPaths.push(foundPath);
-          }
-        }
+      if (message.uris && message.uris.length > 0) {
+        uris.push(...message.uris);
       }
-      // Handle old format with fileNames (backward compatibility)
-      else if (message.fileNames) {
-        for (const fileName of message.fileNames) {
-          resolvedPaths.push(await this._resolveFileName(fileName, workspaceRoot));
-        }
-      }
+      
+      // Use FileService to get relative paths like cline does
+      const response = await fileServiceClient.getRelativePaths({ uris });
       
       // Send resolved paths back to webview
       if (this._view) {
         this._view.webview.postMessage({
           command: 'droppedPathsResolved',
-          paths: resolvedPaths
+          paths: response.paths
         });
       }
     } catch (error) {
