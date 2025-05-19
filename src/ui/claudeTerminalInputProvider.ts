@@ -116,7 +116,14 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
     this._terminal.show();
     
     // Send text to terminal
-    this._terminal.sendText(text, true);
+    // First send the text without executing it (false parameter)
+    this._terminal.sendText(text, false);
+    
+    // Add a small delay to ensure the text is properly buffered
+    setTimeout(() => {
+      // Then explicitly send Enter key to execute the command
+      this._terminal.sendText('', true);
+    }, 50);
   }
   
   private async _handleFileSearch(query: string, mentionsRequestId: string) {

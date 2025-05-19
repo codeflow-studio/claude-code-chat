@@ -137,7 +137,14 @@ export function activate(context: vscode.ExtensionContext) {
     
     // Wait a bit for Claude to initialize
     setTimeout(() => {
-      newTerminal.sendText(message);
+      // Send text without executing it
+      newTerminal.sendText(message, false);
+      
+      // Add a small delay to ensure the text is properly buffered
+      setTimeout(() => {
+        // Then send Enter key to execute
+        newTerminal.sendText('', true);
+      }, 50);
       
       // Update the terminal reference in the input provider
       if (claudeTerminalInputProvider) {
