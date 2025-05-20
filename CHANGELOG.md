@@ -4,6 +4,26 @@ All notable changes to the "Claude Code" extension will be documented in this fi
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [0.0.3] - 2025-05-20
+
+### Added
+- Enhanced drag and drop functionality with improved user interface
+- Comprehensive file handling for both VSCode Explorer and external sources
+- Visual feedback during drag operations
+- Better handling of image files with proper preview functionality
+- Support for multiple file types from various sources
+- Proper path resolution for relative/absolute paths
+- Terminal visibility improvements
+- Custom slash commands support with configuration
+- Documentation for custom slash commands usage
+
+## [0.0.2] - 2025-05-20
+
+### Added
+- Updated README with new images and improved layout
+- Show terminal in the background before sending text to preserve focus
+- Update image button to use SVG icon and adjust styles for better integration
+
 ## [0.0.1] - 2025-05-19
 
 ### Added
