@@ -44,7 +44,7 @@
   ];
   
   // Slash commands
-  const ALL_SLASH_COMMANDS = [
+  const BUILT_IN_SLASH_COMMANDS = [
     { command: '/bug', description: 'Report bugs (sends conversation to Anthropic)', icon: '🐛' },
     { command: '/clear', description: 'Clear conversation history', icon: '🗑️' },
     { command: '/compact', description: 'Compact conversation with optional focus instructions', icon: '📦' },
@@ -62,14 +62,30 @@
     { command: '/terminal-setup', description: 'Install Shift+Enter key binding for newlines', icon: '⌨️' },
     { command: '/vim', description: 'Enter vim mode for alternating insert and command modes', icon: '📝' },
   ];
+  
+  // Initialize with built-in commands, custom commands will be added
+  const ALL_SLASH_COMMANDS = [...BUILT_IN_SLASH_COMMANDS];
+  
+  // Custom command storage
+  let CUSTOM_SLASH_COMMANDS = [];
 
   // Function to filter slash commands based on query
   function filterSlashCommands(query) {
     const searchTerm = query.toLowerCase();
-    return ALL_SLASH_COMMANDS.filter(cmd => 
+    const combinedCommands = [...BUILT_IN_SLASH_COMMANDS, ...CUSTOM_SLASH_COMMANDS];
+    return combinedCommands.filter(cmd => 
       cmd.command.toLowerCase().includes(searchTerm) ||
       cmd.description.toLowerCase().includes(searchTerm)
     );
+  }
+  
+  // Function to add custom commands to the list
+  function updateCustomCommands(customCommands) {
+    if (Array.isArray(customCommands) && customCommands.length > 0) {
+      CUSTOM_SLASH_COMMANDS = customCommands;
+      ALL_SLASH_COMMANDS.length = BUILT_IN_SLASH_COMMANDS.length; // Reset to just the built-in commands
+      ALL_SLASH_COMMANDS.push(...CUSTOM_SLASH_COMMANDS); // Add custom commands
+    }
   }
   
   // Function to check if slash command menu should be shown
@@ -650,8 +666,11 @@
       const queryAfterSlash = currentLine.substring(1);
       
       // Filter slash commands based on query
+      // Use combined list of built-in and custom commands
+      const combinedCommands = [...BUILT_IN_SLASH_COMMANDS, ...CUSTOM_SLASH_COMMANDS];
+      
       if (queryAfterSlash.length === 0) {
-        slashCommands = ALL_SLASH_COMMANDS;
+        slashCommands = combinedCommands;
       } else {
         slashCommands = filterSlashCommands(queryAfterSlash);
       }
@@ -989,6 +1008,13 @@
             });
           });
           updateImagePreview();
+        }
+        break;
+        
+      case 'customCommandsUpdated':
+        // Handle custom commands update from the extension
+        if (message.customCommands) {
+          updateCustomCommands(message.customCommands);
         }
         break;
     }

@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { ClaudeTerminalInputProvider } from './ui/claudeTerminalInputProvider';
+import { customCommandService } from './service/customCommandService';
 
 // Store a reference to the Claude terminal
 let claudeTerminal: vscode.Terminal | undefined;
@@ -47,6 +48,22 @@ export function activate(context: vscode.ExtensionContext) {
   // Check if we should auto-start
   const config = vscode.workspace.getConfiguration('claude-code-extension');
   const autoStart = config.get('autoStartOnActivation', true);
+  
+  // Initialize custom command service
+  customCommandService.scanCustomCommands().catch(err => {
+    console.error('Error scanning custom commands:', err);
+  });
+  
+  // Watch for changes to custom command files
+  const projectWatcher = vscode.workspace.createFileSystemWatcher('**/.claude/commands/*.md');
+  
+  // When files are created, changed or deleted, rescan custom commands
+  projectWatcher.onDidCreate(() => customCommandService.scanCustomCommands());
+  projectWatcher.onDidChange(() => customCommandService.scanCustomCommands());
+  projectWatcher.onDidDelete(() => customCommandService.scanCustomCommands());
+  
+  // Register the watcher for disposal when extension is deactivated
+  context.subscriptions.push(projectWatcher);
   
   if (autoStart) {
     // Show terminal in background and start Claude Code automatically

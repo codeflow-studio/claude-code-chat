@@ -3,6 +3,8 @@ import { getNonce } from "../utils";
 import { searchFiles, getGitCommits } from "../fileSystem";
 import { ImageManager } from "../service/imageManager";
 import { fileServiceClient } from "../api/FileService";
+import { isCustomCommand, processCustomCommand } from "../utils/slash-commands";
+import { customCommandService } from "../service/customCommandService";
 
 export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = "claudeCodeInputView";
@@ -231,7 +233,8 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
   }
   
   private _handleSlashCommand(command: string) {
-    // For Claude Code, slash commands are sent directly as-is to the interactive session
+    // For all slash commands (including custom commands), 
+    // send directly as-is to the terminal.
     // The Claude Code CLI will handle parsing and executing them
     this._sendToTerminal(command);
   }
@@ -533,9 +536,32 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
     }
   }
   
+  /**
+   * Loads custom commands and syncs them to the webview
+   */
+  private async _loadCustomCommands() {
+    try {
+      // Scan for custom commands
+      await customCommandService.scanCustomCommands();
+      
+      // Send the custom commands to the webview
+      if (this._view) {
+        this._view.webview.postMessage({
+          command: 'customCommandsUpdated',
+          customCommands: customCommandService.getCustomCommands()
+        });
+      }
+    } catch (error) {
+      console.error('Error loading custom commands:', error);
+    }
+  }
+
   private _getHtmlForWebview(webview: vscode.Webview) {
     // Generate nonce for script security
     const nonce = getNonce();
+    
+    // Load custom commands in the background
+    this._loadCustomCommands();
     
     // Get resource URIs
     const styleUri = webview.asWebviewUri(

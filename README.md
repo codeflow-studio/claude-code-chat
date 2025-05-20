@@ -32,6 +32,7 @@
 ### 💬 Smart Interactions
 - **@mentions**: Reference workspace problems and terminal output
 - **Slash Commands**: Quick access to Claude's powerful features
+- **Custom Commands**: Create your own project and user slash commands
 - **Markdown Support**: Rich formatting with syntax highlighting
 - **Code Actions**: Copy code blocks with one click
 
@@ -109,10 +110,11 @@ code --install-extension claude-code-extension-0.0.1.vsix
 ### 🔧 Advanced Features
 - **@mentions**: Type @ to reference problems or terminal output
 - **Slash Commands**: Type / to see available commands
+- **Custom Commands**: Create your own project-specific (`/project:command`) and personal (`/user:command`) slash commands
 - **Clear Chat**: Click the clear button to start fresh
 - **Restart Claude**: Use the restart button if needed
 
-See our [documentation](https://github.com/codeflow-studio/claude-code-chat/tree/main/docs) for detailed guides.
+See our [documentation](https://github.com/codeflow-studio/claude-code-chat/tree/main/docs) for detailed guides, including [how to create custom slash commands](docs/custom-slash-commands.md).
 
 ## Development
 

@@ -1,11 +1,14 @@
+import { customCommandService } from '../service/customCommandService';
+
 export interface SlashCommand {
   command: string;
   description: string;
   icon?: string;
   shortcut?: string;
+  isCustom?: boolean;  // Flag to identify custom commands
 }
 
-export const SLASH_COMMANDS: SlashCommand[] = [
+export const BUILT_IN_SLASH_COMMANDS: SlashCommand[] = [
   { command: '/bug', description: 'Report bugs (sends conversation to Anthropic)', icon: '🐛' },
   { command: '/clear', description: 'Clear conversation history', icon: '🗑️' },
   { command: '/compact', description: 'Compact conversation with optional focus instructions', icon: '📦' },
@@ -24,14 +27,41 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   { command: '/vim', description: 'Enter vim mode for alternating insert and command modes', icon: '📝' },
 ];
 
-export function filterSlashCommands(input: string): SlashCommand[] {
+// Keep this for backward compatibility
+export const SLASH_COMMANDS = BUILT_IN_SLASH_COMMANDS;
+
+/**
+ * Gets all available slash commands including custom ones
+ * @returns All slash commands (built-in and custom)
+ */
+export async function getAllSlashCommands(): Promise<SlashCommand[]> {
+  await customCommandService.scanCustomCommands();
+  const customCommands = customCommandService.getCustomCommands();
+  
+  // Combine built-in and custom commands
+  return [...BUILT_IN_SLASH_COMMANDS, ...customCommands];
+}
+
+/**
+ * Filter slash commands based on input
+ * @param input The search input
+ * @param commands The array of commands to filter (defaults to built-in commands)
+ * @returns Filtered slash commands
+ */
+export function filterSlashCommands(input: string, commands: SlashCommand[] = BUILT_IN_SLASH_COMMANDS): SlashCommand[] {
   const searchTerm = input.toLowerCase();
-  return SLASH_COMMANDS.filter(cmd => 
+  return commands.filter(cmd => 
     cmd.command.toLowerCase().includes(searchTerm) ||
     cmd.description.toLowerCase().includes(searchTerm)
   );
 }
 
-export function getSlashCommand(command: string): SlashCommand | undefined {
-  return SLASH_COMMANDS.find(cmd => cmd.command === command);
+/**
+ * Gets a slash command by its exact name
+ * @param command The command name to find
+ * @param commands The array of commands to search (defaults to built-in commands)
+ * @returns The found command or undefined
+ */
+export function getSlashCommand(command: string, commands: SlashCommand[] = BUILT_IN_SLASH_COMMANDS): SlashCommand | undefined {
+  return commands.find(cmd => cmd.command === command);
 }

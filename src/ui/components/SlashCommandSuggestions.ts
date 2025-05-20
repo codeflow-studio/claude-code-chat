@@ -1,8 +1,10 @@
-import { SlashCommand, SLASH_COMMANDS, filterSlashCommands } from '../../utils/slash-commands';
+import { SlashCommand, BUILT_IN_SLASH_COMMANDS, filterSlashCommands } from '../../utils/slash-commands';
 
 export class SlashCommandSuggestions {
   private container: HTMLDivElement;
   private commands: SlashCommand[] = [];
+  private allCommands: SlashCommand[] = [...BUILT_IN_SLASH_COMMANDS];
+  private customCommandsLoaded: boolean = false;
   private selectedIndex: number = -1;
   private onSelectCallback?: (command: string) => void;
   private onDismissCallback?: () => void;
@@ -28,7 +30,7 @@ export class SlashCommandSuggestions {
     this.onDismissCallback = onDismiss;
     
     // Filter commands based on search term
-    this.commands = searchTerm ? filterSlashCommands(searchTerm) : SLASH_COMMANDS;
+    this.commands = searchTerm ? filterSlashCommands(searchTerm, this.allCommands) : this.allCommands;
     
     if (this.commands.length === 0) {
       this.hide();
@@ -161,5 +163,21 @@ export class SlashCommandSuggestions {
       this.container.style.right = '0';
       this.container.style.maxHeight = '300px';
     }
+  }
+  
+  /**
+   * Update the list of custom commands
+   * @param customCommands Array of custom slash commands
+   */
+  public updateCustomCommands(customCommands: SlashCommand[]): void {
+    // Start with built-in commands
+    this.allCommands = [...BUILT_IN_SLASH_COMMANDS];
+    
+    // Add custom commands
+    if (customCommands && customCommands.length > 0) {
+      this.allCommands = [...this.allCommands, ...customCommands];
+    }
+    
+    this.customCommandsLoaded = true;
   }
 }
