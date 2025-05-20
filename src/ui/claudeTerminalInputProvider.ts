@@ -43,6 +43,16 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
       });
     }
   }
+  
+  /**
+   * Sends a command to the Claude terminal asynchronously
+   * @param text The text to send to the terminal
+   * @returns A promise that resolves when the command has been executed
+   * @public Wrapper for the private _sendToTerminal method
+   */
+  public async sendToTerminal(text: string): Promise<void> {
+    return this._sendToTerminal(text);
+  }
 
   public resolveWebviewView(
     webviewView: vscode.WebviewView,
@@ -68,18 +78,18 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
     
     // Handle message from webview
     webviewView.webview.onDidReceiveMessage(
-      (message) => {
+      async (message) => {
         switch (message.command) {
           case "sendToTerminal":
             // Handle images if present
             if (message.images && message.images.length > 0) {
-              this._handleMessageWithImages(message.text, message.images);
+              await this._handleMessageWithImages(message.text, message.images);
             } else {
               // Check if it's a slash command
               if (message.text.trim().startsWith('/')) {
-                this._handleSlashCommand(message.text.trim());
+                await this._handleSlashCommand(message.text.trim());
               } else {
-                this._sendToTerminal(message.text);
+                await this._sendToTerminal(message.text);
               }
             }
             return;
@@ -114,11 +124,16 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
     );
   }
   
-  private _sendToTerminal(text: string) {
+  /**
+   * Sends text to the terminal asynchronously
+   * @param text The text to send to the terminal
+   * @returns A promise that resolves when the command has been executed
+   */
+  private async _sendToTerminal(text: string): Promise<void> {
     // Check if terminal is closed
     if (this._isTerminalClosed) {
       // Use command to recreate terminal and send message
-      vscode.commands.executeCommand('claude-code-extension.sendToClosedTerminal', text);
+      await vscode.commands.executeCommand('claude-code-extension.sendToClosedTerminal', text);
       return;
     }
     
@@ -128,16 +143,21 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
     // Send text to terminal
     this._terminal.sendText(text, false);
     
-    // Add a small delay to ensure the text is properly buffered
-    setTimeout(() => {
-      // Then explicitly send Enter key to execute the command
-      this._terminal.sendText('', true);
-    }, 50);
-    
-    // Return focus to the input view after a delay
-    setTimeout(() => {
-      this._returnFocusToInput();
-    }, 200);
+    // Return a promise that resolves after the command has been executed
+    return new Promise<void>((resolve) => {
+      // Add a small delay to ensure the text is properly buffered
+      setTimeout(() => {
+        // Then explicitly send Enter key to execute the command
+        this._terminal.sendText('', true);
+        
+        // Return focus to the input view after a small delay
+        setTimeout(() => {
+          this._returnFocusToInput();
+          // Resolve the promise after the command has been executed
+          resolve();
+        }, 200);
+      }, 50);
+    });
   }
   
   private _returnFocusToInput() {
@@ -231,11 +251,11 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
     }
   }
   
-  private _handleSlashCommand(command: string) {
+  private async _handleSlashCommand(command: string): Promise<void> {
     // For all slash commands (including custom commands), 
     // send directly as-is to the terminal.
     // The Claude Code CLI will handle parsing and executing them
-    this._sendToTerminal(command);
+    await this._sendToTerminal(command);
   }
   
   private async _handleImageFileSelection() {
@@ -418,7 +438,7 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
     }
   }
   
-  private async _handleMessageWithImages(text: string, images: any[]) {
+  private async _handleMessageWithImages(text: string, images: any[]): Promise<void> {
     try {
       const imagePaths: string[] = [];
       const failedImages: string[] = [];
@@ -522,7 +542,7 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
       
       // Send to terminal only if we have content
       if (enhancedMessage) {
-        this._sendToTerminal(enhancedMessage);
+        await this._sendToTerminal(enhancedMessage);
       }
       
     } catch (error) {
@@ -530,7 +550,7 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
       vscode.window.showErrorMessage(`Failed to process images: ${error}`);
       // Fallback to sending just text if available
       if (text) {
-        this._sendToTerminal(text);
+        await this._sendToTerminal(text);
       }
     }
   }

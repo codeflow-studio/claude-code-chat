@@ -48,7 +48,7 @@
       },
       {
         "command": "claude-code-extension.restartClaudeCode",
-        "title": "Claude Code: Restart",
+        "title": "Claude Code: Restart and Continue Last Session",
         "icon": {
           "light": "resources/restart-light.svg",
           "dark": "resources/restart-dark.svg"

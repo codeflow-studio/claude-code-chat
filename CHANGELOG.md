@@ -17,6 +17,10 @@ Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how 
 - Custom slash commands support with configuration
 - Documentation for custom slash commands usage
 
+### Changed
+- Updated restart button to properly exit current Claude session with `/exit` command and start a new one with the `-c` flag to continue the previous session
+- Improved session continuity between restarts
+
 ## [0.0.2] - 2025-05-20
 
 ### Added
