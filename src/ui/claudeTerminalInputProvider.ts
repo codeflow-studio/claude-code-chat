@@ -3,7 +3,6 @@ import { getNonce } from "../utils";
 import { searchFiles, getGitCommits } from "../fileSystem";
 import { ImageManager } from "../service/imageManager";
 import { fileServiceClient } from "../api/FileService";
-import { isCustomCommand, processCustomCommand } from "../utils/slash-commands";
 import { customCommandService } from "../service/customCommandService";
 
 export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
