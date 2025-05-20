@@ -1,6 +1,8 @@
 # Claude Code Assistant for VSCode
 
-![Claude Code](resources/claude-icon.png)
+<div align="center">
+  <img src="resources/claude-icon.png" alt="Claude Code" width="100">
+</div>
 
 *Unofficial integration* of Anthropic's Claude Code AI assistant into Visual Studio Code. Get intelligent coding assistance without leaving your editor.
 
@@ -13,17 +15,29 @@
 - **Persistent Sessions**: Maintain conversations across your coding sessions
 - **Context-Aware**: Claude understands your workspace and current files
 
+<div align="center">
+  <img src="media/screenshots/context-files.png" alt="File Context" width="70%" style="border-radius: 8px; margin: 10px 0; box-shadow: 0 4px 8px rgba(0,0,0,0.2);">
+</div>
+
 ### 🖼️ Visual Context Support
 - **Drag & Drop Images**: Simply drag images into the chat
 - **Paste Screenshots**: Ctrl/Cmd+V to paste images directly
 - **File Selection**: Use the image button to browse and attach files
 - **Multiple Formats**: Supports JPG, PNG, GIF, WebP, and SVG
 
+<div align="center">
+  <img src="media/screenshots/image-support.png" alt="Image Support" width="70%" style="border-radius: 8px; margin: 10px 0; box-shadow: 0 4px 8px rgba(0,0,0,0.2);">
+</div>
+
 ### 💬 Smart Interactions
 - **@mentions**: Reference workspace problems and terminal output
 - **Slash Commands**: Quick access to Claude's powerful features
 - **Markdown Support**: Rich formatting with syntax highlighting
 - **Code Actions**: Copy code blocks with one click
+
+<div align="center">
+  <img src="media/screenshots/slash-commands.png" alt="Slash Commands" width="70%" style="border-radius: 8px; margin: 10px 0; box-shadow: 0 4px 8px rgba(0,0,0,0.2);">
+</div>
 
 ### 🎨 Beautiful Interface
 - **Claude-Styled UI**: Familiar interface matching Claude's design

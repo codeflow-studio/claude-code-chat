@@ -22,3 +22,5 @@ PUBLISH-CHECKLIST.md
 DISTRIBUTION-SUMMARY.md
 CONTRIBUTING.md
 src/**
+out/**
+test-*.html
