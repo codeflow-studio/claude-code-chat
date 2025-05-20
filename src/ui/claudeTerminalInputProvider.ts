@@ -546,9 +546,23 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
       
       // Send the custom commands to the webview
       if (this._view) {
+        const customCommands = customCommandService.getCustomCommands();
+        
+        console.log('Sending custom commands to webview:', customCommands);
+        
+        // Ensure we're not sending duplicates
+        const commandMap = new Map();
+        customCommands.forEach(cmd => {
+          // Use command name as key to prevent duplicates
+          commandMap.set(cmd.command, cmd);
+        });
+        
+        // Convert back to array
+        const uniqueCommands = Array.from(commandMap.values());
+        
         this._view.webview.postMessage({
           command: 'customCommandsUpdated',
-          customCommands: customCommandService.getCustomCommands()
+          customCommands: uniqueCommands
         });
       }
     } catch (error) {
