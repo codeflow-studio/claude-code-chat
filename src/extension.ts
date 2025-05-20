@@ -1,5 +1,7 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
 import { ClaudeTerminalInputProvider } from './ui/claudeTerminalInputProvider';
+import { customCommandService } from './service/customCommandService';
 
 // Store a reference to the Claude terminal
 let claudeTerminal: vscode.Terminal | undefined;
@@ -47,6 +49,38 @@ export function activate(context: vscode.ExtensionContext) {
   // Check if we should auto-start
   const config = vscode.workspace.getConfiguration('claude-code-extension');
   const autoStart = config.get('autoStartOnActivation', true);
+  
+  // Initialize custom command service
+  customCommandService.scanCustomCommands().catch(err => {
+    console.error('Error scanning custom commands:', err);
+  });
+  
+  // Watch for changes to custom command files (project-specific)
+  const projectWatcher = vscode.workspace.createFileSystemWatcher('**/.claude/commands/*.md');
+  
+  // When files are created, changed or deleted, rescan custom commands
+  projectWatcher.onDidCreate(() => customCommandService.scanCustomCommands());
+  projectWatcher.onDidChange(() => customCommandService.scanCustomCommands());
+  projectWatcher.onDidDelete(() => customCommandService.scanCustomCommands());
+  
+  // Watch for changes to user-specific custom command files
+  let userCommandsPath = '';
+  try {
+    const homeDir = process.env.HOME || process.env.USERPROFILE;
+    if (homeDir) {
+      userCommandsPath = path.join(homeDir, '.claude', 'commands', '*.md').replace(/\\/g, '/');
+      const userWatcher = vscode.workspace.createFileSystemWatcher(userCommandsPath);
+      userWatcher.onDidCreate(() => customCommandService.scanCustomCommands());
+      userWatcher.onDidChange(() => customCommandService.scanCustomCommands());
+      userWatcher.onDidDelete(() => customCommandService.scanCustomCommands());
+      context.subscriptions.push(userWatcher);
+    }
+  } catch (err) {
+    console.error('Error setting up user commands watcher:', err);
+  }
+  
+  // Register the watcher for disposal when extension is deactivated
+  context.subscriptions.push(projectWatcher);
   
   if (autoStart) {
     // Show terminal in background and start Claude Code automatically

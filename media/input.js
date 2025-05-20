@@ -44,7 +44,7 @@
   ];
   
   // Slash commands
-  const ALL_SLASH_COMMANDS = [
+  const BUILT_IN_SLASH_COMMANDS = [
     { command: '/bug', description: 'Report bugs (sends conversation to Anthropic)', icon: '🐛' },
     { command: '/clear', description: 'Clear conversation history', icon: '🗑️' },
     { command: '/compact', description: 'Compact conversation with optional focus instructions', icon: '📦' },
@@ -62,14 +62,45 @@
     { command: '/terminal-setup', description: 'Install Shift+Enter key binding for newlines', icon: '⌨️' },
     { command: '/vim', description: 'Enter vim mode for alternating insert and command modes', icon: '📝' },
   ];
+  
+  // Initialize ALL_SLASH_COMMANDS as a new array
+  let ALL_SLASH_COMMANDS = [...BUILT_IN_SLASH_COMMANDS];
+  
+  // Custom command storage
+  let CUSTOM_SLASH_COMMANDS = [];
 
   // Function to filter slash commands based on query
   function filterSlashCommands(query) {
     const searchTerm = query.toLowerCase();
+    // Use ALL_SLASH_COMMANDS which already contains both built-in and custom commands
     return ALL_SLASH_COMMANDS.filter(cmd => 
       cmd.command.toLowerCase().includes(searchTerm) ||
       cmd.description.toLowerCase().includes(searchTerm)
     );
+  }
+  
+  // Function to add custom commands to the list
+  function updateCustomCommands(customCommands) {
+    if (Array.isArray(customCommands) && customCommands.length > 0) {
+      console.log('Updating custom commands:', customCommands);
+      // Clear any previous custom commands
+      CUSTOM_SLASH_COMMANDS = [];
+      // Add new custom commands, ensuring no duplicates by checking if command already exists
+      customCommands.forEach(cmd => {
+        // Check if we already have this command (prevents duplicates)
+        const exists = CUSTOM_SLASH_COMMANDS.some(existing => existing.command === cmd.command);
+        if (!exists) {
+          CUSTOM_SLASH_COMMANDS.push(cmd);
+        }
+      });
+      
+      // Reset ALL_SLASH_COMMANDS to just built-in commands
+      ALL_SLASH_COMMANDS = [...BUILT_IN_SLASH_COMMANDS];
+      // Add unique custom commands
+      ALL_SLASH_COMMANDS.push(...CUSTOM_SLASH_COMMANDS);
+      
+      console.log('Updated ALL_SLASH_COMMANDS:', ALL_SLASH_COMMANDS);
+    }
   }
   
   // Function to check if slash command menu should be shown
@@ -649,8 +680,9 @@
       const currentLine = lines[lines.length - 1];
       const queryAfterSlash = currentLine.substring(1);
       
-      // Filter slash commands based on query
+      // Filter slash commands based on query 
       if (queryAfterSlash.length === 0) {
+        // Use ALL_SLASH_COMMANDS which already contains both built-in and custom commands
         slashCommands = ALL_SLASH_COMMANDS;
       } else {
         slashCommands = filterSlashCommands(queryAfterSlash);
@@ -989,6 +1021,14 @@
             });
           });
           updateImagePreview();
+        }
+        break;
+        
+      case 'customCommandsUpdated':
+        // Handle custom commands update from the extension
+        if (message.customCommands) {
+          console.log('Received custom commands from extension:', message.customCommands);
+          updateCustomCommands(message.customCommands);
         }
         break;
     }
