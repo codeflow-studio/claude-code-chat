@@ -6,6 +6,9 @@ import { customCommandService } from './service/customCommandService';
 // Store a reference to the Claude terminal
 let claudeTerminal: vscode.Terminal | undefined;
 
+// Track if Claude Code is running in the terminal
+let isClaudeRunning = false;
+
 // Store references to providers
 let claudeTerminalInputProvider: ClaudeTerminalInputProvider | undefined;
 
@@ -32,13 +35,7 @@ function ensureClaudeTerminal(context: vscode.ExtensionContext): vscode.Terminal
   return claudeTerminal;
 }
 
-/**
- * Starts Claude Code in the terminal
- */
-function startClaudeCodeInTerminal(terminal: vscode.Terminal): void {
-  // Run Claude Code in the terminal
-  terminal.sendText('claude');
-}
+// Function has been replaced with direct calls to claudeTerminalInputProvider._sendToTerminal
 
 export function activate(context: vscode.ExtensionContext) {
   console.log('Claude Code extension is now active!');
@@ -82,32 +79,59 @@ export function activate(context: vscode.ExtensionContext) {
   // Register the watcher for disposal when extension is deactivated
   context.subscriptions.push(projectWatcher);
   
-  if (autoStart) {
-    // Show terminal in background and start Claude Code automatically
-    terminal.show(false); // false preserves focus on current editor
-    startClaudeCodeInTerminal(terminal);
-  }
-  
-  // Register Terminal Input Provider
+  // Register Terminal Input Provider first so we can use it to send commands
   claudeTerminalInputProvider = new ClaudeTerminalInputProvider(context.extensionUri, terminal, context);
+  
+  // Store a reference to ensure it's not undefined later
+  const provider = claudeTerminalInputProvider;
+  
+  // Auto-start function
+  const performAutoStart = async () => {
+    if (autoStart) {
+      // Show terminal in background and start Claude Code automatically
+      terminal.show(false); // false preserves focus on current editor
+      if (!isClaudeRunning) {
+        await provider.sendToTerminal('claude');
+        isClaudeRunning = true;
+      }
+    }
+  };
+  
+  // Call the auto-start function
+  performAutoStart().catch(err => {
+    console.error('Error during auto-start:', err);
+  });
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider('claudeCodeInputView', claudeTerminalInputProvider)
   );
   
   // Register command to launch Claude Code in a terminal
-  const launchClaudeCodeTerminalCommand = vscode.commands.registerCommand('claude-code-extension.launchClaudeCodeTerminal', () => {
+  const launchClaudeCodeTerminalCommand = vscode.commands.registerCommand('claude-code-extension.launchClaudeCodeTerminal', async () => {
+    // Check if provider is initialized
+    if (!claudeTerminalInputProvider) {
+      console.error('Claude terminal input provider not initialized');
+      return;
+    }
+    
+    // Store a reference to ensure it's not undefined later
+    const provider = claudeTerminalInputProvider;
+    
+    // Ensure Claude terminal exists
     const terminal = ensureClaudeTerminal(context);
     
-    // Show the terminal in background
+    // Show the terminal in background 
     terminal.show(false);
     
-    // Start Claude Code in the terminal
-    startClaudeCodeInTerminal(terminal);
-    
     // Update the terminal reference in the input provider
-    if (claudeTerminalInputProvider) {
-      claudeTerminalInputProvider.updateTerminal(terminal);
+    provider.updateTerminal(terminal);
+    
+    // Only start Claude Code in the terminal if it's not already running
+    if (!isClaudeRunning) {
+      // Claude is not running, start it using the sendToTerminal method and await its completion
+      await provider.sendToTerminal('claude');
+      isClaudeRunning = true;
     }
+    // If Claude is already running, we just showed the terminal - no need to start Claude again
     
     // Focus the input view
     vscode.commands.executeCommand('claudeCodeInputView.focus');
@@ -116,31 +140,41 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(launchClaudeCodeTerminalCommand);
   
   // Add restart command
-  const restartClaudeCodeCommand = vscode.commands.registerCommand('claude-code-extension.restartClaudeCode', () => {
-    if (claudeTerminal) {
-      // Clear the terminal
-      claudeTerminal.sendText('\u0003'); // Send CTRL+C
-      claudeTerminal.sendText('clear'); // Clear the terminal
-      
-      // Start Claude Code again
-      startClaudeCodeInTerminal(claudeTerminal);
-      
-      // Show terminal in background and focus the input
-      claudeTerminal.show(false);
-      vscode.commands.executeCommand('claudeCodeInputView.focus');
-    } else {
-      // Terminal was killed, recreate it
+  const restartClaudeCodeCommand = vscode.commands.registerCommand('claude-code-extension.restartClaudeCode', async () => {
+    if (!claudeTerminalInputProvider) {
+      console.error('Claude terminal input provider not initialized');
+      return;
+    }
+    
+    // Store a reference to ensure it's not undefined later
+    const provider = claudeTerminalInputProvider;
+    
+    // First, send the /exit command to properly exit Claude and await its completion
+    await provider.sendToTerminal('/exit');
+    
+    // Wait a bit for Claude to fully exit
+    await new Promise(resolve => setTimeout(resolve, 300));
+    
+    if (!claudeTerminal) {
+      // Terminal was closed, recreate it
       const newTerminal = ensureClaudeTerminal(context);
-      newTerminal.show(false);
-      startClaudeCodeInTerminal(newTerminal);
       
       // Update the terminal reference in the input provider
-      if (claudeTerminalInputProvider) {
-        claudeTerminalInputProvider.updateTerminal(newTerminal);
-      }
-      
-      vscode.commands.executeCommand('claudeCodeInputView.focus');
+      provider.updateTerminal(newTerminal);
     }
+    
+    // Send clear command to clean the terminal and await its completion
+    await provider.sendToTerminal('clear');
+    
+    // Reset the running flag
+    isClaudeRunning = false;
+    
+    // Start Claude Code with -c flag to continue last session and await its completion
+    await provider.sendToTerminal('claude -c');
+    isClaudeRunning = true;
+    
+    // Focus the input view
+    vscode.commands.executeCommand('claudeCodeInputView.focus');
   });
   
   context.subscriptions.push(restartClaudeCodeCommand);
@@ -151,6 +185,7 @@ export function activate(context: vscode.ExtensionContext) {
       if (closedTerminal === claudeTerminal) {
         console.log('Claude terminal was closed by user');
         claudeTerminal = undefined;
+        isClaudeRunning = false;
         
         // Update UI provider to indicate terminal is closed
         if (claudeTerminalInputProvider) {
@@ -161,37 +196,37 @@ export function activate(context: vscode.ExtensionContext) {
   );
   
   // Handle input to killed terminal
-  const handleSendToClosedTerminal = vscode.commands.registerCommand('claude-code-extension.sendToClosedTerminal', (message: string) => {
+  const handleSendToClosedTerminal = vscode.commands.registerCommand('claude-code-extension.sendToClosedTerminal', async (message: string) => {
+    // Check if provider is initialized
+    if (!claudeTerminalInputProvider) {
+      console.error('Claude terminal input provider not initialized');
+      return;
+    }
+    
+    // Store a reference to ensure it's not undefined later
+    const provider = claudeTerminalInputProvider;
+    
     // Terminal was killed, recreate it
     const newTerminal = ensureClaudeTerminal(context);
     
-    // Show the terminal but in the background (preserveActive: false)
-    newTerminal.show(false);
+    // Update the terminal reference in the input provider
+    provider.updateTerminal(newTerminal);
     
-    // Start Claude Code before sending the message
-    startClaudeCodeInTerminal(newTerminal);
+    // Reset the running flag
+    isClaudeRunning = false;
+    
+    // Start Claude Code without the -c flag (fresh start)
+    await provider.sendToTerminal('claude');
+    isClaudeRunning = true;
     
     // Wait a bit for Claude to initialize
-    setTimeout(() => {
-      // Send text without executing it
-      newTerminal.sendText(message, false);
-      
-      // Add a small delay to ensure the text is properly buffered
-      setTimeout(() => {
-        // Then send Enter key to execute
-        newTerminal.sendText('', true);
-      }, 50);
-      
-      // Update the terminal reference in the input provider
-      if (claudeTerminalInputProvider) {
-        claudeTerminalInputProvider.updateTerminal(newTerminal);
-      }
-      
-      // Return focus to the input view after a delay
-      setTimeout(() => {
-        vscode.commands.executeCommand('claudeCodeInputView.focus');
-      }, 150);
-    }, 1000);
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Send the user's message and await its completion
+    await provider.sendToTerminal(message);
+    
+    // Focus the input view
+    vscode.commands.executeCommand('claudeCodeInputView.focus');
   });
   
   context.subscriptions.push(handleSendToClosedTerminal);
