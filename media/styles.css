@@ -44,7 +44,8 @@ body {
   background-color: var(--bg-color);
   line-height: 1.5;
   height: 100%;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto; /* Allow vertical scrolling when content exceeds viewport */
 }
 
 /* Scrollbar styling */
@@ -87,6 +88,7 @@ body {
   box-sizing: border-box; /* Include padding in width calculation */
   padding: 0; /* Remove any potential padding */
   margin: 0; /* Remove any potential margin */
+  overflow: visible; /* Allow content to be fully visible */
 }
 
 .chat-header {
@@ -333,6 +335,7 @@ body {
   box-sizing: border-box; /* Include padding in width calculation */
   margin: 0; /* Remove any potential margin */
   align-items: stretch; /* Make children stretch to full width */
+  min-height: auto; /* Allow container to grow based on content */
 }
 
 .input-only textarea {
@@ -356,7 +359,7 @@ body {
   align-self: stretch; /* Stretch to container width */
   min-height: 48px; /* Adjusted for true single-line height */
   max-height: 200px; /* Allow expansion up to 200px */
-  overflow-y: visible; /* Allow content to expand */
+  overflow-y: auto; /* Change to auto to allow scrolling */
 }
 
 .input-wrapper:focus-within {
@@ -390,6 +393,7 @@ textarea {
   overflow-y: auto; /* Allow scrolling when content exceeds max height */
   width: 100%; /* Take full width */
   box-sizing: border-box; /* Include padding in width calculation */
+  display: block; /* Ensure proper block display */
 }
 
 .input-actions {
@@ -837,13 +841,14 @@ button svg {
   bottom: 0;
   pointer-events: none;
   white-space: pre-wrap;
-  overflow: hidden;
+  overflow: auto; /* Changed from hidden to auto to match textarea */
   color: transparent;
   background: transparent;
   width: 100%; /* Take full width */
   padding: 12px 60px 12px 14px; /* Match textarea padding */
   line-height: 24px; /* Match textarea line height */
   min-height: 48px; /* Match textarea min-height */
+  max-height: 200px; /* Match textarea max-height */
 }
 
 .highlight-layer mark {

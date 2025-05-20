@@ -862,8 +862,28 @@
     // Update highlight layer size and scroll position
     updateHighlights();
     
-    // Restore scroll position
-    window.scrollTo(0, scrollPos);
+    // Ensure the highlight layer matches the textarea's dimensions
+    if (highlightLayerElement) {
+      highlightLayerElement.style.height = messageInputElement.style.height;
+      highlightLayerElement.style.maxHeight = messageInputElement.style.maxHeight;
+    }
+    
+    // Make sure the entire input field is visible
+    const inputContainer = document.querySelector('.input-container');
+    if (inputContainer) {
+      // Ensure there's enough space for the expanded input
+      const containerRect = inputContainer.getBoundingClientRect();
+      const viewportHeight = window.innerHeight;
+      
+      // If the container bottom is cut off, scroll it into view
+      if (containerRect.bottom > viewportHeight) {
+        const scrollBy = Math.min(containerRect.bottom - viewportHeight + 20, 200);
+        window.scrollBy(0, scrollBy);
+      }
+    } else {
+      // Restore scroll position if no adjustment needed
+      window.scrollTo(0, scrollPos);
+    }
   }
   
   // Event listeners for input field
