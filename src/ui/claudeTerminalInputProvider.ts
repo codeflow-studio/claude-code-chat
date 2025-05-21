@@ -43,6 +43,19 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
       });
     }
   }
+
+  public addTextToInput(text: string) {
+    // Send the text to the webview input field
+    if (this._view) {
+      this._view.webview.postMessage({
+        command: "addTextToInput",
+        text: text
+      });
+      
+      // Focus the input view
+      vscode.commands.executeCommand('claudeCodeInputView.focus');
+    }
+  }
   
   /**
    * Sends a command to the Claude terminal asynchronously

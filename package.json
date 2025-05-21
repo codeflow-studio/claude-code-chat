@@ -34,10 +34,6 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [
-    "onCommand:claude-code-extension.launchClaudeCodeTerminal",
-    "onView:claudeCodeInputView"
-  ],
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
@@ -53,6 +49,10 @@
           "light": "resources/restart-light.svg",
           "dark": "resources/restart-dark.svg"
         }
+      },
+      {
+        "command": "claude-code-extension.addSelectionToInput",
+        "title": "Add to Claude Code Input"
       }
     ],
     "viewsContainers": {
@@ -85,6 +85,13 @@
           "command": "claude-code-extension.restartClaudeCode",
           "group": "navigation",
           "when": "view == claudeCodeInputView"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "claude-code-extension.addSelectionToInput",
+          "when": "editorHasSelection",
+          "group": "navigation"
         }
       ]
     },
