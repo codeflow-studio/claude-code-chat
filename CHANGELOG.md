@@ -4,6 +4,17 @@ All notable changes to the "Claude Code" extension will be documented in this fi
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [0.0.6] - 2025-05-21
+
+### Added
+- **Context Menu Integration**: Added "Add to Claude Code Input" option to editor context menu for selected code
+- **VSCode Problems Integration**: Direct integration with VSCode's problems panel for enhanced error handling and reporting
+- **Selection-to-Input**: Seamlessly add selected code snippets directly to Claude Code input for analysis
+
+### Enhanced
+- **Developer Workflow**: Improved integration with VSCode's native features for a more streamlined coding experience
+- **Code Analysis**: Better support for sharing selected code segments with Claude for targeted assistance
+
 ## [0.0.5] - 2025-05-21
 
 ### Fixed
