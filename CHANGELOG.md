@@ -4,6 +4,38 @@ All notable changes to the "Claude Code" extension will be documented in this fi
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [0.0.5] - 2025-05-21
+
+### Fixed
+- **Input Field Scrolling**: Fixed issue where long file paths would create unwanted horizontal scrollbars in the input field
+- **Text Wrapping**: Improved text wrapping behavior so long content wraps to new lines instead of extending beyond the visible area
+- **Visual Consistency**: Enhanced input field display for better readability with long file names and paths
+
+## [0.0.4] - 2025-05-21
+
+### Added
+- **Async Terminal Communication**: Enhanced terminal communication with proper async support
+- **Exit Command Integration**: Improved session management with proper exit command handling
+- **Custom Slash Commands**: Full support for custom slash commands with configuration
+  - Slash command suggestions and auto-completion
+  - Custom command service for extensible functionality
+  - Documentation for custom slash commands usage
+
+### Fixed
+- **Input Field UI**: Fixed input field behavior and scrolling for better usability
+- **Input Field Cropping**: Resolved UI cropping issues with the input field
+- **TypeScript Errors**: Removed unused imports causing compilation errors
+- **Slash Command Duplication**: Fixed duplication of custom slash commands in menu UI
+
+### Changed
+- **Terminal Session Management**: Improved restart functionality with proper session continuity
+- **UI Responsiveness**: Enhanced input field behavior and user interaction
+- **Code Quality**: Cleaned up imports and resolved TypeScript issues
+
+### Documentation
+- **Custom Slash Commands Guide**: Added comprehensive documentation for creating and using custom slash commands
+- **README Updates**: Improved documentation with better examples and usage instructions
+
 ## [0.0.3] - 2025-05-20
 
 ### Added
