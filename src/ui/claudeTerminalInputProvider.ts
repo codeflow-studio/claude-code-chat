@@ -89,7 +89,7 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
               if (message.text.trim().startsWith('/')) {
                 await this._handleSlashCommand(message.text.trim());
               } else {
-                await this._sendToTerminal(message.text);
+                await this._sendToTerminal(this._enhanceMessageWithProblemsInfo(message.text));
               }
             }
             return;
@@ -256,6 +256,108 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
     // send directly as-is to the terminal.
     // The Claude Code CLI will handle parsing and executing them
     await this._sendToTerminal(command);
+  }
+
+  /**
+   * Enhances a message with problems information if the user mentions problems
+   */
+  private _enhanceMessageWithProblemsInfo(text: string): string {
+    // Check if the message mentions problems, issues, errors, etc.
+    const problemsRegex = /@problems\b|problems?\b|errors?\b|warnings?\b|diagnostics?\b|issues?\b/i;
+    
+    if (!problemsRegex.test(text)) {
+      return text;
+    }
+
+    // Get current problems from VSCode diagnostics
+    const problems = this._getCurrentProblems();
+    
+    if (problems.length === 0) {
+      return text + '\n\nCURRENT PROBLEMS: No problems found in the workspace.';
+    }
+
+    // Format problems for Claude Code
+    let problemsContext = `\n\nCURRENT PROBLEMS (${problems.length} total):\n\n`;
+    
+    problems.forEach((problem, index) => {
+      const location = `${problem.file}:${problem.line}:${problem.column}`;
+      const source = problem.source ? ` (${problem.source})` : '';
+      problemsContext += `${index + 1}. ${problem.severity}: ${location}${source}\n   ${problem.message}\n\n`;
+    });
+
+    problemsContext += 'Please help identify and resolve these issues in the workspace.';
+
+    return text + problemsContext;
+  }
+
+  /**
+   * Gets current problems from VSCode's diagnostics
+   */
+  private _getCurrentProblems(): Array<{
+    file: string;
+    line: number;
+    column: number;
+    severity: string;
+    message: string;
+    source?: string;
+  }> {
+    const problems: Array<{
+      file: string;
+      line: number;
+      column: number;
+      severity: string;
+      message: string;
+      source?: string;
+    }> = [];
+    
+    // Get diagnostics from all documents
+    vscode.languages.getDiagnostics().forEach(([uri, diagnostics]) => {
+      const workspaceFolder = vscode.workspace.getWorkspaceFolder(uri);
+      const relativePath = workspaceFolder 
+        ? vscode.workspace.asRelativePath(uri, false)
+        : uri.fsPath;
+
+      diagnostics.forEach(diagnostic => {
+        problems.push({
+          file: relativePath,
+          line: diagnostic.range.start.line + 1, // VSCode uses 0-based indexing
+          column: diagnostic.range.start.character + 1,
+          severity: this._severityToString(diagnostic.severity),
+          message: diagnostic.message,
+          source: diagnostic.source
+        });
+      });
+    });
+
+    // Sort by severity (errors first), then by file
+    return problems.sort((a, b) => {
+      const severityOrder = { 'Error': 0, 'Warning': 1, 'Information': 2, 'Hint': 3 };
+      const aSeverity = severityOrder[a.severity as keyof typeof severityOrder] ?? 4;
+      const bSeverity = severityOrder[b.severity as keyof typeof severityOrder] ?? 4;
+      
+      if (aSeverity !== bSeverity) {
+        return aSeverity - bSeverity;
+      }
+      return a.file.localeCompare(b.file);
+    });
+  }
+
+  /**
+   * Converts VSCode diagnostic severity to string
+   */
+  private _severityToString(severity: vscode.DiagnosticSeverity): string {
+    switch (severity) {
+      case vscode.DiagnosticSeverity.Error:
+        return 'Error';
+      case vscode.DiagnosticSeverity.Warning:
+        return 'Warning';
+      case vscode.DiagnosticSeverity.Information:
+        return 'Information';
+      case vscode.DiagnosticSeverity.Hint:
+        return 'Hint';
+      default:
+        return 'Information';
+    }
   }
   
   private async _handleImageFileSelection() {
