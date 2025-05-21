@@ -391,9 +391,13 @@ textarea {
   line-height: 24px; /* Fixed line height */
   box-shadow: none !important; /* Remove any box shadow on focus */
   overflow-y: auto; /* Allow scrolling when content exceeds max height */
+  overflow-x: hidden; /* Prevent horizontal scrollbar */
   width: 100%; /* Take full width */
   box-sizing: border-box; /* Include padding in width calculation */
   display: block; /* Ensure proper block display */
+  white-space: pre-wrap; /* Allow text to wrap properly */
+  word-wrap: break-word; /* Break long words if necessary */
+  word-break: break-word; /* Ensure long file paths break appropriately */
 }
 
 .input-actions {
@@ -840,8 +844,9 @@ button svg {
   right: 0;
   bottom: 0;
   pointer-events: none;
-  white-space: pre-wrap;
-  overflow: auto; /* Changed from hidden to auto to match textarea */
+  white-space: pre-wrap; /* Allow text to wrap properly */
+  overflow-y: auto; /* Match textarea overflow behavior */
+  overflow-x: hidden; /* Prevent horizontal scrollbar */
   color: transparent;
   background: transparent;
   width: 100%; /* Take full width */
@@ -849,6 +854,8 @@ button svg {
   line-height: 24px; /* Match textarea line height */
   min-height: 48px; /* Match textarea min-height */
   max-height: 200px; /* Match textarea max-height */
+  word-wrap: break-word; /* Break long words if necessary */
+  word-break: break-word; /* Ensure long file paths break appropriately */
 }
 
 .highlight-layer mark {
