@@ -1051,6 +1051,39 @@
           updateCustomCommands(message.customCommands);
         }
         break;
+        
+      case 'addTextToInput':
+        // Handle adding text to the input field from context menu
+        if (message.text && messageInputElement) {
+          const currentValue = messageInputElement.value;
+          const cursorPosition = messageInputElement.selectionStart || messageInputElement.value.length;
+          
+          // Add space before if needed
+          const needsSpaceBefore = currentValue.length > 0 && !currentValue.endsWith(' ') && !currentValue.endsWith('\n');
+          const spaceBefore = needsSpaceBefore ? '\n\n' : '';
+          
+          // Add space after
+          const spaceAfter = '\n';
+          
+          // Insert the text at cursor position
+          const beforeCursor = currentValue.slice(0, cursorPosition);
+          const afterCursor = currentValue.slice(cursorPosition);
+          const newValue = beforeCursor + spaceBefore + message.text + spaceAfter + afterCursor;
+          
+          messageInputElement.value = newValue;
+          
+          // Set cursor position after the inserted text
+          const newCursorPosition = cursorPosition + spaceBefore.length + message.text.length + spaceAfter.length;
+          messageInputElement.setSelectionRange(newCursorPosition, newCursorPosition);
+          
+          // Update highlights and resize
+          updateHighlights();
+          autoResizeTextarea();
+          
+          // Focus the input
+          messageInputElement.focus();
+        }
+        break;
     }
   });
   

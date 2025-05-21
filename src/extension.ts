@@ -230,6 +230,58 @@ export function activate(context: vscode.ExtensionContext) {
   });
   
   context.subscriptions.push(handleSendToClosedTerminal);
+
+  // Register command to add selected text to Claude Code input
+  const addSelectionToInputCommand = vscode.commands.registerCommand('claude-code-extension.addSelectionToInput', () => {
+    // Get the active text editor
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) {
+      vscode.window.showWarningMessage('No active editor found');
+      return;
+    }
+
+    // Get the selected text
+    const selection = editor.selection;
+    const selectedText = editor.document.getText(selection);
+    
+    if (!selectedText) {
+      vscode.window.showWarningMessage('No text selected');
+      return;
+    }
+
+    // Get the file path relative to workspace
+    const workspaceFolders = vscode.workspace.workspaceFolders;
+    let relativePath = editor.document.fileName;
+    
+    if (workspaceFolders && workspaceFolders.length > 0) {
+      const workspaceRoot = workspaceFolders[0].uri.fsPath;
+      if (relativePath.startsWith(workspaceRoot)) {
+        relativePath = relativePath.substring(workspaceRoot.length);
+        // Remove leading slash if present
+        if (relativePath.startsWith('/') || relativePath.startsWith('\\')) {
+          relativePath = relativePath.substring(1);
+        }
+      }
+    } else {
+      // If no workspace, just use the filename
+      const pathParts = relativePath.split(/[/\\]/);
+      relativePath = pathParts[pathParts.length - 1];
+    }
+
+    // Format the text with file path and code block
+    const formattedText = `@${relativePath}\n\`\`\`\n${selectedText}\n\`\`\``;
+
+    // Check if provider is initialized
+    if (!claudeTerminalInputProvider) {
+      vscode.window.showErrorMessage('Claude terminal input provider not initialized');
+      return;
+    }
+
+    // Add the formatted text to the input field
+    claudeTerminalInputProvider.addTextToInput(formattedText);
+  });
+
+  context.subscriptions.push(addSelectionToInputCommand);
   
   // Focus terminal input view if we auto-started
   if (autoStart) {
