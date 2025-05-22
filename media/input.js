@@ -14,6 +14,7 @@
   const imageButtonElement = document.getElementById('imageButton');
   const imageInputElement = document.getElementById('imageInput');
   const imagePreviewContainer = document.getElementById('imagePreviewContainer');
+  const problemPreviewContainer = document.getElementById('problemPreviewContainer');
   
   // RegExp for detecting @ mentions
   const mentionRegex = /@((?:\/|\w+:\/\/)[^\s]+?|[a-f0-9]{7,40}\b|problems\b|git-changes\b)(?=[.,;:!?]?(?=[\s\r\n]|$))/;
@@ -37,6 +38,9 @@
   
   // Image upload state
   let pendingImages = [];
+  
+  // Problem selection state
+  let pendingProblems = [];
   
   // Base context menu items
   const baseContextItems = [
@@ -126,21 +130,37 @@
   // Function to handle sending a message
   function sendMessage() {
     const text = messageInputElement.value.trim();
-    if (!text && pendingImages.length === 0) {
+    if (!text && pendingImages.length === 0 && pendingProblems.length === 0) {
       return;
     }
     
-    // Send the message to the extension with images if any
-    vscode.postMessage({
-      command: 'sendToTerminal',
-      text: text,
-      images: pendingImages
-    });
+    // Check if we have pending problems to include
+    if (pendingProblems.length > 0) {
+      // Extract problem IDs for backend processing
+      const problemIds = pendingProblems.map(problem => problem.originalIndex);
+      
+      // Send the message with both images and selected problems
+      vscode.postMessage({
+        command: 'sendMessageWithSelectedProblems',
+        text: text,
+        images: pendingImages,
+        selectedProblemIds: problemIds
+      });
+    } else {
+      // Send the message to the extension with images if any
+      vscode.postMessage({
+        command: 'sendToTerminal',
+        text: text,
+        images: pendingImages
+      });
+    }
     
-    // Clear input and images after sending
+    // Clear input, images, and problems after sending
     messageInputElement.value = '';
     pendingImages = [];
+    pendingProblems = [];
     updateImagePreview();
+    updateProblemPreview();
     updateHighlights();
     
     // Reset textarea height to minimum after clearing content
@@ -583,6 +603,17 @@
     
     const selectedItem = items[index];
     
+    // Special handling for problems - show problem selector instead of inserting mention
+    if (selectedItem.type === 'problems') {
+      // Hide context menu first
+      contextMenuVisible = false;
+      renderContextMenu();
+      
+      // Show problem selection dialog
+      showProblemSelector();
+      return;
+    }
+    
     // Insert the selected item as a mention
     if (messageInputElement) {
       // Use value if available, otherwise use type as fallback
@@ -734,7 +765,20 @@
 
   // Function to handle key navigation in context menu
   function handleKeyDown(e) {
-    if (slashCommandVisible) {
+    if (problemSelectorVisible) {
+      // Handle problem selector navigation
+      switch (e.key) {
+        case 'Escape':
+          e.preventDefault();
+          cancelProblemSelection();
+          break;
+          
+        case 'Enter':
+          e.preventDefault();
+          confirmProblemSelection();
+          break;
+      }
+    } else if (slashCommandVisible) {
       switch (e.key) {
         case 'ArrowDown':
           e.preventDefault();
@@ -1092,6 +1136,7 @@
     // Get the global menus if they exist
     const globalContextMenu = document.getElementById('global-context-menu');
     const globalSlashMenu = document.getElementById('global-slash-command-menu');
+    const globalProblemSelector = document.getElementById('global-problem-selector');
     
     // Check if click is outside the context menu and input
     const isClickOutsideContext = 
@@ -1113,6 +1158,15 @@
     if (isClickOutsideSlash && slashCommandVisible) {
       slashCommandVisible = false;
       renderSlashCommandMenu();
+    }
+    
+    // Check if click is outside the problem selector
+    const isClickOutsideProblemSelector = 
+      !globalProblemSelector?.contains(e.target) &&
+      !messageInputElement?.contains(e.target);
+      
+    if (isClickOutsideProblemSelector && problemSelectorVisible) {
+      cancelProblemSelection();
     }
   });
   
@@ -1219,6 +1273,52 @@
         const index = parseInt(e.target.getAttribute('data-index'));
         pendingImages.splice(index, 1);
         updateImagePreview();
+      });
+    });
+  }
+
+  // Function to update problem preview display
+  function updateProblemPreview() {
+    if (!problemPreviewContainer) return;
+
+    if (pendingProblems.length === 0) {
+      problemPreviewContainer.style.display = 'none';
+      problemPreviewContainer.innerHTML = '';
+      return;
+    }
+
+    problemPreviewContainer.style.display = 'flex';
+    
+    const previewHTML = pendingProblems.map((problem, index) => {
+      const fileName = problem.file.split('/').pop() || problem.file;
+      const severityClass = problem.severity.toLowerCase();
+      const shortMessage = problem.message.length > 40 ? 
+        problem.message.substring(0, 40) + '...' : 
+        problem.message;
+      
+      return `
+        <div class="problem-preview-item">
+          <div class="problem-preview-content">
+            <div class="problem-preview-header">
+              <span class="problem-preview-severity ${severityClass}">${problem.severity.charAt(0)}</span>
+              <span class="problem-preview-location">${fileName}:${problem.line}</span>
+            </div>
+            <div class="problem-preview-message">${shortMessage}</div>
+          </div>
+          <button class="problem-remove-btn" data-index="${index}" title="Remove problem">×</button>
+        </div>
+      `;
+    }).join('');
+
+    problemPreviewContainer.innerHTML = previewHTML;
+
+    // Add event listeners to remove buttons
+    const removeButtons = problemPreviewContainer.querySelectorAll('.problem-remove-btn');
+    removeButtons.forEach(button => {
+      button.addEventListener('click', (e) => {
+        const index = parseInt(e.target.getAttribute('data-index'));
+        pendingProblems.splice(index, 1);
+        updateProblemPreview();
       });
     });
   }
@@ -1491,6 +1591,357 @@
     }
   });
   
+  // Problem selector state
+  let problemSelectorVisible = false;
+  let currentProblems = [];
+  let selectedProblemIds = [];
+  let currentMentionsRequestId = null;
+  
+  // Function to show problem selector
+  function showProblemSelector() {
+    problemSelectorVisible = true;
+    
+    // Request problems from the backend
+    const requestId = `problems-${Date.now()}`;
+    currentMentionsRequestId = requestId;
+    
+    vscode.postMessage({
+      command: 'getProblems',
+      mentionsRequestId: requestId
+    });
+    
+    // Show loading state
+    renderProblemSelector([]);
+  }
+  
+  // Function to render problem selector
+  function renderProblemSelector(problems) {
+    // Remove any existing problem selector
+    const existingSelector = document.getElementById('global-problem-selector');
+    if (existingSelector) {
+      existingSelector.remove();
+    }
+    
+    if (!problemSelectorVisible) {
+      return;
+    }
+    
+    // Create problem selector element
+    const problemSelector = document.createElement('div');
+    problemSelector.id = 'global-problem-selector';
+    problemSelector.className = 'problem-selector-menu';
+    
+    // Get input container position for menu placement (similar to context menu)
+    const inputContainer = document.querySelector('.input-container');
+    const inputRect = inputContainer ? inputContainer.getBoundingClientRect() : document.getElementById('messageInput').getBoundingClientRect();
+    
+    // Position menu below input field (similar to context menu)
+    problemSelector.style.position = 'fixed';
+    problemSelector.style.top = `${inputRect.bottom + 4}px`;
+    problemSelector.style.left = `${inputRect.left}px`;
+    problemSelector.style.width = `${inputRect.width}px`;
+    problemSelector.style.maxHeight = '300px';
+    problemSelector.style.zIndex = '10000';
+    
+    let menuContent = '';
+    
+    if (problems.length === 0) {
+      menuContent = `
+        <div class="problem-menu-header">
+          <span class="problem-menu-title">Loading problems...</span>
+        </div>
+      `;
+    } else {
+      // Header with count and controls
+      menuContent = `
+        <div class="problem-menu-header">
+          <span class="problem-menu-title">Select Problems (${problems.length} total)</span>
+          <div class="problem-menu-controls">
+            <button class="problem-menu-btn" id="select-all-btn">All</button>
+            <button class="problem-menu-btn" id="select-none-btn">None</button>
+            <button class="problem-menu-btn primary" id="confirm-selection-btn">OK</button>
+          </div>
+        </div>
+        <div class="problem-menu-list">
+      `;
+      
+      // Problem menu items (shortened format)
+      problems.forEach((problem, index) => {
+        const isSelected = selectedProblemIds.includes(index.toString());
+        const fileName = problem.file.split('/').pop() || problem.file;
+        const severityClass = problem.severity.toLowerCase();
+        const shortMessage = problem.message.length > 60 ? 
+          problem.message.substring(0, 60) + '...' : 
+          problem.message;
+        
+        menuContent += `
+          <div class="problem-menu-item ${isSelected ? 'selected' : ''}" data-problem-id="${index}">
+            <div class="problem-menu-checkbox">
+              <input type="checkbox" id="problem-${index}" ${isSelected ? 'checked' : ''}>
+            </div>
+            <div class="problem-menu-content">
+              <div class="problem-menu-info">
+                <span class="problem-menu-severity ${severityClass}">${problem.severity.charAt(0)}</span>
+                <span class="problem-menu-location">${fileName}:${problem.line}</span>
+              </div>
+              <div class="problem-menu-message">${shortMessage}</div>
+            </div>
+          </div>
+        `;
+      });
+      
+      menuContent += '</div>';
+    }
+    
+    problemSelector.innerHTML = menuContent;
+    document.body.appendChild(problemSelector);
+    
+    // Add event listeners for buttons
+    const selectAllBtn = document.getElementById('select-all-btn');
+    const selectNoneBtn = document.getElementById('select-none-btn');
+    const confirmBtn = document.getElementById('confirm-selection-btn');
+    
+    if (selectAllBtn) {
+      selectAllBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        selectAllProblems();
+      });
+    }
+    
+    if (selectNoneBtn) {
+      selectNoneBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        selectNoneProblems();
+      });
+    }
+    
+    if (confirmBtn) {
+      confirmBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        confirmProblemSelection();
+      });
+    }
+    
+    // Add event listeners for problem items
+    const problemItems = document.querySelectorAll('.problem-menu-item');
+    problemItems.forEach(item => {
+      item.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const problemId = item.getAttribute('data-problem-id');
+        if (problemId) {
+          toggleProblemSelection(problemId);
+        }
+      });
+    });
+  }
+  
+  // Problem selector helper functions
+  function selectAllProblems() {
+    selectedProblemIds = currentProblems.map((_, index) => index.toString());
+    renderProblemSelector(currentProblems);
+  }
+  
+  function selectNoneProblems() {
+    selectedProblemIds = [];
+    renderProblemSelector(currentProblems);
+  }
+  
+  function toggleProblemSelection(problemId) {
+    const index = selectedProblemIds.indexOf(problemId);
+    if (index === -1) {
+      selectedProblemIds.push(problemId);
+    } else {
+      selectedProblemIds.splice(index, 1);
+    }
+    // Update the checkbox and visual state
+    const checkbox = document.querySelector(`#problem-${problemId}`);
+    if (checkbox) {
+      checkbox.checked = selectedProblemIds.includes(problemId);
+    }
+    const problemItem = document.querySelector(`[data-problem-id="${problemId}"]`);
+    if (problemItem) {
+      if (selectedProblemIds.includes(problemId)) {
+        problemItem.classList.add('selected');
+      } else {
+        problemItem.classList.remove('selected');
+      }
+    }
+  }
+  
+  function confirmProblemSelection() {
+    if (selectedProblemIds.length === 0) {
+      cancelProblemSelection();
+      return;
+    }
+    
+    // Filter selected problems and add to pending
+    const selectedProblems = currentProblems.filter((_, index) => 
+      selectedProblemIds.includes(index.toString())
+    ).map((problem, index) => ({
+      id: selectedProblemIds[index],
+      originalIndex: selectedProblemIds[index],
+      file: problem.file,
+      line: problem.line,
+      column: problem.column,
+      severity: problem.severity,
+      message: problem.message,
+      source: problem.source
+    }));
+    
+    // Add to pending problems (avoid duplicates)
+    selectedProblems.forEach(problem => {
+      const exists = pendingProblems.some(p => 
+        p.file === problem.file && 
+        p.line === problem.line && 
+        p.column === problem.column &&
+        p.message === problem.message
+      );
+      if (!exists) {
+        pendingProblems.push(problem);
+      }
+    });
+    
+    // Update problem preview
+    updateProblemPreview();
+    
+    // Close selector
+    closeProblemSelector();
+  }
+  
+  function cancelProblemSelection() {
+    closeProblemSelector();
+  }
+  
+  function closeProblemSelector() {
+    problemSelectorVisible = false;
+    selectedProblemIds = [];
+    currentProblems = [];
+    renderProblemSelector([]);
+  }
+
+  // Handle messages from extension
+  window.addEventListener('message', (event) => {
+    const message = event.data;
+    
+    switch (message.type) {
+      case 'problemsResults':
+        if (message.mentionsRequestId === currentMentionsRequestId) {
+          currentProblems = message.problems || [];
+          selectedProblemIds = []; // Reset selection
+          renderProblemSelector(currentProblems);
+        }
+        break;
+        
+      case 'fileSearchResults':
+        // Handle file search results for context menu
+        if (message.results) {
+          searchResults = message.results;
+          isSearchLoading = false;
+          if (contextMenuVisible) {
+            renderContextMenu();
+          }
+        }
+        break;
+        
+      case 'commitSearchResults':
+        // Handle commit search results for context menu
+        if (message.commits) {
+          searchResults = message.commits.map(commit => ({
+            type: 'git',
+            path: commit.hash,
+            label: commit.message,
+            description: `${commit.hash.substring(0, 7)} - ${commit.author}`
+          }));
+          isSearchLoading = false;
+          if (contextMenuVisible) {
+            renderContextMenu();
+          }
+        }
+        break;
+        
+      case 'droppedPathsResolved':
+        if (message.paths && message.paths.length > 0) {
+          insertDroppedPaths(message.paths);
+        }
+        break;
+        
+      case 'droppedImagesResolved':
+        if (message.imagePaths && message.imagePaths.length > 0) {
+          // Add resolved images to pending images
+          message.imagePaths.forEach(imagePath => {
+            pendingImages.push({
+              name: imagePath.split('/').pop() || 'image',
+              path: imagePath,
+              isFromClipboard: false,
+              isExternalDrop: false
+            });
+          });
+          updateImagePreview();
+        }
+        break;
+        
+      case 'imageFilesSelected':
+        if (message.imagePaths && message.imagePaths.length > 0) {
+          // Add selected images to pending images
+          message.imagePaths.forEach(imagePath => {
+            pendingImages.push({
+              name: imagePath.split('/').pop() || 'image',
+              path: imagePath,
+              isFromClipboard: false,
+              isExternalDrop: false
+            });
+          });
+          updateImagePreview();
+        }
+        break;
+        
+      case 'customCommandsUpdated':
+        if (message.customCommands) {
+          updateCustomCommands(message.customCommands);
+        }
+        break;
+        
+      case 'terminalStatus':
+        // Update terminal status banner
+        if (terminalStatusBanner) {
+          if (message.isTerminalClosed) {
+            terminalStatusBanner.classList.remove('hidden');
+          } else {
+            terminalStatusBanner.classList.add('hidden');
+          }
+        }
+        break;
+        
+      case 'focusInput':
+        // Focus the input field
+        if (messageInputElement) {
+          messageInputElement.focus();
+        }
+        break;
+        
+      case 'addTextToInput':
+        // Add text to input field
+        if (messageInputElement && message.text) {
+          const currentValue = messageInputElement.value;
+          const needsSpace = currentValue.length > 0 && !currentValue.endsWith(' ') && !currentValue.endsWith('\n');
+          messageInputElement.value = currentValue + (needsSpace ? ' ' : '') + message.text;
+          messageInputElement.focus();
+          
+          // Update cursor to end
+          messageInputElement.setSelectionRange(messageInputElement.value.length, messageInputElement.value.length);
+          
+          // Update highlights and resize
+          updateHighlights();
+          autoResizeTextarea();
+        }
+        break;
+    }
+  });
+
   // Initialize the UI
   function init() {
     console.log("Initializing terminal input UI");
