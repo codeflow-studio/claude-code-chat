@@ -2,7 +2,7 @@
   "name": "claude-code-extension",
   "displayName": "Claude Code Assistant for VSCode",
   "description": "Unofficial integration of Anthropic's Claude Code AI assistant into VSCode",
-  "version": "0.0.6",
+  "version": "0.0.7",
   "publisher": "codeflow-studio",
   "icon": "resources/claude-icon.png",
   "repository": {

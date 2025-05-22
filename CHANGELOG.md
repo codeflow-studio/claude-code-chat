@@ -4,6 +4,18 @@ All notable changes to the "Claude Code" extension will be documented in this fi
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [0.0.7] - 2025-05-22
+
+### Added
+- **Interactive Problem Selection UI**: Added sophisticated problem selection interface with preview functionality for easier debugging workflow
+- **Line Number Information**: Enhanced code selections now include precise line number information for better context sharing
+- **Problem Selector with Preview**: Visual problem browser with code preview to quickly identify and share relevant issues with Claude
+
+### Enhanced
+- **Developer Experience**: Improved problem navigation and code sharing workflows
+- **Context Accuracy**: Better precision in code location sharing through line number integration
+- **UI/UX**: More intuitive problem selection interface with visual previews
+
 ## [0.0.6] - 2025-05-21
 
 ### Added
