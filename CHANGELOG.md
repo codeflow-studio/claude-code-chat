@@ -4,6 +4,12 @@ All notable changes to the "Claude Code" extension will be documented in this fi
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [0.0.8] - 2025-05-23
+
+### Fixed
+- **Image Attachment Formatting**: Fixed conditional logic in image manager for proper formatting of single vs multiple image attachments
+- **Claude Code Input**: Eliminated duplicate image listings when sending images to Claude Code terminal
+
 ## [0.0.7] - 2025-05-22
 
 ### Added
