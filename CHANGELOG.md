@@ -4,6 +4,21 @@ All notable changes to the "Claude Code" extension will be documented in this fi
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [0.0.9] - 2025-05-27
+
+### Improved
+- **Quote Functionality**: Enhanced code reference functionality for cleaner chat experience
+  - Changed format from @file:line with full code blocks to compact file#L19-29 format
+  - Reduces noise in chat by eliminating redundant code content
+  - Uses GitHub-style line reference format for better readability
+  - Updated addSelectionToInput command to send compact file references with '@' prefix
+
+### Fixed
+- **Message Sending Logic**: Improved message handling and unified image/problem processing
+  - Better organization of message sending workflow
+  - Enhanced unification of image and problem handling logic
+  - Improved overall message processing reliability
+
 ## [0.0.8] - 2025-05-23
 
 ### Fixed

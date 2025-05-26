@@ -1,5 +1,3 @@
-// @ts-check
-
 (function () {
   // Get VS Code API
   const vscode = acquireVsCodeApi();
@@ -450,8 +448,7 @@
         // File path formatting for items with a value 
         itemContent = `
           <span class="path-option">
-            <span>/</span>
-            <span class="path-text">${item.value.startsWith('/') ? item.value.substring(1) : item.value}</span>
+            <span class="path-text">${item.value}</span>
           </span>
         `;
       } else {
@@ -508,7 +505,7 @@
     // Wait for DOM to be ready then add listeners
     setTimeout(() => {
       const menuItemElements = globalContextMenu.querySelectorAll('.context-menu-item:not(.not-selectable):not(.loading)');
-      menuItemElements.forEach((item, idx) => {
+      menuItemElements.forEach((item) => {
         const itemIndex = parseInt(item.getAttribute('data-index'));
         
         // Add click handler
@@ -606,7 +603,12 @@
     // Insert the selected item as a mention
     if (messageInputElement) {
       // Use value if available, otherwise use type as fallback
-      const mentionValue = selectedItem.value || selectedItem.type;
+      let mentionValue = selectedItem.value || selectedItem.type;
+      
+      // Remove leading "/" if present
+      if (mentionValue.startsWith('/')) {
+        mentionValue = mentionValue.substring(1);
+      }
       
       const { newValue, mentionIndex } = insertMention(
         messageInputElement.value,
