@@ -129,31 +129,20 @@
 
   // Function to handle sending a message
   function sendMessage() {
+    if (!messageInputElement) return;
+    
     const text = messageInputElement.value.trim();
-    if (!text && pendingImages.length === 0 && pendingProblems.length === 0) {
+    const problemIds = pendingProblems.map(problem => problem.originalIndex);
+    if (!text && pendingImages.length === 0 && pendingProblems.length === 0 && problemIds.length === 0) {
       return;
     }
-    
-    // Check if we have pending problems to include
-    if (pendingProblems.length > 0) {
-      // Extract problem IDs for backend processing
-      const problemIds = pendingProblems.map(problem => problem.originalIndex);
-      
-      // Send the message with both images and selected problems
-      vscode.postMessage({
-        command: 'sendMessageWithSelectedProblems',
-        text: text,
-        images: pendingImages,
-        selectedProblemIds: problemIds
-      });
-    } else {
-      // Send the message to the extension with images if any
-      vscode.postMessage({
-        command: 'sendToTerminal',
-        text: text,
-        images: pendingImages
-      });
-    }
+
+    vscode.postMessage({
+      command: 'sendToTerminal',
+      text: text,
+      images: pendingImages,
+      selectedProblemIds: problemIds
+    });
     
     // Clear input, images, and problems after sending
     messageInputElement.value = '';
