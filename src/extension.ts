@@ -275,8 +275,8 @@ export function activate(context: vscode.ExtensionContext) {
     // Create line range string
     const lineRange = startLine === endLine ? `${startLine}` : `${startLine}-${endLine}`;
     
-    // Format the text with file path, line numbers, and code block
-    const formattedText = `@${relativePath}:${lineRange}\n\`\`\`\n${selectedText}\n\`\`\``;
+    // Format the text with only file path and line numbers (no code content)
+    const formattedText = `${relativePath}#L${lineRange}`;
 
     // Check if provider is initialized
     if (!claudeTerminalInputProvider) {
