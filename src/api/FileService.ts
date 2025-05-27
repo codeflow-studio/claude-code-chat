@@ -22,7 +22,7 @@ export async function getRelativePaths(request: { uris: string[] }): Promise<{ p
           console.warn(`Dropped file ${relativePathToGet} is outside the workspace. Sending original path.`);
           return fileUri.fsPath.replace(/\\/g, '/');
         } else {
-          let finalPath = '/' + relativePathToGet.replace(/\\/g, '/');
+          let finalPath = relativePathToGet.replace(/\\/g, '/');
           try {
             const stat = await vscode.workspace.fs.stat(fileUri);
             if (stat.type === vscode.FileType.Directory) {
