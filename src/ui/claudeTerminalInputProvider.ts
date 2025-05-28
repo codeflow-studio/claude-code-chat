@@ -157,7 +157,7 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
     }
     
     // Show the terminal in the background (preserves focus)
-    this._terminal.show(false);
+    this._terminal.show(true);
     
     // Send text to terminal
     this._terminal.sendText(text, false);
@@ -174,7 +174,7 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
           this._returnFocusToInput();
           // Resolve the promise after the command has been executed
           resolve();
-        }, 200);
+        }, 700);
       }, 50);
     });
   }

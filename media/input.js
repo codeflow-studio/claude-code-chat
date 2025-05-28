@@ -152,19 +152,6 @@
     
     // Reset textarea height to minimum after clearing content
     autoResizeTextarea();
-    
-    // Aggressively restore focus after any potential focus loss
-    setTimeout(() => {
-      messageInputElement.focus();
-    }, 100);
-    
-    setTimeout(() => {
-      messageInputElement.focus();
-    }, 300);
-    
-    setTimeout(() => {
-      messageInputElement.focus();
-    }, 500);
   }
   
   // Function to update highlights in the text area
