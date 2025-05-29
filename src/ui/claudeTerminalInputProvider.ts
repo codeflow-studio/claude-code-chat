@@ -164,7 +164,7 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
     
     // Return a promise that resolves after the command has been executed
     return new Promise<void>((resolve) => {
-      // Add a small delay to ensure the text is properly buffered
+      // Add a delay to ensure the text is properly buffered
       setTimeout(() => {
         // Then explicitly send Enter key to execute the command
         this._terminal.sendText('', true);
@@ -175,7 +175,7 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
           // Resolve the promise after the command has been executed
           resolve();
         }, 700);
-      }, 50);
+      }, 1000);
     });
   }
   
