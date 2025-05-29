@@ -967,16 +967,38 @@
           
           if (message.isTerminalClosed) {
             terminalStatusBanner.classList.remove('hidden');
+            terminalStatusBanner.innerHTML = `
+              <div class="terminal-status-icon">⚠️</div>
+              <div class="terminal-status-message">
+                Terminal was closed. Sending a message will reopen it.
+              </div>
+            `;
             // If the banner was previously hidden and is now shown, adjust the container
             if (wasHidden) {
               // Allow layout to adjust by forcing a reflow
               document.querySelector('.chat-container').style.maxHeight = '280px';
             }
           } else {
-            terminalStatusBanner.classList.add('hidden');
-            // If the banner was previously shown and is now hidden, restore original size
-            if (!wasHidden) {
-              document.querySelector('.chat-container').style.maxHeight = '250px';
+            // Terminal is open - check if we're connected to an existing terminal
+            if (message.isConnectedToExistingTerminal && message.terminalName) {
+              terminalStatusBanner.classList.remove('hidden');
+              terminalStatusBanner.innerHTML = `
+                <div class="terminal-status-icon">🔗</div>
+                <div class="terminal-status-message">
+                  Connected to existing terminal: "${message.terminalName}". Send a message to start Claude if needed.
+                </div>
+              `;
+              // Show the banner briefly, then hide it after 5 seconds (longer since there's more info)
+              setTimeout(() => {
+                terminalStatusBanner.classList.add('hidden');
+                document.querySelector('.chat-container').style.maxHeight = '250px';
+              }, 5000);
+            } else {
+              terminalStatusBanner.classList.add('hidden');
+              // If the banner was previously shown and is now hidden, restore original size
+              if (!wasHidden) {
+                document.querySelector('.chat-container').style.maxHeight = '250px';
+              }
             }
           }
           

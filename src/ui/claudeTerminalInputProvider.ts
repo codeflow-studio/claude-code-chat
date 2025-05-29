@@ -11,6 +11,7 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
   private _isTerminalClosed: boolean = false;
   private _imageManager?: ImageManager;
   private _currentMessage?: any;
+  private _isConnectedToExistingTerminal: boolean = false;
 
   constructor(
     private readonly _extensionUri: vscode.Uri,
@@ -20,15 +21,18 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
     this._imageManager = new ImageManager(_context);
   }
 
-  public updateTerminal(terminal: vscode.Terminal) {
+  public updateTerminal(terminal: vscode.Terminal, isExistingTerminal: boolean = false) {
     this._terminal = terminal;
     this._isTerminalClosed = false;
+    this._isConnectedToExistingTerminal = isExistingTerminal;
     
     // Update UI state if view exists
     if (this._view) {
       this._view.webview.postMessage({
         command: "terminalStatus",
-        isTerminalClosed: false
+        isTerminalClosed: false,
+        isConnectedToExistingTerminal: isExistingTerminal,
+        terminalName: terminal.name
       });
     }
   }
@@ -87,7 +91,9 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
     // Send initial terminal status
     webviewView.webview.postMessage({
       command: "terminalStatus",
-      isTerminalClosed: this._isTerminalClosed
+      isTerminalClosed: this._isTerminalClosed,
+      isConnectedToExistingTerminal: this._isConnectedToExistingTerminal,
+      terminalName: this._terminal.name
     });
     
     // Handle message from webview
