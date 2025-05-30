@@ -4,6 +4,47 @@ All notable changes to the "Claude Code" extension will be documented in this fi
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [0.1.2] - 2025-05-30
+
+### Fixed
+- **VSCode Compatibility**: Lowered minimum VSCode version requirement from 1.100.0 to 1.90.0 for better compatibility with older VSCode installations
+- Resolves installation error for users with VSCode versions 1.90.0 - 1.99.x
+
+## [0.1.1] - 2025-05-30
+
+### Added
+- **Terminal Detection**: Automatic detection and connection to existing Claude Code terminal sessions
+  - Seamlessly connects to running Claude instances without disrupting workflow
+  - Intelligent process detection across different platforms (macOS, Linux, Windows)
+  - Validates terminal responsiveness before attempting connection
+  - Displays connection status with informative UI banners
+- **Enhanced Drag and Drop**: Comprehensive multi-source file and image support
+  - Support for VSCode Explorer files and folders with proper URI parsing
+  - External file manager support (Finder, Windows Explorer) with path resolution
+  - Image handling with automatic temporary file creation for Claude Code CLI
+  - Visual feedback during drag operations with dashed outlines
+  - Proper relative/absolute path resolution based on workspace context
+
+### Improved
+- **Terminal Visibility**: Enhanced terminal management and user experience
+  - Terminal automatically shows when sending messages while preserving input focus
+  - Better terminal lifecycle management with proper cleanup
+  - Improved connection status feedback with contextual messages
+- **Message Processing**: Unified message handling system
+  - Streamlined image and problem processing workflow
+  - Better organization of message sending logic
+  - Enhanced error handling and validation
+- **UI Experience**: Multiple interface improvements
+  - Cleaner path display in context menus without redundant slashes
+  - Better visual feedback for drag and drop operations
+  - Improved input field behavior and focus management
+
+### Fixed
+- **Path Resolution**: Corrected file path construction to remove leading slash for proper relative paths
+- **Image Processing**: Fixed critical image handling to ensure all images are saved to temporary files before sending to Claude Code CLI
+- **Focus Management**: Improved input field focus restoration after terminal operations
+- **Process Detection**: Enhanced reliability of Claude Code process detection across different terminal types
+
 ## [0.0.9] - 2025-05-27
 
 ### Improved
