@@ -4,7 +4,7 @@ All notable changes to the "Claude Code" extension will be documented in this fi
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
-## [Unreleased]
+## [0.1.3] - 2025-05-31
 
 ### Added
 - **Quick Fix Integration**: "Fix with Claude Code" option in VSCode's Quick Fix menu (Ctrl+. / Cmd+.)
