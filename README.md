@@ -29,6 +29,16 @@
   <img src="media/screenshots/image-support.png" alt="Image Support" width="70%" style="border-radius: 8px; margin: 10px 0; box-shadow: 0 4px 8px rgba(0,0,0,0.2);">
 </div>
 
+### 🚀 Quick Fix Integration
+- **Instant Error Help**: "Fix with Claude Code" appears in VSCode's Quick Fix menu (Ctrl+. / Cmd+.)
+- **Automatic Context**: Sends error details, file references, and surrounding code automatically
+- **Seamless Workflow**: Click the lightbulb on any error to get Claude's assistance instantly
+- **Smart Detection**: Works with all types of errors and warnings from any language
+
+<div align="center">
+  <img src="media/screenshots/quick-fix-menu.png" alt="Quick Fix Integration" width="70%" style="border-radius: 8px; margin: 10px 0; box-shadow: 0 4px 8px rgba(0,0,0,0.2);">
+</div>
+
 ### 💬 Smart Interactions
 - **@mentions**: Reference workspace problems and terminal output
 - **Slash Commands**: Quick access to Claude's powerful features
@@ -100,6 +110,12 @@ code --install-extension claude-code-extension-0.0.1.vsix
 - Type your questions or requests in the input area
 - Press Enter or click Send to submit
 - Claude will respond with helpful suggestions and code
+
+### 🚀 Quick Fix with Claude
+- **Instant Help**: When you see a red/yellow squiggly line under code, press Ctrl+. (Cmd+. on Mac)
+- **Select Fix**: Choose "Fix with Claude Code" from the Quick Fix menu
+- **Auto Context**: Claude receives the error details, file location, and surrounding code automatically
+- **Get Solution**: Claude analyzes the error and provides targeted fixes
 
 ### 🖼️ Working with Images
 - **Drag & Drop**: Drag image files directly onto the input area

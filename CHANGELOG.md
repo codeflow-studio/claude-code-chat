@@ -4,6 +4,23 @@ All notable changes to the "Claude Code" extension will be documented in this fi
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [0.1.3] - 2025-05-31
+
+### Added
+- **Quick Fix Integration**: "Fix with Claude Code" option in VSCode's Quick Fix menu (Ctrl+. / Cmd+.)
+  - Automatically appears when errors or warnings are detected in code
+  - Sends comprehensive error context including file references, line numbers, error messages, and surrounding code
+  - Integrated with VSCode's diagnostic system for seamless debugging workflow
+  - Supports paste detection to show "[Pasted text #X +Y lines]" in Claude Code terminal
+
+![Quick Fix Menu](media/screenshots/quick-fix-menu.png)
+
+### Improved
+- **Terminal Input**: Refactored to use smart paste detection for all text sending operations
+  - Automatically determines when to use paste mode based on content (multi-line, >100 chars, code blocks)
+  - Consistent behavior across all input methods (manual typing, Quick Fix, drag & drop)
+  - Better integration with Claude Code's paste detection system
+
 ## [0.1.2] - 2025-05-30
 
 ### Fixed
