@@ -66,10 +66,10 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
    * Sends a command to the Claude terminal asynchronously
    * @param text The text to send to the terminal
    * @returns A promise that resolves when the command has been executed
-   * @public Wrapper for the private _sendToTerminal method
+   * @public Wrapper for sendTextSmart method
    */
   public async sendToTerminal(text: string): Promise<void> {
-    return this._sendToTerminal(text);
+    return this.sendTextSmart(text);
   }
 
   public resolveWebviewView(
@@ -150,21 +150,13 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
   }
   
   /**
-   * Sends text to the terminal asynchronously
-   * @param text The text to send to the terminal
-   * @returns A promise that resolves when the command has been executed
-   */
-  private async _sendToTerminal(text: string): Promise<void> {
-    return this._sendToTerminalInternal(text, false);
-  }
-
-  /**
    * Sends text to the terminal as a paste operation (triggers Claude Code's paste detection)
    * @param text The text to send to the terminal as a paste
    * @returns A promise that resolves when the command has been executed
+   * @deprecated Use sendTextSmart instead
    */
   public async sendTextAsPaste(text: string): Promise<void> {
-    return this._sendToTerminalInternal(text, true);
+    return this.sendTextSmart(text);
   }
 
   /**
@@ -192,12 +184,12 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
   }
 
   /**
-   * Internal method to send text to terminal with optional paste simulation
+   * Internal method to send text to terminal with smart paste detection
    * @param text The text to send to the terminal
-   * @param asPaste Whether to simulate a paste operation using bracketed paste mode
+   * @param shouldUsePaste Whether to use paste mode based on content analysis
    * @returns A promise that resolves when the command has been executed
    */
-  private async _sendToTerminalInternal(text: string, asPaste: boolean = false): Promise<void> {
+  private async _sendToTerminalInternal(text: string, shouldUsePaste: boolean): Promise<void> {
     // Check if terminal is closed
     if (this._isTerminalClosed) {
       // Use command to recreate terminal and send message
@@ -208,10 +200,7 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
     // Show the terminal in the background (preserves focus)
     this._terminal.show(true);
     
-    if (asPaste) {
-      // Enable bracketed paste mode first (same as Claude Code does)
-      this._terminal.sendText('\x1b[?2004h', false);
-      
+    if (shouldUsePaste) {
       // Send bracketed paste start sequence
       this._terminal.sendText('\x1b[200~', false);
       
@@ -404,7 +393,7 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
     // For all slash commands (including custom commands), 
     // send directly as-is to the terminal.
     // The Claude Code CLI will handle parsing and executing them
-    await this._sendToTerminal(command);
+    await this.sendTextSmart(command);
   }
   
 
@@ -415,7 +404,7 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
   private async _handleMessageWithContext(text: string): Promise<void> {
     if (!this._currentMessage) {
       // Fallback to simple send if no current message context
-      await this._sendToTerminal(text);
+      await this.sendTextSmart(text);
       return;
     }
     
@@ -842,7 +831,7 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
       
       // Send to terminal only if we have content
       if (enhancedMessage) {
-        await this._sendToTerminal(enhancedMessage);
+        await this.sendTextSmart(enhancedMessage);
       }
       
     } catch (error) {
@@ -850,7 +839,7 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
       vscode.window.showErrorMessage(`Failed to process images: ${error}`);
       // Fallback to sending just text if available
       if (text) {
-        await this._sendToTerminal(text);
+        await this.sendTextSmart(text);
       }
     }
   }
