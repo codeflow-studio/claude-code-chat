@@ -3,6 +3,7 @@ import * as path from 'path';
 import { ClaudeTerminalInputProvider } from './ui/claudeTerminalInputProvider';
 import { customCommandService } from './service/customCommandService';
 import { TerminalDetectionService } from './service/terminalDetectionService';
+import { ClaudeCodeActionProvider } from './service/claudeCodeActionProvider';
 
 // Store a reference to the Claude terminal
 let claudeTerminal: vscode.Terminal | undefined;
@@ -372,6 +373,32 @@ export async function activate(context: vscode.ExtensionContext) {
   });
 
   context.subscriptions.push(addSelectionToInputCommand);
+
+  // Register Claude Code Action Provider for Quick Fix menu
+  const claudeCodeActionProvider = new ClaudeCodeActionProvider(claudeTerminalInputProvider);
+  context.subscriptions.push(
+    vscode.languages.registerCodeActionsProvider(
+      '*', // Apply to all file types
+      claudeCodeActionProvider,
+      {
+        providedCodeActionKinds: ClaudeCodeActionProvider.providedCodeActionKinds
+      }
+    )
+  );
+
+  // Register command for fixing with Claude Code
+  const fixWithClaudeCommand = vscode.commands.registerCommand(
+    'claude-code-extension.fixWithClaude',
+    async (document: vscode.TextDocument, range: vscode.Range | vscode.Selection, diagnostic: vscode.Diagnostic) => {
+      await ClaudeCodeActionProvider.handleFixWithClaude(
+        claudeTerminalInputProvider,
+        document,
+        range,
+        diagnostic
+      );
+    }
+  );
+  context.subscriptions.push(fixWithClaudeCommand);
   
   // Focus terminal input view if we auto-started
   if (autoStart) {
