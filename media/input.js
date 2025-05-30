@@ -1,5 +1,3 @@
-// @ts-check
-
 (function () {
   // Get VS Code API
   const vscode = acquireVsCodeApi();
@@ -129,31 +127,20 @@
 
   // Function to handle sending a message
   function sendMessage() {
+    if (!messageInputElement) return;
+    
     const text = messageInputElement.value.trim();
-    if (!text && pendingImages.length === 0 && pendingProblems.length === 0) {
+    const problemIds = pendingProblems.map(problem => problem.originalIndex);
+    if (!text && pendingImages.length === 0 && pendingProblems.length === 0 && problemIds.length === 0) {
       return;
     }
-    
-    // Check if we have pending problems to include
-    if (pendingProblems.length > 0) {
-      // Extract problem IDs for backend processing
-      const problemIds = pendingProblems.map(problem => problem.originalIndex);
-      
-      // Send the message with both images and selected problems
-      vscode.postMessage({
-        command: 'sendMessageWithSelectedProblems',
-        text: text,
-        images: pendingImages,
-        selectedProblemIds: problemIds
-      });
-    } else {
-      // Send the message to the extension with images if any
-      vscode.postMessage({
-        command: 'sendToTerminal',
-        text: text,
-        images: pendingImages
-      });
-    }
+
+    vscode.postMessage({
+      command: 'sendToTerminal',
+      text: text,
+      images: pendingImages,
+      selectedProblemIds: problemIds
+    });
     
     // Clear input, images, and problems after sending
     messageInputElement.value = '';
@@ -165,19 +152,6 @@
     
     // Reset textarea height to minimum after clearing content
     autoResizeTextarea();
-    
-    // Aggressively restore focus after any potential focus loss
-    setTimeout(() => {
-      messageInputElement.focus();
-    }, 100);
-    
-    setTimeout(() => {
-      messageInputElement.focus();
-    }, 300);
-    
-    setTimeout(() => {
-      messageInputElement.focus();
-    }, 500);
   }
   
   // Function to update highlights in the text area
@@ -461,8 +435,7 @@
         // File path formatting for items with a value 
         itemContent = `
           <span class="path-option">
-            <span>/</span>
-            <span class="path-text">${item.value.startsWith('/') ? item.value.substring(1) : item.value}</span>
+            <span class="path-text">${item.value}</span>
           </span>
         `;
       } else {
@@ -519,7 +492,7 @@
     // Wait for DOM to be ready then add listeners
     setTimeout(() => {
       const menuItemElements = globalContextMenu.querySelectorAll('.context-menu-item:not(.not-selectable):not(.loading)');
-      menuItemElements.forEach((item, idx) => {
+      menuItemElements.forEach((item) => {
         const itemIndex = parseInt(item.getAttribute('data-index'));
         
         // Add click handler
@@ -617,7 +590,12 @@
     // Insert the selected item as a mention
     if (messageInputElement) {
       // Use value if available, otherwise use type as fallback
-      const mentionValue = selectedItem.value || selectedItem.type;
+      let mentionValue = selectedItem.value || selectedItem.type;
+      
+      // Remove leading "/" if present
+      if (mentionValue.startsWith('/')) {
+        mentionValue = mentionValue.substring(1);
+      }
       
       const { newValue, mentionIndex } = insertMention(
         messageInputElement.value,
@@ -989,16 +967,38 @@
           
           if (message.isTerminalClosed) {
             terminalStatusBanner.classList.remove('hidden');
+            terminalStatusBanner.innerHTML = `
+              <div class="terminal-status-icon">⚠️</div>
+              <div class="terminal-status-message">
+                Terminal was closed. Sending a message will reopen it.
+              </div>
+            `;
             // If the banner was previously hidden and is now shown, adjust the container
             if (wasHidden) {
               // Allow layout to adjust by forcing a reflow
               document.querySelector('.chat-container').style.maxHeight = '280px';
             }
           } else {
-            terminalStatusBanner.classList.add('hidden');
-            // If the banner was previously shown and is now hidden, restore original size
-            if (!wasHidden) {
-              document.querySelector('.chat-container').style.maxHeight = '250px';
+            // Terminal is open - check if we're connected to an existing terminal
+            if (message.isConnectedToExistingTerminal && message.terminalName) {
+              terminalStatusBanner.classList.remove('hidden');
+              terminalStatusBanner.innerHTML = `
+                <div class="terminal-status-icon">🔗</div>
+                <div class="terminal-status-message">
+                  Connected to existing terminal: "${message.terminalName}". Send a message to start Claude if needed.
+                </div>
+              `;
+              // Show the banner briefly, then hide it after 5 seconds (longer since there's more info)
+              setTimeout(() => {
+                terminalStatusBanner.classList.add('hidden');
+                document.querySelector('.chat-container').style.maxHeight = '250px';
+              }, 5000);
+            } else {
+              terminalStatusBanner.classList.add('hidden');
+              // If the banner was previously shown and is now hidden, restore original size
+              if (!wasHidden) {
+                document.querySelector('.chat-container').style.maxHeight = '250px';
+              }
             }
           }
           

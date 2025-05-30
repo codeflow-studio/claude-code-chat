@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { ClaudeTerminalInputProvider } from './ui/claudeTerminalInputProvider';
 import { customCommandService } from './service/customCommandService';
+import { TerminalDetectionService } from './service/terminalDetectionService';
 
 // Store a reference to the Claude terminal
 let claudeTerminal: vscode.Terminal | undefined;
@@ -14,34 +15,87 @@ let claudeTerminalInputProvider: ClaudeTerminalInputProvider | undefined;
 
 /**
  * Ensures that a Claude Code terminal exists and is initialized
+ * Now attempts to detect and connect to existing Claude terminals first
  */
-function ensureClaudeTerminal(context: vscode.ExtensionContext): vscode.Terminal {
-  // Create terminal if it doesn't exist or was closed
-  if (!claudeTerminal || claudeTerminal.exitStatus) {
-    claudeTerminal = vscode.window.createTerminal({
-      name: 'Claude Code',
-      iconPath: vscode.Uri.joinPath(context.extensionUri, 'resources', 'claude-icon.svg'),
-      cwd: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
-    });
-    
-    // Register disposal when VSCode closes
-    context.subscriptions.push({
-      dispose: () => {
-        claudeTerminal?.dispose();
-      }
-    });
+async function ensureClaudeTerminal(context: vscode.ExtensionContext): Promise<{ terminal: vscode.Terminal; isExisting: boolean; isRunningClaude: boolean }> {
+  // First, check if we already have a valid Claude terminal
+  if (claudeTerminal && !claudeTerminal.exitStatus) {
+    const isValid = await TerminalDetectionService.validateClaudeTerminal(claudeTerminal);
+    if (isValid) {
+      console.log('Using existing Claude terminal');
+      // Check if Claude is running in this terminal
+      const terminalInfo = await TerminalDetectionService.detectClaudeTerminals();
+      const currentTerminalInfo = terminalInfo.find(info => info.terminal === claudeTerminal);
+      return { 
+        terminal: claudeTerminal, 
+        isExisting: true, 
+        isRunningClaude: currentTerminalInfo?.isRunningClaude || false 
+      };
+    } else {
+      console.log('Current Claude terminal is no longer valid');
+      claudeTerminal = undefined;
+    }
   }
   
-  return claudeTerminal;
+  // Try to find an existing Claude terminal
+  const existingTerminal = await TerminalDetectionService.findBestClaudeTerminal();
+  if (existingTerminal) {
+    const isValid = await TerminalDetectionService.validateClaudeTerminal(existingTerminal);
+    if (isValid) {
+      console.log(`Connecting to existing Claude terminal: "${existingTerminal.name}"`);
+      claudeTerminal = existingTerminal;
+      
+      // Register disposal when VSCode closes (if not already registered)
+      context.subscriptions.push({
+        dispose: () => {
+          // Only dispose if this is still our terminal
+          if (claudeTerminal === existingTerminal) {
+            claudeTerminal?.dispose();
+          }
+        }
+      });
+      
+      // Check if Claude is running in this terminal
+      const terminalInfo = await TerminalDetectionService.detectClaudeTerminals();
+      const currentTerminalInfo = terminalInfo.find(info => info.terminal === existingTerminal);
+      return { 
+        terminal: claudeTerminal, 
+        isExisting: true, 
+        isRunningClaude: currentTerminalInfo?.isRunningClaude || false 
+      };
+    }
+  }
+  
+  // No existing Claude terminal found or valid, create a new one
+  console.log('Creating new Claude terminal');
+  claudeTerminal = vscode.window.createTerminal({
+    name: 'Claude Code',
+    iconPath: vscode.Uri.joinPath(context.extensionUri, 'resources', 'claude-icon.svg'),
+    cwd: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
+  });
+  
+  // Register disposal when VSCode closes
+  context.subscriptions.push({
+    dispose: () => {
+      claudeTerminal?.dispose();
+    }
+  });
+  
+  return { terminal: claudeTerminal, isExisting: false, isRunningClaude: false };
 }
 
 // Function has been replaced with direct calls to claudeTerminalInputProvider._sendToTerminal
 
-export function activate(context: vscode.ExtensionContext) {
+export async function activate(context: vscode.ExtensionContext) {
   console.log('Claude Code extension is now active!');
 
   // Create and ensure the Claude terminal
-  const terminal = ensureClaudeTerminal(context);
+  const terminalResult = await ensureClaudeTerminal(context);
+  const terminal = terminalResult.terminal;
+  const isExistingTerminal = terminalResult.isExisting;
+  const isClaudeAlreadyRunning = terminalResult.isRunningClaude;
+  
+  console.log(`Terminal setup: existing=${isExistingTerminal}, claudeRunning=${isClaudeAlreadyRunning}, name="${terminal.name}"`);
   
   // Check if we should auto-start
   const config = vscode.workspace.getConfiguration('claude-code-extension');
@@ -82,6 +136,9 @@ export function activate(context: vscode.ExtensionContext) {
   // Register Terminal Input Provider first so we can use it to send commands
   claudeTerminalInputProvider = new ClaudeTerminalInputProvider(context.extensionUri, terminal, context);
   
+  // Update with existing terminal status
+  claudeTerminalInputProvider.updateTerminal(terminal, isExistingTerminal);
+  
   // Store a reference to ensure it's not undefined later
   const provider = claudeTerminalInputProvider;
   
@@ -90,7 +147,18 @@ export function activate(context: vscode.ExtensionContext) {
     if (autoStart) {
       // Show terminal in background and start Claude Code automatically
       terminal.show(false); // false preserves focus on current editor
-      if (!isClaudeRunning) {
+      
+      if (isClaudeAlreadyRunning) {
+        console.log('Claude is already running in the connected terminal');
+        isClaudeRunning = true;
+      } else if (isExistingTerminal) {
+        // Connected to existing terminal but Claude not detected as running
+        // Don't automatically start Claude in case it's in a different state
+        console.log('Connected to existing terminal but Claude not detected - not auto-starting');
+        isClaudeRunning = false;
+      } else if (!isClaudeRunning) {
+        // New terminal created, start Claude
+        console.log('Starting Claude in new terminal');
         await provider.sendToTerminal('claude');
         isClaudeRunning = true;
       }
@@ -116,18 +184,31 @@ export function activate(context: vscode.ExtensionContext) {
     // Store a reference to ensure it's not undefined later
     const provider = claudeTerminalInputProvider;
     
-    // Ensure Claude terminal exists
-    const terminal = ensureClaudeTerminal(context);
+    // Ensure Claude terminal exists (may connect to existing one)
+    const terminalResult = await ensureClaudeTerminal(context);
+    const terminal = terminalResult.terminal;
+    const isExistingTerminal = terminalResult.isExisting;
+    const isClaudeAlreadyRunning = terminalResult.isRunningClaude;
+    
+    console.log(`Launch command: existing=${isExistingTerminal}, claudeRunning=${isClaudeAlreadyRunning}, name="${terminal.name}"`);
     
     // Show the terminal in background 
     terminal.show(false);
     
     // Update the terminal reference in the input provider
-    provider.updateTerminal(terminal);
+    provider.updateTerminal(terminal, isExistingTerminal);
     
-    // Only start Claude Code in the terminal if it's not already running
-    if (!isClaudeRunning) {
-      // Claude is not running, start it using the sendToTerminal method and await its completion
+    if (isClaudeAlreadyRunning) {
+      console.log('Claude is already running in the connected terminal');
+      isClaudeRunning = true;
+    } else if (isExistingTerminal) {
+      // Connected to existing terminal but Claude not detected as running
+      // Don't automatically start Claude - let user decide
+      console.log('Connected to existing terminal but Claude not detected - not auto-starting');
+      isClaudeRunning = false;
+    } else if (!isClaudeRunning) {
+      // Claude is not running in new terminal, start it using the sendToTerminal method and await its completion
+      console.log('Starting Claude in new terminal');
       await provider.sendToTerminal('claude');
       isClaudeRunning = true;
     }
@@ -157,10 +238,11 @@ export function activate(context: vscode.ExtensionContext) {
     
     if (!claudeTerminal) {
       // Terminal was closed, recreate it
-      const newTerminal = ensureClaudeTerminal(context);
+      const terminalResult = await ensureClaudeTerminal(context);
+      const newTerminal = terminalResult.terminal;
       
       // Update the terminal reference in the input provider
-      provider.updateTerminal(newTerminal);
+      provider.updateTerminal(newTerminal, terminalResult.isExisting);
     }
     
     // Send clear command to clean the terminal and await its completion
@@ -207,10 +289,11 @@ export function activate(context: vscode.ExtensionContext) {
     const provider = claudeTerminalInputProvider;
     
     // Terminal was killed, recreate it
-    const newTerminal = ensureClaudeTerminal(context);
+    const terminalResult = await ensureClaudeTerminal(context);
+    const newTerminal = terminalResult.terminal;
     
     // Update the terminal reference in the input provider
-    provider.updateTerminal(newTerminal);
+    provider.updateTerminal(newTerminal, terminalResult.isExisting);
     
     // Reset the running flag
     isClaudeRunning = false;
@@ -275,8 +358,8 @@ export function activate(context: vscode.ExtensionContext) {
     // Create line range string
     const lineRange = startLine === endLine ? `${startLine}` : `${startLine}-${endLine}`;
     
-    // Format the text with file path, line numbers, and code block
-    const formattedText = `@${relativePath}:${lineRange}\n\`\`\`\n${selectedText}\n\`\`\``;
+    // Format the text with only file path and line numbers (no code content)
+    const formattedText = `@${relativePath}#L${lineRange}`;
 
     // Check if provider is initialized
     if (!claudeTerminalInputProvider) {

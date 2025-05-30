@@ -10,6 +10,8 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
   private _view?: vscode.WebviewView;
   private _isTerminalClosed: boolean = false;
   private _imageManager?: ImageManager;
+  private _currentMessage?: any;
+  private _isConnectedToExistingTerminal: boolean = false;
 
   constructor(
     private readonly _extensionUri: vscode.Uri,
@@ -19,15 +21,18 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
     this._imageManager = new ImageManager(_context);
   }
 
-  public updateTerminal(terminal: vscode.Terminal) {
+  public updateTerminal(terminal: vscode.Terminal, isExistingTerminal: boolean = false) {
     this._terminal = terminal;
     this._isTerminalClosed = false;
+    this._isConnectedToExistingTerminal = isExistingTerminal;
     
     // Update UI state if view exists
     if (this._view) {
       this._view.webview.postMessage({
         command: "terminalStatus",
-        isTerminalClosed: false
+        isTerminalClosed: false,
+        isConnectedToExistingTerminal: isExistingTerminal,
+        terminalName: terminal.name
       });
     }
   }
@@ -86,26 +91,29 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
     // Send initial terminal status
     webviewView.webview.postMessage({
       command: "terminalStatus",
-      isTerminalClosed: this._isTerminalClosed
+      isTerminalClosed: this._isTerminalClosed,
+      isConnectedToExistingTerminal: this._isConnectedToExistingTerminal,
+      terminalName: this._terminal.name
     });
     
     // Handle message from webview
     webviewView.webview.onDidReceiveMessage(
       async (message) => {
         switch (message.command) {
-          case "sendToTerminal":
-            // Handle images if present
-            if (message.images && message.images.length > 0) {
-              await this._handleMessageWithImages(message.text, message.images);
-            } else {
-              // Check if it's a slash command
-              if (message.text.trim().startsWith('/')) {
+          case "sendToTerminal": {
+            // Store message context for _handleMessageWithContext to access
+            this._currentMessage = message;
+            
+             if (message.text.trim().startsWith('/')) {
                 await this._handleSlashCommand(message.text.trim());
               } else {
-                await this._sendToTerminal(message.text);
+                await this._handleMessageWithContext(message.text);
               }
-            }
+            
+            // Clear message context
+            this._currentMessage = undefined;
             return;
+          }
             
           case "searchFiles":
             this._handleFileSearch(message.query, message.mentionsRequestId);
@@ -134,15 +142,6 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
           case "resolveDroppedImages":
             this._handleDroppedImages(message);
             return;
-            
-          case "sendMessageWithSelectedProblems":
-            // Handle both images and problems
-            if (message.images && message.images.length > 0) {
-              await this._handleMessageWithImagesAndProblems(message.text, message.images, message.selectedProblemIds);
-            } else {
-              await this._handleMessageWithSelectedProblems(message.text, message.selectedProblemIds);
-            }
-            return;
         }
       },
       undefined,
@@ -164,14 +163,14 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
     }
     
     // Show the terminal in the background (preserves focus)
-    this._terminal.show(false);
+    this._terminal.show(true);
     
     // Send text to terminal
     this._terminal.sendText(text, false);
     
     // Return a promise that resolves after the command has been executed
     return new Promise<void>((resolve) => {
-      // Add a small delay to ensure the text is properly buffered
+      // Add a delay to ensure the text is properly buffered
       setTimeout(() => {
         // Then explicitly send Enter key to execute the command
         this._terminal.sendText('', true);
@@ -181,8 +180,8 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
           this._returnFocusToInput();
           // Resolve the promise after the command has been executed
           resolve();
-        }, 200);
-      }, 50);
+        }, 700);
+      }, 1000);
     });
   }
   
@@ -305,6 +304,43 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
     }
   }
   
+  private async _handleShowProblemsMenu(mentionsRequestId: string) {
+    try {
+      // Get current problems from VSCode diagnostics
+      const problems = this._getCurrentProblems();
+      
+      // Transform problems into menu items with navigation support
+      const menuItems = problems.map((problem, index) => ({
+        id: index.toString(),
+        label: `${problem.severity}: ${problem.file}:${problem.line}:${problem.column}`,
+        description: problem.message,
+        detail: problem.source ? `Source: ${problem.source}` : undefined,
+        problem: problem
+      }));
+      
+      // Send problems menu to webview
+      if (this._view) {
+        this._view.webview.postMessage({
+          type: "problemsMenu",
+          menuItems,
+          mentionsRequestId
+        });
+      }
+    } catch (error) {
+      console.error("Error getting problems menu:", error);
+      
+      // Send empty menu back to webview
+      if (this._view) {
+        this._view.webview.postMessage({
+          type: "problemsMenu",
+          menuItems: [],
+          mentionsRequestId,
+          error: error instanceof Error ? error.message : "Unknown error"
+        });
+      }
+    }
+  }
+  
   private async _handleSlashCommand(command: string): Promise<void> {
     // For all slash commands (including custom commands), 
     // send directly as-is to the terminal.
@@ -312,63 +348,86 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
     await this._sendToTerminal(command);
   }
   
-  private async _handleMessageWithSelectedProblems(text: string, selectedProblemIds: string[]): Promise<void> {
-    // Get current problems from VSCode diagnostics
-    const allProblems = this._getCurrentProblems();
+
+  /**
+   * Unified method to handle messages with context (images and/or problems)
+   * Gets images and problems from this._currentMessage
+   */
+  private async _handleMessageWithContext(text: string): Promise<void> {
+    if (!this._currentMessage) {
+      // Fallback to simple send if no current message context
+      await this._sendToTerminal(text);
+      return;
+    }
     
-    // Filter problems based on selected IDs
-    const selectedProblems = allProblems.filter((_, index) => 
-      selectedProblemIds.includes(index.toString())
-    );
+    // Start with the base text
+    let enhancedMessage = text;
     
-    // Create the enhanced message with selected problems
+    // Get selected problems if present
+    let selectedProblems: Array<{
+      file: string;
+      line: number;
+      column: number;
+      severity: string;
+      message: string;
+      source?: string;
+    }> = [];
+    
+    if (this._currentMessage.selectedProblemIds && this._currentMessage.selectedProblemIds.length > 0) {
+      // Get current problems from VSCode diagnostics
+      const allProblems = this._getCurrentProblems();
+      
+      // Filter problems based on selected IDs
+      selectedProblems = allProblems.filter((_, index) => 
+        this._currentMessage.selectedProblemIds.includes(index.toString())
+      );
+    }
+    
+    // If we have problems, add problems context
+    if (selectedProblems.length > 0) {
+      enhancedMessage = this._formatMessageWithProblems(enhancedMessage, selectedProblems);
+    }
+    
+    // Get images from current message
+    const images = this._currentMessage.images || [];
+    
+    // If we have images, handle them with the enhanced message
+    if (images.length > 0) {
+      await this._handleMessageWithImages(enhancedMessage, images);
+    } else {
+      // No images, just send the enhanced message to terminal
+      await this._sendToTerminal(enhancedMessage);
+    }
+  }
+
+  /**
+   * Formats a message with problems context
+   */
+  private _formatMessageWithProblems(text: string, selectedProblems: Array<{
+    file: string;
+    line: number;
+    column: number;
+    severity: string;
+    message: string;
+    source?: string;
+  }>): string {
     let enhancedMessage = text;
     
     if (selectedProblems.length > 0) {
-      let problemsContext = `\n<PROBLEMS>\n`;
+      let problemsContext = `\n<problems>\n`;
       
       selectedProblems.forEach((problem, index) => {
-        const location = `${problem.file}:${problem.line}:${problem.column}`;
+        const location = `${problem.file}#L${problem.line} Column:${problem.column}`;
         const source = problem.source ? ` (${problem.source})` : '';
-        problemsContext += `${index + 1}. ${problem.severity}: ${location}${source}\n   ${problem.message}\n\n`;
+        problemsContext += `${index + 1}. @${location}${source}\n   ${problem.severity}: ${problem.message}\n\n`;
       });
-      problemsContext += "</PROBLEMS>\n\n";
+      problemsContext += "</problems>\n\n";
 
       enhancedMessage = text + problemsContext;
     }
     
-    // Send to terminal
-    await this._sendToTerminal(enhancedMessage);
+    return enhancedMessage;
   }
-  
-  private async _handleMessageWithImagesAndProblems(text: string, images: any[], selectedProblemIds: string[]): Promise<void> {
-    // Get current problems from VSCode diagnostics
-    const allProblems = this._getCurrentProblems();
-    
-    // Filter problems based on selected IDs
-    const selectedProblems = allProblems.filter((_, index) => 
-      selectedProblemIds.includes(index.toString())
-    );
-    
-    // Create enhanced message with problems context
-    let enhancedMessage = text;
-    
-    if (selectedProblems.length > 0) {
-      let problemsContext = `\n<PROBLEMS>\n`;
-      
-      selectedProblems.forEach((problem, index) => {
-        const location = `${problem.file}:${problem.line}:${problem.column}`;
-        const source = problem.source ? ` (${problem.source})` : '';
-        problemsContext += `${index + 1}. ${problem.severity}: ${location}${source}\n   ${problem.message}\n\n`;
-      });
-      problemsContext += "</PROBLEMS>\n\n";
-      enhancedMessage = text + problemsContext;
-    }
-    
-    // Handle images with the enhanced message (reuse existing image handling logic)
-    await this._handleMessageWithImages(enhancedMessage, images);
-  }
-
 
   /**
    * Gets current problems from VSCode's diagnostics
