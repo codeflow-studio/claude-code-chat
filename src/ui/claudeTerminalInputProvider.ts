@@ -155,6 +155,49 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
    * @returns A promise that resolves when the command has been executed
    */
   private async _sendToTerminal(text: string): Promise<void> {
+    return this._sendToTerminalInternal(text, false);
+  }
+
+  /**
+   * Sends text to the terminal as a paste operation (triggers Claude Code's paste detection)
+   * @param text The text to send to the terminal as a paste
+   * @returns A promise that resolves when the command has been executed
+   */
+  public async sendTextAsPaste(text: string): Promise<void> {
+    return this._sendToTerminalInternal(text, true);
+  }
+
+  /**
+   * Sends text to the terminal with automatic paste detection
+   * Uses paste mode for multi-line content or content over 100 characters
+   * @param text The text to send to the terminal
+   * @returns A promise that resolves when the command has been executed
+   */
+  public async sendTextSmart(text: string): Promise<void> {
+    const shouldUsePaste = this._shouldUsePasteMode(text);
+    return this._sendToTerminalInternal(text, shouldUsePaste);
+  }
+
+  /**
+   * Determines if text should be sent as a paste operation
+   * @param text The text to analyze
+   * @returns True if paste mode should be used
+   */
+  private _shouldUsePasteMode(text: string): boolean {
+    // Use paste mode for:
+    // - Multi-line content (contains newlines)
+    // - Long content (over 100 characters)
+    // - Content that looks like code blocks (contains ```)
+    return text.includes('\n') || text.length > 100 || text.includes('```');
+  }
+
+  /**
+   * Internal method to send text to terminal with optional paste simulation
+   * @param text The text to send to the terminal
+   * @param asPaste Whether to simulate a paste operation using bracketed paste mode
+   * @returns A promise that resolves when the command has been executed
+   */
+  private async _sendToTerminalInternal(text: string, asPaste: boolean = false): Promise<void> {
     // Check if terminal is closed
     if (this._isTerminalClosed) {
       // Use command to recreate terminal and send message
@@ -165,10 +208,26 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
     // Show the terminal in the background (preserves focus)
     this._terminal.show(true);
     
-    // Send text to terminal
-    this._terminal.sendText(text, false);
+    if (asPaste) {
+      // Enable bracketed paste mode first (same as Claude Code does)
+      this._terminal.sendText('\x1b[?2004h', false);
+      
+      // Send bracketed paste start sequence
+      this._terminal.sendText('\x1b[200~', false);
+      
+      // Send the actual text
+      this._terminal.sendText(text, false);
+
+      // Send bracketed paste end sequence
+      this._terminal.sendText('\x1b[201~', false);
+      
+      // Keep bracketed paste mode enabled (Claude Code keeps it on)
+    } else {
+      // Send text to terminal normally
+      this._terminal.sendText(text, false);
+    }
     
-    // Return a promise that resolves after the command has been executed
+    // Use the same delay logic for both paste and normal mode
     return new Promise<void>((resolve) => {
       // Add a delay to ensure the text is properly buffered
       setTimeout(() => {
@@ -395,8 +454,8 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
     if (images.length > 0) {
       await this._handleMessageWithImages(enhancedMessage, images);
     } else {
-      // No images, just send the enhanced message to terminal
-      await this._sendToTerminal(enhancedMessage);
+      // No images, use smart sending (paste mode for multi-line/long content)
+      await this.sendTextSmart(enhancedMessage);
     }
   }
 

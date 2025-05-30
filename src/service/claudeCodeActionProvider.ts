@@ -126,10 +126,11 @@ ${contextCode}
 
 Please analyze the error and provide a fix.`;
 
-            // Show the Claude Code input panel and add the formatted message
+            // Show the Claude Code input panel and add the message to input field
             await vscode.commands.executeCommand('claudeCodeInputView.focus');
             
-            // Add the message to the input field
+            // Add the message to the input field so it goes through normal input processing
+            // This will trigger Claude Code's paste detection when user presses Enter
             if (claudeTerminalInputProvider && claudeTerminalInputProvider.addTextToInput) {
                 claudeTerminalInputProvider.addTextToInput(claudeMessage);
             } else {
