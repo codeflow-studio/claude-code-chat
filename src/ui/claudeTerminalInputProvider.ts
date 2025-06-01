@@ -142,6 +142,10 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
           case "resolveDroppedImages":
             this._handleDroppedImages(message);
             return;
+            
+          case "rescanCustomCommands":
+            this._handleRescanCustomCommands();
+            return;
         }
       },
       undefined,
@@ -876,6 +880,14 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
     } catch (error) {
       console.error('Error loading custom commands:', error);
     }
+  }
+
+  /**
+   * Handles rescan request for custom commands from webview
+   */
+  private async _handleRescanCustomCommands() {
+    // Delegate to _loadCustomCommands which already rescans and updates webview
+    await this._loadCustomCommands();
   }
 
   private _getHtmlForWebview(webview: vscode.Webview) {

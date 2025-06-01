@@ -105,6 +105,13 @@
     }
   }
   
+  // Function to request rescan of custom commands from extension
+  function rescanCustomCommands() {
+    vscode.postMessage({
+      command: 'rescanCustomCommands'
+    });
+  }
+
   // Function to check if slash command menu should be shown
   function shouldShowSlashCommands(text, position) {
     // Check if text starts with "/" (at the beginning of input or after newline)
@@ -676,6 +683,16 @@
     
     // Handle slash command menu
     if (showSlashMenu) {
+      // Rescan custom commands when showing slash menu (just typed "/" at beginning)
+      const lines = beforeCursor.split('\n');
+      const currentLine = lines[lines.length - 1];
+      const queryAfterSlash = currentLine.substring(1);
+      
+      // If we just typed "/" (no query yet), rescan custom commands
+      if (queryAfterSlash.length === 0) {
+        rescanCustomCommands();
+      }
+      
       // Hide context menu if visible
       contextMenuVisible = false;
       renderContextMenu();
@@ -683,11 +700,6 @@
       // Show slash command menu
       slashCommandVisible = true;
       slashCommandSelectedIndex = 0;
-      
-      // Extract query for slash commands
-      const lines = beforeCursor.split('\n');
-      const currentLine = lines[lines.length - 1];
-      const queryAfterSlash = currentLine.substring(1);
       
       // Filter slash commands based on query 
       if (queryAfterSlash.length === 0) {
