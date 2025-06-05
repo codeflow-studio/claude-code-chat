@@ -4,6 +4,7 @@ import { ClaudeTerminalInputProvider } from './ui/claudeTerminalInputProvider';
 import { customCommandService } from './service/customCommandService';
 import { TerminalDetectionService } from './service/terminalDetectionService';
 import { ClaudeCodeActionProvider } from './service/claudeCodeActionProvider';
+import { ClaudeExtensionService } from './service/claudeExtensionService';
 
 // Store a reference to the Claude terminal
 let claudeTerminal: vscode.Terminal | undefined;
@@ -85,13 +86,143 @@ async function ensureClaudeTerminal(context: vscode.ExtensionContext): Promise<{
   return { terminal: claudeTerminal, isExisting: false, isRunningClaude: false };
 }
 
-// Function has been replaced with direct calls to claudeTerminalInputProvider._sendToTerminal
+/**
+ * Launches Claude Code using the official extension if available, otherwise falls back to terminal
+ * @returns Promise<boolean> true if Claude was launched successfully
+ */
+async function launchClaude(): Promise<boolean> {
+  // First try to use the official Claude Code extension
+  const officialLaunched = await ClaudeExtensionService.runOfficialClaudeCode();
+  
+  if (officialLaunched) {
+    console.log('Claude launched using official extension');
+    
+    // Now try to connect to the official extension's terminal
+    const connected = await connectToOfficialTerminal();
+    if (connected) {
+      console.log('Successfully connected to official extension terminal');
+      return true;
+    } else {
+      console.log('Could not connect to official extension terminal, but command was executed');
+      return true; // Command was still executed successfully
+    }
+  }
+  
+  // Fall back to terminal approach
+  console.log('Falling back to terminal launch approach');
+  return await launchWithTerminal();
+}
 
-export async function activate(context: vscode.ExtensionContext) {
+/**
+ * Attempts to connect our UI to the official Claude Code extension's terminal
+ * @returns Promise<boolean> true if successfully connected
+ */
+async function connectToOfficialTerminal(): Promise<boolean> {
+  try {
+    // Give the official extension a moment to create its terminal
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Find the official extension's terminal
+    const officialTerminal = await ClaudeExtensionService.findOfficialExtensionTerminal();
+    
+    if (!officialTerminal) {
+      console.log('Could not find official extension terminal');
+      return false;
+    }
+    
+    console.log(`Connecting to official extension terminal: "${officialTerminal.name}"`);
+    
+    // Validate the terminal is usable
+    const isValid = await TerminalDetectionService.validateClaudeTerminal(officialTerminal);
+    if (!isValid) {
+      console.log('Official extension terminal is not valid/usable');
+      return false;
+    }
+    
+    // Update our extension to use this terminal
+    claudeTerminal = officialTerminal;
+    isClaudeRunning = true; // Assume Claude is running since official extension launched it
+    
+    // Update the UI provider to use this terminal
+    if (claudeTerminalInputProvider) {
+      claudeTerminalInputProvider.updateTerminal(officialTerminal, true); // Mark as existing terminal
+      
+      // Focus our input view since we're now connected
+      vscode.commands.executeCommand('claudeCodeInputView.focus');
+    }
+    
+    console.log('Successfully connected to official extension terminal');
+    return true;
+  } catch (error) {
+    console.error('Error connecting to official terminal:', error);
+    return false;
+  }
+}
+
+/**
+ * Launches Claude Code using the terminal approach (current implementation)
+ * @returns Promise<boolean> true if Claude was launched successfully
+ */
+async function launchWithTerminal(): Promise<boolean> {
+  try {
+    // Check if provider is initialized
+    if (!claudeTerminalInputProvider) {
+      console.error('Claude terminal input provider not initialized');
+      return false;
+    }
+    
+    // Store a reference to ensure it's not undefined later
+    const provider = claudeTerminalInputProvider;
+    
+    // Ensure Claude terminal exists (may connect to existing one)
+    const terminalResult = await ensureClaudeTerminal(context);
+    const terminal = terminalResult.terminal;
+    const isExistingTerminal = terminalResult.isExisting;
+    const isClaudeAlreadyRunning = terminalResult.isRunningClaude;
+    
+    console.log(`Terminal launch: existing=${isExistingTerminal}, claudeRunning=${isClaudeAlreadyRunning}, name="${terminal.name}"`);
+    
+    // Show the terminal in background 
+    terminal.show(false);
+    
+    // Update the terminal reference in the input provider
+    provider.updateTerminal(terminal, isExistingTerminal);
+    
+    if (isClaudeAlreadyRunning) {
+      console.log('Claude is already running in the connected terminal');
+      isClaudeRunning = true;
+    } else if (isExistingTerminal) {
+      // Connected to existing terminal but Claude not detected as running
+      // Don't automatically start Claude - let user decide
+      console.log('Connected to existing terminal but Claude not detected - not auto-starting');
+      isClaudeRunning = false;
+    } else if (!isClaudeRunning) {
+      // Claude is not running in new terminal, start it using the sendToTerminal method and await its completion
+      console.log('Starting Claude in new terminal');
+      await provider.sendToTerminal('claude');
+      isClaudeRunning = true;
+    }
+    
+    // Focus the input view
+    vscode.commands.executeCommand('claudeCodeInputView.focus');
+    return true;
+  } catch (error) {
+    console.error('Error launching Claude with terminal:', error);
+    return false;
+  }
+}
+
+// Store context globally so launchWithTerminal can access it
+let context: vscode.ExtensionContext;
+
+export async function activate(extensionContext: vscode.ExtensionContext) {
   console.log('Claude Code extension is now active!');
+  
+  // Store context globally for use in other functions
+  context = extensionContext;
 
   // Create and ensure the Claude terminal
-  const terminalResult = await ensureClaudeTerminal(context);
+  const terminalResult = await ensureClaudeTerminal(extensionContext);
   const terminal = terminalResult.terminal;
   const isExistingTerminal = terminalResult.isExisting;
   const isClaudeAlreadyRunning = terminalResult.isRunningClaude;
@@ -125,44 +256,26 @@ export async function activate(context: vscode.ExtensionContext) {
       userWatcher.onDidCreate(() => customCommandService.scanCustomCommands());
       userWatcher.onDidChange(() => customCommandService.scanCustomCommands());
       userWatcher.onDidDelete(() => customCommandService.scanCustomCommands());
-      context.subscriptions.push(userWatcher);
+      extensionContext.subscriptions.push(userWatcher);
     }
   } catch (err) {
     console.error('Error setting up user commands watcher:', err);
   }
   
   // Register the watcher for disposal when extension is deactivated
-  context.subscriptions.push(projectWatcher);
+  extensionContext.subscriptions.push(projectWatcher);
   
   // Register Terminal Input Provider first so we can use it to send commands
-  claudeTerminalInputProvider = new ClaudeTerminalInputProvider(context.extensionUri, terminal, context);
+  claudeTerminalInputProvider = new ClaudeTerminalInputProvider(extensionContext.extensionUri, terminal, extensionContext);
   
   // Update with existing terminal status
   claudeTerminalInputProvider.updateTerminal(terminal, isExistingTerminal);
   
-  // Store a reference to ensure it's not undefined later
-  const provider = claudeTerminalInputProvider;
-  
   // Auto-start function
   const performAutoStart = async () => {
     if (autoStart) {
-      // Show terminal in background and start Claude Code automatically
-      terminal.show(false); // false preserves focus on current editor
-      
-      if (isClaudeAlreadyRunning) {
-        console.log('Claude is already running in the connected terminal');
-        isClaudeRunning = true;
-      } else if (isExistingTerminal) {
-        // Connected to existing terminal but Claude not detected as running
-        // Don't automatically start Claude in case it's in a different state
-        console.log('Connected to existing terminal but Claude not detected - not auto-starting');
-        isClaudeRunning = false;
-      } else if (!isClaudeRunning) {
-        // New terminal created, start Claude
-        console.log('Starting Claude in new terminal');
-        await provider.sendToTerminal('claude');
-        isClaudeRunning = true;
-      }
+      console.log('Auto-starting Claude Code...');
+      await launchClaude();
     }
   };
   
@@ -170,56 +283,17 @@ export async function activate(context: vscode.ExtensionContext) {
   performAutoStart().catch(err => {
     console.error('Error during auto-start:', err);
   });
-  context.subscriptions.push(
+  extensionContext.subscriptions.push(
     vscode.window.registerWebviewViewProvider('claudeCodeInputView', claudeTerminalInputProvider)
   );
   
   // Register command to launch Claude Code in a terminal
   const launchClaudeCodeTerminalCommand = vscode.commands.registerCommand('claude-code-extension.launchClaudeCodeTerminal', async () => {
-    // Check if provider is initialized
-    if (!claudeTerminalInputProvider) {
-      console.error('Claude terminal input provider not initialized');
-      return;
-    }
-    
-    // Store a reference to ensure it's not undefined later
-    const provider = claudeTerminalInputProvider;
-    
-    // Ensure Claude terminal exists (may connect to existing one)
-    const terminalResult = await ensureClaudeTerminal(context);
-    const terminal = terminalResult.terminal;
-    const isExistingTerminal = terminalResult.isExisting;
-    const isClaudeAlreadyRunning = terminalResult.isRunningClaude;
-    
-    console.log(`Launch command: existing=${isExistingTerminal}, claudeRunning=${isClaudeAlreadyRunning}, name="${terminal.name}"`);
-    
-    // Show the terminal in background 
-    terminal.show(false);
-    
-    // Update the terminal reference in the input provider
-    provider.updateTerminal(terminal, isExistingTerminal);
-    
-    if (isClaudeAlreadyRunning) {
-      console.log('Claude is already running in the connected terminal');
-      isClaudeRunning = true;
-    } else if (isExistingTerminal) {
-      // Connected to existing terminal but Claude not detected as running
-      // Don't automatically start Claude - let user decide
-      console.log('Connected to existing terminal but Claude not detected - not auto-starting');
-      isClaudeRunning = false;
-    } else if (!isClaudeRunning) {
-      // Claude is not running in new terminal, start it using the sendToTerminal method and await its completion
-      console.log('Starting Claude in new terminal');
-      await provider.sendToTerminal('claude');
-      isClaudeRunning = true;
-    }
-    // If Claude is already running, we just showed the terminal - no need to start Claude again
-    
-    // Focus the input view
-    vscode.commands.executeCommand('claudeCodeInputView.focus');
+    console.log('Manual launch command triggered');
+    await launchClaude();
   });
 
-  context.subscriptions.push(launchClaudeCodeTerminalCommand);
+  extensionContext.subscriptions.push(launchClaudeCodeTerminalCommand);
   
   // Add restart command
   const restartClaudeCodeCommand = vscode.commands.registerCommand('claude-code-extension.restartClaudeCode', async () => {
@@ -239,7 +313,7 @@ export async function activate(context: vscode.ExtensionContext) {
     
     if (!claudeTerminal) {
       // Terminal was closed, recreate it
-      const terminalResult = await ensureClaudeTerminal(context);
+      const terminalResult = await ensureClaudeTerminal(extensionContext);
       const newTerminal = terminalResult.terminal;
       
       // Update the terminal reference in the input provider
@@ -260,10 +334,10 @@ export async function activate(context: vscode.ExtensionContext) {
     vscode.commands.executeCommand('claudeCodeInputView.focus');
   });
   
-  context.subscriptions.push(restartClaudeCodeCommand);
+  extensionContext.subscriptions.push(restartClaudeCodeCommand);
   
   // Terminal lifecycle event handlers
-  context.subscriptions.push(
+  extensionContext.subscriptions.push(
     vscode.window.onDidCloseTerminal(closedTerminal => {
       if (closedTerminal === claudeTerminal) {
         console.log('Claude terminal was closed by user');
@@ -290,7 +364,7 @@ export async function activate(context: vscode.ExtensionContext) {
     const provider = claudeTerminalInputProvider;
     
     // Terminal was killed, recreate it
-    const terminalResult = await ensureClaudeTerminal(context);
+    const terminalResult = await ensureClaudeTerminal(extensionContext);
     const newTerminal = terminalResult.terminal;
     
     // Update the terminal reference in the input provider
@@ -313,7 +387,7 @@ export async function activate(context: vscode.ExtensionContext) {
     vscode.commands.executeCommand('claudeCodeInputView.focus');
   });
   
-  context.subscriptions.push(handleSendToClosedTerminal);
+  extensionContext.subscriptions.push(handleSendToClosedTerminal);
 
   // Register command to add selected text to Claude Code input
   const addSelectionToInputCommand = vscode.commands.registerCommand('claude-code-extension.addSelectionToInput', () => {
@@ -372,11 +446,11 @@ export async function activate(context: vscode.ExtensionContext) {
     claudeTerminalInputProvider.addTextToInput(formattedText);
   });
 
-  context.subscriptions.push(addSelectionToInputCommand);
+  extensionContext.subscriptions.push(addSelectionToInputCommand);
 
   // Register Claude Code Action Provider for Quick Fix menu
   const claudeCodeActionProvider = new ClaudeCodeActionProvider(claudeTerminalInputProvider);
-  context.subscriptions.push(
+  extensionContext.subscriptions.push(
     vscode.languages.registerCodeActionsProvider(
       '*', // Apply to all file types
       claudeCodeActionProvider,
@@ -398,7 +472,7 @@ export async function activate(context: vscode.ExtensionContext) {
       );
     }
   );
-  context.subscriptions.push(fixWithClaudeCommand);
+  extensionContext.subscriptions.push(fixWithClaudeCommand);
   
   // Focus terminal input view if we auto-started
   if (autoStart) {
