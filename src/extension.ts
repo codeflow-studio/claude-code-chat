@@ -178,10 +178,15 @@ export async function activate(context: vscode.ExtensionContext) {
     claudeTerminalInputProvider.updateTerminal(terminal, isExistingTerminal);
   }
   
-  // If auto-start is disabled and no Claude terminal or not running, show launch options
-  if (!autoStart && (!terminal || !isClaudeAlreadyRunning)) {
-    console.log('Auto-start disabled and no active Claude terminal - will show launch options');
+  // Show/hide launch options based on terminal availability and auto-start setting
+  if (!autoStart && !terminal) {
+    // Only show launch options if no terminal exists at all
+    console.log('Auto-start disabled and no terminal exists - will show launch options');
     claudeTerminalInputProvider.showLaunchOptions();
+  } else if (terminal) {
+    // Always hide launch options when any terminal exists (new or existing)
+    console.log('Terminal is available - explicitly hiding launch options');
+    claudeTerminalInputProvider.hideLaunchOptions();
   }
   
   // Store a reference to ensure it's not undefined later
