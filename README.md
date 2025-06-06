@@ -12,11 +12,25 @@
 
 ### 🤖 AI-Powered Coding Assistant
 - **Seamless Integration**: Access Claude Code directly from VSCode's sidebar
+- **Smart Launch Options**: Choose how to start your Claude session
+- **Auto-Start Control**: Configure automatic startup behavior
 - **Persistent Sessions**: Maintain conversations across your coding sessions
 - **Context-Aware**: Claude understands your workspace and current files
 
 <div align="center">
   <img src="media/screenshots/context-files.png" alt="File Context" width="70%" style="border-radius: 8px; margin: 10px 0; box-shadow: 0 4px 8px rgba(0,0,0,0.2);">
+</div>
+
+### 🚀 Smart Session Management
+- **Launch Options**: When Claude isn't running, choose from three convenient options:
+  - **Start New Session**: Begin a fresh conversation
+  - **Continue Last Session**: Resume your previous conversation
+  - **Select History**: Browse and choose from past conversations
+- **Auto-Start Configuration**: Control whether Claude starts automatically when VSCode opens
+- **Flexible Commands**: Configure which command to use for auto-start (claude, claude -c, etc.)
+
+<div align="center">
+  <img src="media/screenshots/launch-options.png" alt="Smart Launch Options" width="70%" style="border-radius: 8px; margin: 10px 0; box-shadow: 0 4px 8px rgba(0,0,0,0.2);">
 </div>
 
 ### 🖼️ Visual Context Support
@@ -101,10 +115,18 @@ code --install-extension claude-code-extension-0.0.1.vsix
 
 1. Install the extension from the VSCode Marketplace
 2. Open the Claude Code panel from the sidebar (look for the Claude icon)
-3. The extension will automatically start Claude Code when activated
+3. Choose how to launch Claude:
+   - **Auto-start enabled**: Claude starts automatically when VSCode opens
+   - **Auto-start disabled**: Select from launch options (New Session, Continue Last, or Select History)
 4. Start chatting with Claude about your code!
 
 ## Usage
+
+### 🚀 Launch Options
+When Claude isn't running, you'll see three launch options:
+- **Start New Session** (▶️): Begin a fresh conversation with Claude
+- **Continue Last Session** (⏭️): Resume your previous conversation where you left off
+- **Select History** (📚): Browse and choose from your past conversations
 
 ### 💬 Basic Chat
 - Type your questions or requests in the input area
@@ -129,6 +151,22 @@ code --install-extension claude-code-extension-0.0.1.vsix
 - **Custom Commands**: Create your own project-specific (`/project:command`) and personal (`/user:command`) slash commands
 - **Clear Chat**: Click the clear button to start fresh
 - **Restart Claude**: Use the restart button if needed
+
+### ⚙️ Configuration
+The extension can be customized through VSCode settings:
+
+- **Auto Start On Activation**: Enable/disable automatic Claude startup when VSCode opens
+- **Auto Start Command**: Configure which command to use when auto-starting Claude
+  - `claude` - Start a new session
+  - `claude -c` - Continue the last session
+  - `claude -r` - Select from conversation history
+  - Custom commands as needed
+
+<div align="center">
+  <img src="media/screenshots/auto-start-settings.png" alt="Auto-Start Configuration Settings" width="70%" style="border-radius: 8px; margin: 10px 0; box-shadow: 0 4px 8px rgba(0,0,0,0.2);">
+</div>
+
+Access these settings through VSCode preferences: `File > Preferences > Settings` and search for "Claude Code Extension".
 
 See our [documentation](https://github.com/codeflow-studio/claude-code-chat/tree/main/docs) for detailed guides, including [how to create custom slash commands](docs/custom-slash-commands.md).
 

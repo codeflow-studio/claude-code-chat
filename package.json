@@ -102,6 +102,12 @@
           "type": "boolean",
           "default": true,
           "description": "Automatically start Claude Code when the extension is activated"
+        },
+        "claude-code-extension.autoStartCommand": {
+          "type": "string",
+          "enum": ["claude", "claude -c", "claude -r"],
+          "default": "claude",
+          "description": "Command to use when auto-starting Claude Code"
         }
       }
     }
