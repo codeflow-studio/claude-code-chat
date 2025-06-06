@@ -13,6 +13,7 @@
   const imageInputElement = document.getElementById('imageInput');
   const imagePreviewContainer = document.getElementById('imagePreviewContainer');
   const problemPreviewContainer = document.getElementById('problemPreviewContainer');
+  const modeToggleButtonElement = document.getElementById('modeToggleButton');
   
   // RegExp for detecting @ mentions
   const mentionRegex = /@((?:\/|\w+:\/\/)[^\s]+?|[a-f0-9]{7,40}\b|problems\b|git-changes\b)(?=[.,;:!?]?(?=[\s\r\n]|$))/;
@@ -1392,6 +1393,16 @@
       // Request VSCode to open file selection dialog
       vscode.postMessage({
         command: 'selectImageFiles'
+      });
+    });
+  }
+
+  // Event listener for mode toggle button
+  if (modeToggleButtonElement) {
+    modeToggleButtonElement.addEventListener('click', () => {
+      // Send mode toggle command to extension
+      vscode.postMessage({
+        command: 'toggleMode'
       });
     });
   }

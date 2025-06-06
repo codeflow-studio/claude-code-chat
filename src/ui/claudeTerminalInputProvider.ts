@@ -202,6 +202,10 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
           case "launchClaudeHistory":
             this._handleLaunchClaudeHistory();
             return;
+            
+          case "toggleMode":
+            this._handleModeToggle();
+            return;
         }
       },
       undefined,
@@ -1023,6 +1027,41 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
     }
   }
 
+  /**
+   * Public method to toggle Claude Code mode (exposed for command palette access)
+   */
+  public async toggleMode(): Promise<void> {
+    await this._handleModeToggle();
+  }
+
+  /**
+   * Handles mode toggle by sending Shift+Tab to Claude Code terminal
+   */
+  private async _handleModeToggle() {
+    try {
+      console.log('Toggling Claude Code mode (Shift+Tab)');
+      
+      // Check if terminal is available
+      if (this._isTerminalClosed || !this._terminal) {
+        vscode.window.showWarningMessage('Claude Code terminal is not active. Please start Claude Code first.');
+        return;
+      }
+      
+      // Show the terminal in the background (preserves focus)
+      this._terminal?.show(true);
+      
+      // Send Shift+Tab key sequence to toggle mode
+      // \x1b[Z is the escape sequence for Shift+Tab
+      this._terminal?.sendText('\x1b[Z', false);
+      
+      console.log('Mode toggle command sent to Claude Code terminal');
+      
+    } catch (error) {
+      console.error('Error toggling Claude mode:', error);
+      vscode.window.showErrorMessage(`Failed to toggle Claude mode: ${error}`);
+    }
+  }
+
   private _getHtmlForWebview(webview: vscode.Webview) {
     // Generate nonce for script security
     const nonce = getNonce();
@@ -1042,6 +1081,9 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
     );
     const imageIconPath = webview.asWebviewUri(
       vscode.Uri.joinPath(this._extensionUri, "resources", "image-svgrepo-com.svg")
+    );
+    const modeToggleIconPath = webview.asWebviewUri(
+      vscode.Uri.joinPath(this._extensionUri, "resources", "mode-toggle.svg")
     );
     const codiconsCss = webview.asWebviewUri(
       vscode.Uri.joinPath(this._extensionUri, "media", "codicon.css")
@@ -1155,6 +1197,9 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
               </button>
               <button id="imageButton" title="Attach image" class="image-button">
                 <img src="${imageIconPath}" width="20" height="20" alt="Attach Image" />
+              </button>
+              <button id="modeToggleButton" title="Toggle Claude Mode (Shift+Tab)" class="mode-toggle-button">
+                <img src="${modeToggleIconPath}" width="16" height="16" alt="Toggle Mode" />
               </button>
             </div>
             <div id="contextMenuContainer" class="context-menu-container" style="display: none;"></div>

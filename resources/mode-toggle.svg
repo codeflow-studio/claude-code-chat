@@ -1,0 +1,16 @@
+<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Mode toggle icon representing cycling between states -->
+  <g stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Circular arrows showing cycle/toggle -->
+    <path d="M7 3.5C4.5 4.5 3 7 3 10c0 3.5 2.5 6.5 6 7" opacity="0.7"/>
+    <path d="M13 16.5C15.5 15.5 17 13 17 10c0-3.5-2.5-6.5-6-7" opacity="0.7"/>
+    
+    <!-- Arrow heads -->
+    <path d="M6 1.5L7 3.5L5.5 4"/>
+    <path d="M14 18.5L13 16.5L14.5 16"/>
+    
+    <!-- Center dots representing different modes -->
+    <circle cx="8" cy="10" r="1.5" fill="currentColor" opacity="0.8"/>
+    <circle cx="12" cy="10" r="1.5" fill="currentColor" opacity="0.4"/>
+  </g>
+</svg>

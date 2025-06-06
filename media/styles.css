@@ -1223,7 +1223,8 @@ button svg {
 }
 
 .input-bottom-actions .context-button,
-.input-bottom-actions .image-button {
+.input-bottom-actions .image-button,
+.input-bottom-actions .mode-toggle-button {
   width: 28px;
   height: 28px;
   padding: 6px;
@@ -1241,7 +1242,8 @@ button svg {
 }
 
 .input-bottom-actions .context-button:hover,
-.input-bottom-actions .image-button:hover {
+.input-bottom-actions .image-button:hover,
+.input-bottom-actions .mode-toggle-button:hover {
   opacity: 1;
   background-color: var(--vscode-list-hoverBackground);
 }
@@ -1249,6 +1251,16 @@ button svg {
 .input-bottom-actions .context-button {
   font-weight: bold;
   font-size: 16px;
+}
+
+.input-bottom-actions .mode-toggle-button {
+  font-size: 18px;
+  font-weight: normal;
+}
+
+.input-bottom-actions .mode-toggle-button img {
+  width: 16px;
+  height: 16px;
 }
 
 .input-bottom-actions .image-button svg,
@@ -1259,11 +1271,14 @@ button svg {
 
 /* Apply filter to make the image match the text color */
 .vscode-dark .input-bottom-actions .image-button img,
-.vscode-high-contrast .input-bottom-actions .image-button img {
+.vscode-high-contrast .input-bottom-actions .image-button img,
+.vscode-dark .input-bottom-actions .mode-toggle-button img,
+.vscode-high-contrast .input-bottom-actions .mode-toggle-button img {
   filter: brightness(0) saturate(100%) invert(100%);
 }
 
-.vscode-light .input-bottom-actions .image-button img {
+.vscode-light .input-bottom-actions .image-button img,
+.vscode-light .input-bottom-actions .mode-toggle-button img {
   filter: brightness(0) saturate(100%);
 }
 

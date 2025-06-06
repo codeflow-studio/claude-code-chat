@@ -422,6 +422,20 @@ export async function activate(context: vscode.ExtensionContext) {
 
   context.subscriptions.push(addSelectionToInputCommand);
 
+  // Register command to toggle Claude Code mode
+  const toggleModeCommand = vscode.commands.registerCommand('claude-code-extension.toggleMode', async () => {
+    // Check if provider is initialized
+    if (!claudeTerminalInputProvider) {
+      vscode.window.showErrorMessage('Claude terminal input provider not initialized');
+      return;
+    }
+
+    // Call the public toggle mode method
+    await claudeTerminalInputProvider.toggleMode();
+  });
+
+  context.subscriptions.push(toggleModeCommand);
+
   // Register Claude Code Action Provider for Quick Fix menu
   const claudeCodeActionProvider = new ClaudeCodeActionProvider(claudeTerminalInputProvider);
   context.subscriptions.push(
