@@ -16,16 +16,22 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
 
   constructor(
     private readonly _extensionUri: vscode.Uri,
-    private _terminal: vscode.Terminal,
+    private _terminal: vscode.Terminal | undefined,
     private _context: vscode.ExtensionContext
   ) {
     this._imageManager = new ImageManager(_context);
+    // If no terminal is provided, we should show launch options by default
+    this._shouldShowLaunchOptions = !this._terminal;
+    // If there's no terminal, consider it as "closed" for UI purposes
+    this._isTerminalClosed = !this._terminal;
   }
 
   public updateTerminal(terminal: vscode.Terminal, isExistingTerminal: boolean = false) {
     this._terminal = terminal;
     this._isTerminalClosed = false;
     this._isConnectedToExistingTerminal = isExistingTerminal;
+    // Hide launch options when terminal is assigned
+    this._shouldShowLaunchOptions = false;
     
     // Update UI state if view exists
     if (this._view) {
@@ -34,6 +40,11 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
         isTerminalClosed: false,
         isConnectedToExistingTerminal: isExistingTerminal,
         terminalName: terminal.name
+      });
+      
+      // Hide launch options when terminal is available
+      this._view.webview.postMessage({
+        command: "hideLaunchOptions"
       });
     }
   }
@@ -117,9 +128,9 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
     // Send initial terminal status
     webviewView.webview.postMessage({
       command: "terminalStatus",
-      isTerminalClosed: this._isTerminalClosed,
+      isTerminalClosed: this._isTerminalClosed || !this._terminal,
       isConnectedToExistingTerminal: this._isConnectedToExistingTerminal,
-      terminalName: this._terminal.name
+      terminalName: this._terminal?.name || 'No Terminal'
     });
     
     // Show launch options if needed
@@ -239,30 +250,30 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
    * @returns A promise that resolves when the command has been executed
    */
   private async _sendToTerminalInternal(text: string, shouldUsePaste: boolean): Promise<void> {
-    // Check if terminal is closed
-    if (this._isTerminalClosed) {
+    // Check if terminal is closed or doesn't exist
+    if (this._isTerminalClosed || !this._terminal) {
       // Use command to recreate terminal and send message
       await vscode.commands.executeCommand('claude-code-extension.sendToClosedTerminal', text);
       return;
     }
     
     // Show the terminal in the background (preserves focus)
-    this._terminal.show(true);
+    this._terminal?.show(true);
     
     if (shouldUsePaste) {
       // Send bracketed paste start sequence
-      this._terminal.sendText('\x1b[200~', false);
+      this._terminal?.sendText('\x1b[200~', false);
       
       // Send the actual text
-      this._terminal.sendText(text, false);
+      this._terminal?.sendText(text, false);
 
       // Send bracketed paste end sequence
-      this._terminal.sendText('\x1b[201~', false);
+      this._terminal?.sendText('\x1b[201~', false);
       
       // Keep bracketed paste mode enabled (Claude Code keeps it on)
     } else {
       // Send text to terminal normally
-      this._terminal.sendText(text, false);
+      this._terminal?.sendText(text, false);
     }
     
     // Use the same delay logic for both paste and normal mode
@@ -270,7 +281,7 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
       // Add a delay to ensure the text is properly buffered
       setTimeout(() => {
         // Then explicitly send Enter key to execute the command
-        this._terminal.sendText('', true);
+        this._terminal?.sendText('', true);
         
         // Return focus to the input view after a small delay
         setTimeout(() => {
