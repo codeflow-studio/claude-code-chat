@@ -12,6 +12,7 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
   private _imageManager?: ImageManager;
   private _currentMessage?: any;
   private _isConnectedToExistingTerminal: boolean = false;
+  private _shouldShowLaunchOptions: boolean = false;
 
   constructor(
     private readonly _extensionUri: vscode.Uri,
@@ -46,6 +47,11 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
         command: "terminalStatus",
         isTerminalClosed: true
       });
+      
+      // Show launch options when terminal is closed
+      this._view.webview.postMessage({
+        command: "showLaunchOptions"
+      });
     }
   }
 
@@ -61,6 +67,23 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
       vscode.commands.executeCommand('claudeCodeInputView.focus');
     }
   }
+
+  public postMessage(message: any) {
+    // Public method to post messages to webview
+    if (this._view) {
+      this._view.webview.postMessage(message);
+    }
+  }
+  
+  public showLaunchOptions() {
+    // Show launch options UI
+    this._shouldShowLaunchOptions = true;
+    if (this._view) {
+      this._view.webview.postMessage({
+        command: "showLaunchOptions"
+      });
+    }
+  }
   
   /**
    * Sends a command to the Claude terminal asynchronously
@@ -69,6 +92,9 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
    * @public Wrapper for sendTextSmart method
    */
   public async sendToTerminal(text: string): Promise<void> {
+    // Log all commands for debugging the double execution issue
+    console.log(`sendToTerminal called with: "${text}"`);
+    
     return this.sendTextSmart(text);
   }
 
@@ -95,6 +121,13 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
       isConnectedToExistingTerminal: this._isConnectedToExistingTerminal,
       terminalName: this._terminal.name
     });
+    
+    // Show launch options if needed
+    if (this._shouldShowLaunchOptions) {
+      webviewView.webview.postMessage({
+        command: "showLaunchOptions"
+      });
+    }
     
     // Handle message from webview
     webviewView.webview.onDidReceiveMessage(
@@ -145,6 +178,18 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
             
           case "rescanCustomCommands":
             this._handleRescanCustomCommands();
+            return;
+            
+          case "launchClaudeNew":
+            this._handleLaunchClaude('claude');
+            return;
+            
+          case "launchClaudeContinue":
+            this._handleLaunchClaude('claude -c');
+            return;
+            
+          case "launchClaudeHistory":
+            this._handleLaunchClaudeHistory();
             return;
         }
       },
@@ -890,6 +935,83 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
     await this._loadCustomCommands();
   }
 
+  /**
+   * Uses the extension's unified terminal management for launch options
+   */
+  private async _ensureTerminalForLaunchOptions(): Promise<vscode.Terminal> {
+    // Import the ensureClaudeTerminal function from extension
+    const { ensureClaudeTerminal } = await import('../extension');
+    
+    // Use the unified terminal management
+    const terminalResult = await ensureClaudeTerminal(this._context);
+    const terminal = terminalResult.terminal;
+    
+    // Update our reference
+    this.updateTerminal(terminal, terminalResult.isExisting);
+    
+    // Update the extension's global terminal reference
+    vscode.commands.executeCommand('claude-code-extension.updateTerminalReference', terminal);
+    
+    return terminal;
+  }
+
+  /**
+   * Handles launching Claude with a specific command
+   */
+  private async _handleLaunchClaude(command: string) {
+    try {
+      console.log(`Launching Claude with command: ${command}`);
+      
+      // Hide launch options UI
+      if (this._view) {
+        this._view.webview.postMessage({
+          command: 'hideLaunchOptions'
+        });
+      }
+      
+      // Get terminal using unified terminal management
+      const terminal = await this._ensureTerminalForLaunchOptions();
+      
+      // Show terminal
+      terminal.show(false);
+      
+      // Send the command
+      await this.sendToTerminal(command);
+      
+      // Update terminal status
+      this._isTerminalClosed = false;
+      this._shouldShowLaunchOptions = false;
+      if (this._view) {
+        this._view.webview.postMessage({
+          command: "terminalStatus",
+          isTerminalClosed: false,
+          isConnectedToExistingTerminal: this._isConnectedToExistingTerminal,
+          terminalName: terminal.name
+        });
+      }
+      
+    } catch (error) {
+      console.error('Error launching Claude:', error);
+      vscode.window.showErrorMessage(`Failed to launch Claude: ${error}`);
+    }
+  }
+
+  /**
+   * Handles launching Claude with conversation history selection
+   */
+  private async _handleLaunchClaudeHistory() {
+    try {
+      console.log('Launching Claude with -r option for conversation history');
+      
+      // Directly call claude -r - Claude Code CLI will handle the conversation selection
+      await this._handleLaunchClaude('claude -r');
+      
+    } catch (error) {
+      console.error('Error launching Claude history:', error);
+      vscode.window.showErrorMessage(`Failed to launch Claude with conversation history: ${error}`);
+    }
+  }
+
   private _getHtmlForWebview(webview: vscode.Webview) {
     // Generate nonce for script security
     const nonce = getNonce();
@@ -964,6 +1086,40 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
             <div class="terminal-status-icon">⚠️</div>
             <div class="terminal-status-message">
               Terminal was closed. Sending a message will reopen it.
+            </div>
+          </div>
+          
+          <!-- Launch options container (shown when no Claude terminal is active) -->
+          <div id="launchOptionsContainer" class="launch-options-container hidden">
+            <div class="launch-header">
+              <h3>Start Claude Code</h3>
+              <p>Choose how to start your session</p>
+            </div>
+            
+            <div class="launch-buttons">
+              <button id="launchNew" class="launch-option-btn primary" title="Start a fresh conversation">
+                <div class="launch-icon">▶️</div>
+                <div class="launch-text">
+                  <div class="launch-title">Start New Session</div>
+                  <div class="launch-desc">Begin fresh conversation</div>
+                </div>
+              </button>
+              
+              <button id="launchContinue" class="launch-option-btn" title="Resume your previous conversation">
+                <div class="launch-icon">⏭️</div>
+                <div class="launch-text">
+                  <div class="launch-title">Continue Last Session</div>
+                  <div class="launch-desc">Resume previous conversation</div>
+                </div>
+              </button>
+              
+              <button id="launchHistory" class="launch-option-btn" title="Browse and select from conversation history">
+                <div class="launch-icon">📚</div>
+                <div class="launch-text">
+                  <div class="launch-title">Select History</div>
+                  <div class="launch-desc">Choose from past conversations</div>
+                </div>
+              </button>
             </div>
           </div>
           

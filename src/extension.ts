@@ -11,14 +11,23 @@ let claudeTerminal: vscode.Terminal | undefined;
 // Track if Claude Code is running in the terminal
 let isClaudeRunning = false;
 
+// Enhanced launch options state management
+const launchOptionsState = {
+  active: false,
+  command: null as string | null,
+  blockAutoStart: false,
+  processingTerminalShow: false
+};
+
 // Store references to providers
 let claudeTerminalInputProvider: ClaudeTerminalInputProvider | undefined;
 
 /**
  * Ensures that a Claude Code terminal exists and is initialized
  * Now attempts to detect and connect to existing Claude terminals first
+ * Exported for use by the terminal input provider
  */
-async function ensureClaudeTerminal(context: vscode.ExtensionContext): Promise<{ terminal: vscode.Terminal; isExisting: boolean; isRunningClaude: boolean }> {
+export async function ensureClaudeTerminal(context: vscode.ExtensionContext): Promise<{ terminal: vscode.Terminal; isExisting: boolean; isRunningClaude: boolean }> {
   // First, check if we already have a valid Claude terminal
   if (claudeTerminal && !claudeTerminal.exitStatus) {
     const isValid = await TerminalDetectionService.validateClaudeTerminal(claudeTerminal);
@@ -90,17 +99,56 @@ async function ensureClaudeTerminal(context: vscode.ExtensionContext): Promise<{
 export async function activate(context: vscode.ExtensionContext) {
   console.log('Claude Code extension is now active!');
 
-  // Create and ensure the Claude terminal
-  const terminalResult = await ensureClaudeTerminal(context);
-  const terminal = terminalResult.terminal;
-  const isExistingTerminal = terminalResult.isExisting;
-  const isClaudeAlreadyRunning = terminalResult.isRunningClaude;
-  
-  console.log(`Terminal setup: existing=${isExistingTerminal}, claudeRunning=${isClaudeAlreadyRunning}, name="${terminal.name}"`);
-  
   // Check if we should auto-start
   const config = vscode.workspace.getConfiguration('claude-code-extension');
   const autoStart = config.get('autoStartOnActivation', true);
+  const autoStartCommand = config.get('autoStartCommand', 'claude') as string;
+  
+  // Initialize terminal variables
+  let terminal: vscode.Terminal;
+  let isExistingTerminal = false;
+  let isClaudeAlreadyRunning = false;
+  
+  if (autoStart) {
+    // Create and ensure the Claude terminal
+    const terminalResult = await ensureClaudeTerminal(context);
+    terminal = terminalResult.terminal;
+    isExistingTerminal = terminalResult.isExisting;
+    isClaudeAlreadyRunning = terminalResult.isRunningClaude;
+    
+    console.log(`Terminal setup: existing=${isExistingTerminal}, claudeRunning=${isClaudeAlreadyRunning}, name="${terminal.name}"`);
+  } else {
+    // Auto-start is disabled - check if there's already a Claude terminal running
+    const existingTerminal = await TerminalDetectionService.findBestClaudeTerminal();
+    if (existingTerminal) {
+      const isValid = await TerminalDetectionService.validateClaudeTerminal(existingTerminal);
+      if (isValid) {
+        terminal = existingTerminal;
+        isExistingTerminal = true;
+        const terminalInfo = await TerminalDetectionService.detectClaudeTerminals();
+        const currentTerminalInfo = terminalInfo.find(info => info.terminal === existingTerminal);
+        isClaudeAlreadyRunning = currentTerminalInfo?.isRunningClaude || false;
+        claudeTerminal = terminal;
+        console.log(`Auto-start disabled: found existing Claude terminal: "${terminal.name}", Claude running: ${isClaudeAlreadyRunning}`);
+      } else {
+        // No valid existing terminal - create a placeholder terminal that won't be used
+        terminal = vscode.window.createTerminal({
+          name: 'Claude Code (Not Started)',
+          iconPath: vscode.Uri.joinPath(context.extensionUri, 'resources', 'claude-icon.svg'),
+          cwd: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
+        });
+        console.log('Auto-start disabled: created placeholder terminal, will show launch options');
+      }
+    } else {
+      // No existing terminal found and auto-start disabled - create a placeholder terminal that won't be used
+      terminal = vscode.window.createTerminal({
+        name: 'Claude Code (Not Started)',
+        iconPath: vscode.Uri.joinPath(context.extensionUri, 'resources', 'claude-icon.svg'),
+        cwd: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
+      });
+      console.log('Auto-start disabled: created placeholder terminal, will show launch options');
+    }
+  }
   
   // Initialize custom command service
   customCommandService.scanCustomCommands().catch(err => {
@@ -137,12 +185,20 @@ export async function activate(context: vscode.ExtensionContext) {
   // Register Terminal Input Provider first so we can use it to send commands
   claudeTerminalInputProvider = new ClaudeTerminalInputProvider(context.extensionUri, terminal, context);
   
-  // Update with existing terminal status
+  // Update with existing terminal status and auto-start state
   claudeTerminalInputProvider.updateTerminal(terminal, isExistingTerminal);
+  
+  // If auto-start is disabled and Claude isn't running, show launch options
+  if (!autoStart && !isClaudeAlreadyRunning) {
+    console.log('Auto-start disabled and Claude not running - will show launch options');
+    claudeTerminalInputProvider.showLaunchOptions();
+  }
   
   // Store a reference to ensure it's not undefined later
   const provider = claudeTerminalInputProvider;
   
+  // Simplified auto-start - just use the configured command directly
+
   // Auto-start function
   const performAutoStart = async () => {
     if (autoStart) {
@@ -158,9 +214,11 @@ export async function activate(context: vscode.ExtensionContext) {
         console.log('Connected to existing terminal but Claude not detected - not auto-starting');
         isClaudeRunning = false;
       } else if (!isClaudeRunning) {
-        // New terminal created, start Claude
-        console.log('Starting Claude in new terminal');
-        await provider.sendToTerminal('claude');
+        // New terminal created, start Claude with configured command
+        console.log(`Starting Claude in new terminal with command: ${autoStartCommand}`);
+        
+        // Use the configured command directly - Claude Code CLI will handle conversation selection for 'claude -r'
+        await provider.sendToTerminal(autoStartCommand);
         isClaudeRunning = true;
       }
     }
@@ -399,6 +457,21 @@ export async function activate(context: vscode.ExtensionContext) {
     }
   );
   context.subscriptions.push(fixWithClaudeCommand);
+  
+  // Register command to manage launch options state
+  const setLaunchOptionsStateCommand = vscode.commands.registerCommand('claude-code-extension.setLaunchOptionsState', (state: any) => {
+    Object.assign(launchOptionsState, state);
+    console.log(`Launch options state updated:`, launchOptionsState);
+  });
+  context.subscriptions.push(setLaunchOptionsStateCommand);
+  
+  // Register command to update terminal reference from provider
+  const updateTerminalReferenceCommand = vscode.commands.registerCommand('claude-code-extension.updateTerminalReference', (terminal: vscode.Terminal) => {
+    claudeTerminal = terminal;
+    isClaudeRunning = true; // Assume Claude is running when terminal is updated from launch options
+    console.log(`Terminal reference updated to: "${terminal.name}"`);
+  });
+  context.subscriptions.push(updateTerminalReferenceCommand);
   
   // Focus terminal input view if we auto-started
   if (autoStart) {

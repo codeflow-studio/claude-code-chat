@@ -947,6 +947,38 @@
     messageInputElement.focus();
   }
   
+  // Launch option button event listeners
+  const launchNewButton = document.getElementById('launchNew');
+  const launchContinueButton = document.getElementById('launchContinue');
+  const launchHistoryButton = document.getElementById('launchHistory');
+  
+  if (launchNewButton) {
+    launchNewButton.addEventListener('click', () => {
+      console.log('Launch new session clicked');
+      vscode.postMessage({
+        command: 'launchClaudeNew'
+      });
+    });
+  }
+  
+  if (launchContinueButton) {
+    launchContinueButton.addEventListener('click', () => {
+      console.log('Launch continue session clicked');
+      vscode.postMessage({
+        command: 'launchClaudeContinue'
+      });
+    });
+  }
+  
+  if (launchHistoryButton) {
+    launchHistoryButton.addEventListener('click', () => {
+      console.log('Launch history selection clicked - will call claude -r');
+      vscode.postMessage({
+        command: 'launchClaudeHistory'
+      });
+    });
+  }
+  
   // Variable to keep track of current search query
   let currentSearchRequestId = '';
 
@@ -1140,6 +1172,25 @@
           messageInputElement.focus();
         }
         break;
+        
+      case 'showLaunchOptions':
+        // Show the launch options UI
+        const launchOptionsContainer = document.getElementById('launchOptionsContainer');
+        if (launchOptionsContainer) {
+          launchOptionsContainer.classList.remove('hidden');
+          console.log('Launch options shown');
+        }
+        break;
+        
+      case 'hideLaunchOptions':
+        // Hide the launch options UI
+        const launchOptionsContainerHide = document.getElementById('launchOptionsContainer');
+        if (launchOptionsContainerHide) {
+          launchOptionsContainerHide.classList.add('hidden');
+          console.log('Launch options hidden');
+        }
+        break;
+        
     }
   });
   
