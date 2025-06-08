@@ -1,0 +1,37 @@
+name: Auto Delete Branch After PR Merge
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  delete-branch:
+    # Only run if the PR was merged (not just closed)
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Delete merged branch
+        run: |
+          BRANCH_NAME="${{ github.event.pull_request.head.ref }}"
+          
+          # Safety check: Never delete protected branches
+          if [[ "$BRANCH_NAME" == "main" ]] || \
+             [[ "$BRANCH_NAME" == "master" ]] || \
+             [[ "$BRANCH_NAME" == "develop" ]] || \
+             [[ "$BRANCH_NAME" == "development" ]] || \
+             [[ "$BRANCH_NAME" =~ ^release/.* ]] || \
+             [[ "$BRANCH_NAME" =~ ^hotfix/.* ]]; then
+            echo "🔒 Skipping deletion of protected branch: $BRANCH_NAME"
+            exit 0
+          fi
+          
+          # Only delete if it's from the same repository (not a fork)
+          if [[ "${{ github.event.pull_request.head.repo.full_name }}" == "${{ github.event.pull_request.base.repo.full_name }}" ]]; then
+            echo "🗑️ Deleting branch: $BRANCH_NAME"
+            gh api repos/${{ github.repository }}/git/refs/heads/$BRANCH_NAME -X DELETE
+          else
+            echo "🔀 Skipping deletion of fork branch: $BRANCH_NAME"
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
