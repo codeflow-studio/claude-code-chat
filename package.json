@@ -57,6 +57,10 @@
       {
         "command": "claude-code-extension.toggleMode",
         "title": "Claude Code: Toggle Mode (Shift+Tab)"
+      },
+      {
+        "command": "claude-code-extension.focusInput",
+        "title": "Focus on Claude Code Input"
       }
     ],
     "viewsContainers": {

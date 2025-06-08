@@ -96,6 +96,29 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
     }
   }
   
+  public hideLaunchOptions() {
+    // Hide launch options UI
+    this._shouldShowLaunchOptions = false;
+    if (this._view) {
+      console.log('Explicitly hiding launch options');
+      this._view.webview.postMessage({
+        command: "hideLaunchOptions"
+      });
+    }
+  }
+
+  public async focusInput() {
+    // Focus the Claude Code input view first
+    await vscode.commands.executeCommand('claudeCodeInputView.focus');
+    
+    // Then send a focus message to the webview to focus the input field
+    if (this._view) {
+      this._view.webview.postMessage({
+        command: "focusInput"
+      });
+    }
+  }
+  
   /**
    * Sends a command to the Claude terminal asynchronously
    * @param text The text to send to the terminal
@@ -133,10 +156,17 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
       terminalName: this._terminal?.name || 'No Terminal'
     });
     
-    // Show launch options if needed
-    if (this._shouldShowLaunchOptions) {
+    // Show launch options only if no terminal exists AND should show (prevents race condition)
+    if (this._shouldShowLaunchOptions && !this._terminal) {
+      console.log('Showing launch options during webview initialization');
       webviewView.webview.postMessage({
         command: "showLaunchOptions"
+      });
+    } else if (this._terminal) {
+      // Explicitly hide launch options if terminal exists
+      console.log('Terminal exists during webview initialization - hiding launch options');
+      webviewView.webview.postMessage({
+        command: "hideLaunchOptions"
       });
     }
     

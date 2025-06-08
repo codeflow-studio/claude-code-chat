@@ -1002,6 +1002,12 @@
           setTimeout(() => {
             messageInputElement.focus();
           }, 50);
+          
+          // Also try to scroll into view in case it's not visible
+          setTimeout(() => {
+            messageInputElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            messageInputElement.focus();
+          }, 100);
         }
         break;
         
