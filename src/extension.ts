@@ -455,6 +455,241 @@ export async function activate(context: vscode.ExtensionContext) {
 
   context.subscriptions.push(focusInputCommand);
 
+  // Register command to explain file with Claude Code
+  const explainFileCommand = vscode.commands.registerCommand('claude-code-extension.explainFile', async (uri: vscode.Uri) => {
+    if (!claudeTerminalInputProvider) {
+      vscode.window.showErrorMessage('Claude terminal input provider not initialized');
+      return;
+    }
+
+    try {
+      // Check if file exists
+      const fileExists = await vscode.workspace.fs.stat(uri).then(() => true, () => false);
+      if (!fileExists) {
+        vscode.window.showWarningMessage(`File does not exist: ${uri.fsPath}`);
+        return;
+      }
+
+      // Get workspace-relative path
+      const workspaceFolders = vscode.workspace.workspaceFolders;
+      let relativePath = uri.fsPath;
+      
+      if (workspaceFolders && workspaceFolders.length > 0) {
+        const workspaceRoot = workspaceFolders[0].uri.fsPath;
+        if (relativePath.startsWith(workspaceRoot)) {
+          relativePath = relativePath.substring(workspaceRoot.length);
+          if (relativePath.startsWith('/') || relativePath.startsWith('\\')) {
+            relativePath = relativePath.substring(1);
+          }
+        }
+      } else {
+        const pathParts = relativePath.split(/[/\\]/);
+        relativePath = pathParts[pathParts.length - 1];
+      }
+
+      // Format message to explain the file
+      const message = `Explain this file: @${relativePath}`;
+      
+      // Ensure terminal is available and send message
+      const terminalResult = await ensureClaudeTerminal(context);
+      claudeTerminalInputProvider.updateTerminal(terminalResult.terminal, terminalResult.isExisting);
+      terminalResult.terminal.show(false);
+      
+      if (!terminalResult.isRunningClaude && !isClaudeRunning) {
+        await claudeTerminalInputProvider.sendToTerminal('claude');
+        isClaudeRunning = true;
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+      
+      await claudeTerminalInputProvider.sendToTerminal(message);
+      vscode.commands.executeCommand('claudeCodeInputView.focus');
+    } catch (error) {
+      console.error('Error in explainFile command:', error);
+      vscode.window.showErrorMessage(`Failed to explain file: ${error}`);
+    }
+  });
+
+  context.subscriptions.push(explainFileCommand);
+
+  // Register command to explain folder with Claude Code
+  const explainFolderCommand = vscode.commands.registerCommand('claude-code-extension.explainFolder', async (uri: vscode.Uri) => {
+    if (!claudeTerminalInputProvider) {
+      vscode.window.showErrorMessage('Claude terminal input provider not initialized');
+      return;
+    }
+
+    try {
+      // Check if folder exists
+      const stat = await vscode.workspace.fs.stat(uri);
+      if (!(stat.type & vscode.FileType.Directory)) {
+        vscode.window.showWarningMessage(`Path is not a directory: ${uri.fsPath}`);
+        return;
+      }
+
+      // Get workspace-relative path
+      const workspaceFolders = vscode.workspace.workspaceFolders;
+      let relativePath = uri.fsPath;
+      
+      if (workspaceFolders && workspaceFolders.length > 0) {
+        const workspaceRoot = workspaceFolders[0].uri.fsPath;
+        if (relativePath.startsWith(workspaceRoot)) {
+          relativePath = relativePath.substring(workspaceRoot.length);
+          if (relativePath.startsWith('/') || relativePath.startsWith('\\')) {
+            relativePath = relativePath.substring(1);
+          }
+        }
+      } else {
+        const pathParts = relativePath.split(/[/\\]/);
+        relativePath = pathParts[pathParts.length - 1];
+      }
+
+      // Format message to explain the folder
+      const message = `Explain the structure and purpose of this folder: @${relativePath}`;
+      
+      // Ensure terminal is available and send message
+      const terminalResult = await ensureClaudeTerminal(context);
+      claudeTerminalInputProvider.updateTerminal(terminalResult.terminal, terminalResult.isExisting);
+      terminalResult.terminal.show(false);
+      
+      if (!terminalResult.isRunningClaude && !isClaudeRunning) {
+        await claudeTerminalInputProvider.sendToTerminal('claude');
+        isClaudeRunning = true;
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+      
+      await claudeTerminalInputProvider.sendToTerminal(message);
+      vscode.commands.executeCommand('claudeCodeInputView.focus');
+    } catch (error) {
+      console.error('Error in explainFolder command:', error);
+      vscode.window.showErrorMessage(`Failed to explain folder: ${error}`);
+    }
+  });
+
+  context.subscriptions.push(explainFolderCommand);
+
+  // Register command to explain selection with Claude Code
+  const explainSelectionCommand = vscode.commands.registerCommand('claude-code-extension.explainSelection', async () => {
+    if (!claudeTerminalInputProvider) {
+      vscode.window.showErrorMessage('Claude terminal input provider not initialized');
+      return;
+    }
+
+    try {
+      const editor = vscode.window.activeTextEditor;
+      if (!editor) {
+        vscode.window.showWarningMessage('No active editor found');
+        return;
+      }
+
+      const selection = editor.selection;
+      const selectedText = editor.document.getText(selection);
+      
+      if (!selectedText) {
+        vscode.window.showWarningMessage('No text selected');
+        return;
+      }
+
+      // Get workspace-relative path
+      const workspaceFolders = vscode.workspace.workspaceFolders;
+      let relativePath = editor.document.fileName;
+      
+      if (workspaceFolders && workspaceFolders.length > 0) {
+        const workspaceRoot = workspaceFolders[0].uri.fsPath;
+        if (relativePath.startsWith(workspaceRoot)) {
+          relativePath = relativePath.substring(workspaceRoot.length);
+          if (relativePath.startsWith('/') || relativePath.startsWith('\\')) {
+            relativePath = relativePath.substring(1);
+          }
+        }
+      } else {
+        const pathParts = relativePath.split(/[/\\]/);
+        relativePath = pathParts[pathParts.length - 1];
+      }
+
+      // Get line numbers
+      const startLine = selection.start.line + 1;
+      const endLine = selection.end.line + 1;
+      const lineRange = startLine === endLine ? `${startLine}` : `${startLine}-${endLine}`;
+      
+      // Format message to explain the selection
+      const message = `Explain this code: @${relativePath}#L${lineRange}`;
+      
+      // Ensure terminal is available and send message
+      const terminalResult = await ensureClaudeTerminal(context);
+      claudeTerminalInputProvider.updateTerminal(terminalResult.terminal, terminalResult.isExisting);
+      terminalResult.terminal.show(false);
+      
+      if (!terminalResult.isRunningClaude && !isClaudeRunning) {
+        await claudeTerminalInputProvider.sendToTerminal('claude');
+        isClaudeRunning = true;
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+      
+      await claudeTerminalInputProvider.sendToTerminal(message);
+      vscode.commands.executeCommand('claudeCodeInputView.focus');
+    } catch (error) {
+      console.error('Error in explainSelection command:', error);
+      vscode.window.showErrorMessage(`Failed to explain selection: ${error}`);
+    }
+  });
+
+  context.subscriptions.push(explainSelectionCommand);
+
+  // Register command to explain current file with Claude Code
+  const explainCurrentFileCommand = vscode.commands.registerCommand('claude-code-extension.explainCurrentFile', async () => {
+    if (!claudeTerminalInputProvider) {
+      vscode.window.showErrorMessage('Claude terminal input provider not initialized');
+      return;
+    }
+
+    try {
+      const editor = vscode.window.activeTextEditor;
+      if (!editor) {
+        vscode.window.showWarningMessage('No active editor found');
+        return;
+      }
+
+      // Get workspace-relative path
+      const workspaceFolders = vscode.workspace.workspaceFolders;
+      let relativePath = editor.document.fileName;
+      
+      if (workspaceFolders && workspaceFolders.length > 0) {
+        const workspaceRoot = workspaceFolders[0].uri.fsPath;
+        if (relativePath.startsWith(workspaceRoot)) {
+          relativePath = relativePath.substring(workspaceRoot.length);
+          if (relativePath.startsWith('/') || relativePath.startsWith('\\')) {
+            relativePath = relativePath.substring(1);
+          }
+        }
+      } else {
+        const pathParts = relativePath.split(/[/\\]/);
+        relativePath = pathParts[pathParts.length - 1];
+      }
+
+      // Format message to explain the current file
+      const message = `Explain this file: @${relativePath}`;
+      
+      // Ensure terminal is available and send message
+      const terminalResult = await ensureClaudeTerminal(context);
+      claudeTerminalInputProvider.updateTerminal(terminalResult.terminal, terminalResult.isExisting);
+      terminalResult.terminal.show(false);
+      
+      if (!terminalResult.isRunningClaude && !isClaudeRunning) {
+        await claudeTerminalInputProvider.sendToTerminal('claude');
+        isClaudeRunning = true;
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+      
+      await claudeTerminalInputProvider.sendToTerminal(message);
+      vscode.commands.executeCommand('claudeCodeInputView.focus');
+    } catch (error) {
+      console.error('Error in explainCurrentFile command:', error);
+      vscode.window.showErrorMessage(`Failed to explain current file: ${error}`);
+    }
+  });
+
+  context.subscriptions.push(explainCurrentFileCommand);
+
   // Register Claude Code Action Provider for Quick Fix menu
   const claudeCodeActionProvider = new ClaudeCodeActionProvider(claudeTerminalInputProvider);
   context.subscriptions.push(

@@ -61,6 +61,22 @@
       {
         "command": "claude-code-extension.focusInput",
         "title": "Focus on Claude Code Input"
+      },
+      {
+        "command": "claude-code-extension.explainFile",
+        "title": "Explain with Claude Code"
+      },
+      {
+        "command": "claude-code-extension.explainFolder",
+        "title": "Explain Folder with Claude Code"
+      },
+      {
+        "command": "claude-code-extension.explainSelection",
+        "title": "Explain Selection with Claude Code"
+      },
+      {
+        "command": "claude-code-extension.explainCurrentFile",
+        "title": "Explain File with Claude Code"
       }
     ],
     "viewsContainers": {
@@ -99,7 +115,29 @@
         {
           "command": "claude-code-extension.addSelectionToInput",
           "when": "editorHasSelection",
-          "group": "navigation"
+          "group": "claude@1"
+        },
+        {
+          "command": "claude-code-extension.explainSelection",
+          "when": "editorHasSelection",
+          "group": "claude@2"
+        },
+        {
+          "command": "claude-code-extension.explainCurrentFile",
+          "when": "!editorHasSelection",
+          "group": "claude@1"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "claude-code-extension.explainFile",
+          "when": "!explorerResourceIsFolder",
+          "group": "claude@1"
+        },
+        {
+          "command": "claude-code-extension.explainFolder",
+          "when": "explorerResourceIsFolder",
+          "group": "claude@1"
         }
       ]
     },
