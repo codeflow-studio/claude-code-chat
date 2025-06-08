@@ -181,6 +181,7 @@ See our [documentation](https://github.com/codeflow-studio/claude-code-chat/tree
 
 ## Support
 
+- 🔧 **[Troubleshooting Guide](TROUBLESHOOTING.md)** - Fix common issues like service worker errors
 - 📖 [Documentation](https://github.com/codeflow-studio/claude-code-chat/tree/main/docs)
 - 🐛 [Report Issues](https://github.com/codeflow-studio/claude-code-chat/issues)
 - 💬 [Discussions](https://github.com/codeflow-studio/claude-code-chat/discussions)
