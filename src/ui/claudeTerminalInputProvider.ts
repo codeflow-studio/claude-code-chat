@@ -106,6 +106,18 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
       });
     }
   }
+
+  public async focusInput() {
+    // Focus the Claude Code input view first
+    await vscode.commands.executeCommand('claudeCodeInputView.focus');
+    
+    // Then send a focus message to the webview to focus the input field
+    if (this._view) {
+      this._view.webview.postMessage({
+        command: "focusInput"
+      });
+    }
+  }
   
   /**
    * Sends a command to the Claude terminal asynchronously

@@ -441,6 +441,20 @@ export async function activate(context: vscode.ExtensionContext) {
 
   context.subscriptions.push(toggleModeCommand);
 
+  // Register command to focus Claude Code input
+  const focusInputCommand = vscode.commands.registerCommand('claude-code-extension.focusInput', async () => {
+    // Check if provider is initialized
+    if (!claudeTerminalInputProvider) {
+      vscode.window.showErrorMessage('Claude terminal input provider not initialized');
+      return;
+    }
+
+    // Focus the input field
+    await claudeTerminalInputProvider.focusInput();
+  });
+
+  context.subscriptions.push(focusInputCommand);
+
   // Register Claude Code Action Provider for Quick Fix menu
   const claudeCodeActionProvider = new ClaudeCodeActionProvider(claudeTerminalInputProvider);
   context.subscriptions.push(
