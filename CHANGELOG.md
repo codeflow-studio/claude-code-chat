@@ -4,6 +4,27 @@ All notable changes to the "Claude Code" extension will be documented in this fi
 
 Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
 
+## [0.1.6] - 2025-01-09
+
+### Added
+- **Official Claude Code Extension Integration**: NEW feature to detect and use the official Claude Code extension (anthropic.claude-code) when available
+  - Automatic detection and smart fallback from official extension to terminal approach  
+  - Zero breaking changes - existing terminal functionality preserved as fallback
+  - Seamless user experience with no configuration required
+- **Enhanced Terminal Connection Strategy**: Intelligent terminal management and connection
+  - Smart terminal creation and disposal when official extension is detected
+  - Improved connection reliability with better error handling
+  - Single terminal approach prevents duplicate terminals
+
+### Improved
+- **Launch Strategy**: Unified launch logic for both auto-start and manual launch scenarios
+- **Error Handling**: Enhanced error handling mechanisms throughout the extension
+- **Performance**: Better resource management and terminal lifecycle handling
+
+### Technical
+- Added test infrastructure improvements (test dependencies updated)
+- Code quality improvements with enhanced linting and compilation
+
 ## [0.1.3] - 2025-05-31
 
 ### Added

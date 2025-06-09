@@ -106,6 +106,18 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
       });
     }
   }
+
+  public async focusInput() {
+    // Focus the Claude Code input view first
+    await vscode.commands.executeCommand('claudeCodeInputView.focus');
+    
+    // Then send a focus message to the webview to focus the input field
+    if (this._view) {
+      this._view.webview.postMessage({
+        command: "focusInput"
+      });
+    }
+  }
   
   /**
    * Sends a command to the Claude terminal asynchronously
@@ -287,7 +299,7 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
       this._terminal?.sendText('\x1b[200~', false);
       
       // Send the actual text
-      this._terminal?.sendText(text, false);
+      this._terminal?.sendText(text + " ", false);
 
       // Send bracketed paste end sequence
       this._terminal?.sendText('\x1b[201~', false);
@@ -295,7 +307,7 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
       // Keep bracketed paste mode enabled (Claude Code keeps it on)
     } else {
       // Send text to terminal normally
-      this._terminal?.sendText(text, false);
+      this._terminal?.sendText(text + " ", false);
     }
     
     // Use the same delay logic for both paste and normal mode

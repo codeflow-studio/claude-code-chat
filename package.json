@@ -2,7 +2,7 @@
   "name": "claude-code-extension",
   "displayName": "Claude Code Assistant for VSCode",
   "description": "Unofficial integration of Anthropic's Claude Code AI assistant into VSCode",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "publisher": "codeflow-studio",
   "icon": "resources/claude-icon.png",
   "repository": {
@@ -57,6 +57,26 @@
       {
         "command": "claude-code-extension.toggleMode",
         "title": "Claude Code: Toggle Mode (Shift+Tab)"
+      },
+      {
+        "command": "claude-code-extension.focusInput",
+        "title": "Focus on Claude Code Input"
+      },
+      {
+        "command": "claude-code-extension.explainFile",
+        "title": "Explain with Claude Code"
+      },
+      {
+        "command": "claude-code-extension.explainFolder",
+        "title": "Explain Folder with Claude Code"
+      },
+      {
+        "command": "claude-code-extension.explainSelection",
+        "title": "Explain Selection with Claude Code"
+      },
+      {
+        "command": "claude-code-extension.explainCurrentFile",
+        "title": "Explain File with Claude Code"
       }
     ],
     "viewsContainers": {
@@ -95,7 +115,29 @@
         {
           "command": "claude-code-extension.addSelectionToInput",
           "when": "editorHasSelection",
-          "group": "navigation"
+          "group": "claude@1"
+        },
+        {
+          "command": "claude-code-extension.explainSelection",
+          "when": "editorHasSelection",
+          "group": "claude@2"
+        },
+        {
+          "command": "claude-code-extension.explainCurrentFile",
+          "when": "!editorHasSelection",
+          "group": "claude@1"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "claude-code-extension.explainFile",
+          "when": "!explorerResourceIsFolder",
+          "group": "claude@1"
+        },
+        {
+          "command": "claude-code-extension.explainFolder",
+          "when": "explorerResourceIsFolder",
+          "group": "claude@1"
         }
       ]
     },
@@ -109,7 +151,11 @@
         },
         "claude-code-extension.autoStartCommand": {
           "type": "string",
-          "enum": ["claude", "claude -c", "claude -r"],
+          "enum": [
+            "claude",
+            "claude -c",
+            "claude -r"
+          ],
           "default": "claude",
           "description": "Command to use when auto-starting Claude Code"
         }
@@ -131,6 +177,7 @@
     "@types/vscode": "^1.90.0",
     "@typescript-eslint/eslint-plugin": "^6.9.0",
     "@typescript-eslint/parser": "^6.9.0",
+    "@vscode/test-electron": "^2.5.2",
     "@vscode/vsce": "^2.24.0",
     "css-loader": "^6.8.1",
     "eslint": "^8.52.0",
