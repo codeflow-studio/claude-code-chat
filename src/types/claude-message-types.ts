@@ -153,4 +153,5 @@ export interface DirectModeResponse {
     mcpServers?: MCPServerInfo[];
   };
   originalMessage?: ClaudeMessage; // Store the original parsed message
+  isUpdate?: boolean; // Flag to indicate this is an update to an existing message
 }

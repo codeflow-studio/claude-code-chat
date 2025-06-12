@@ -1207,6 +1207,8 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
           content: response.content,
           error: response.error,
           timestamp: new Date().toISOString(),
+          metadata: response.metadata,
+          isUpdate: response.isUpdate,
           // Add display name for better UI presentation
           displayName: this._getDisplayNameForMessageType(response.type, response.subtype)
         }

@@ -893,8 +893,42 @@
     });
   }
   
+  // Helper function to update an assistant message to a result message
+  function updateMessageToResult(messageElement, content, timestamp, metadata) {
+    const time = new Date(timestamp).toLocaleTimeString();
+    
+    let resultInfo = '';
+    if (metadata) {
+      const parts = [];
+      if (metadata.cost) parts.push(`$${metadata.cost.toFixed(4)}`);
+      if (metadata.duration) parts.push(`${(metadata.duration / 1000).toFixed(1)}s`);
+      if (parts.length > 0) {
+        resultInfo = ` <span class="result-info">(${parts.join(', ')})</span>`;
+      }
+    }
+    
+    // Update the message class to result-message
+    messageElement.className = 'direct-mode-message result-message';
+    
+    // Update the header to show "Summary" instead of "Claude"
+    const header = messageElement.querySelector('.message-header');
+    if (header) {
+      header.innerHTML = `
+        <span class="message-sender result-sender">Summary${resultInfo}</span>
+        <span class="message-time">${time}</span>
+      `;
+    }
+    
+    // Content stays the same since it should be identical
+    // But ensure it has the result-content class
+    const contentElement = messageElement.querySelector('.message-content');
+    if (contentElement) {
+      contentElement.className = 'message-content result-content';
+    }
+  }
+  
   // Function to add a message to the Direct Mode container
-  function addDirectModeMessage(type, content, timestamp, subtype, metadata, displayName) {
+  function addDirectModeMessage(type, content, timestamp, subtype, metadata, displayName, isUpdate) {
     const directModeMessages = document.getElementById('directModeMessages');
     if (!directModeMessages) return;
     
@@ -902,6 +936,19 @@
     const placeholder = directModeMessages.querySelector('.placeholder-message');
     if (placeholder) {
       placeholder.remove();
+    }
+    
+    // If this is an update, find the last assistant message and update it
+    if (isUpdate && type === 'result') {
+      const assistantMessages = directModeMessages.querySelectorAll('.assistant-message');
+      if (assistantMessages.length > 0) {
+        const lastAssistantMessage = assistantMessages[assistantMessages.length - 1];
+        updateMessageToResult(lastAssistantMessage, content, timestamp, metadata);
+        
+        // Auto-scroll to bottom
+        directModeMessages.scrollTop = directModeMessages.scrollHeight;
+        return;
+      }
     }
     
     // Create message element
@@ -1524,7 +1571,8 @@
           message.response.timestamp,
           message.response.subtype,
           message.response.metadata,
-          message.response.displayName
+          message.response.displayName,
+          message.response.isUpdate
         );
         break;
         

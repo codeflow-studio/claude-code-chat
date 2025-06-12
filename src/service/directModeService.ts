@@ -16,6 +16,7 @@ export class DirectModeService {
   private _responseCallback?: (response: DirectModeResponse) => void;
   private _isActive: boolean = false;
   private _currentSessionId?: string;
+  private _lastMessage?: DirectModeResponse;
 
   constructor(private _workspaceRoot?: string) {}
 
@@ -186,8 +187,46 @@ export class DirectModeService {
         return;
       }
 
-      // Convert to DirectModeResponse format and send to callback
+      // Convert to DirectModeResponse format
       const directModeResponse = ClaudeMessageHandler.toDirectModeResponse(claudeMessage);
+      
+      // Check for duplicate content between result and last assistant message
+      if (claudeMessage.type === 'result' && this._lastMessage?.type === 'assistant') {
+        const currentContent = directModeResponse.content;
+        const lastContent = this._lastMessage.content;
+        
+        if (currentContent && lastContent && currentContent.trim() === lastContent.trim()) {
+          console.log('Detected duplicate content between result and assistant message - updating last message');
+          
+          // Update the last message with result metadata while keeping assistant content
+          const updatedResponse: DirectModeResponse = {
+            ...this._lastMessage,
+            type: 'result',
+            subtype: directModeResponse.subtype,
+            metadata: directModeResponse.metadata,
+            originalMessage: claudeMessage,
+            isUpdate: true // Flag to indicate this is an update
+          };
+          
+          this._lastMessage = updatedResponse;
+          
+          if (this._responseCallback) {
+            this._responseCallback(updatedResponse);
+          }
+
+          console.log('Updated assistant message with result metadata:', {
+            type: updatedResponse.type,
+            subtype: updatedResponse.subtype,
+            hasContent: !!updatedResponse.content,
+            sessionId: sessionId,
+            isUpdate: true
+          });
+          return;
+        }
+      }
+      
+      // Store this message as the last message
+      this._lastMessage = directModeResponse;
       
       if (this._responseCallback) {
         this._responseCallback(directModeResponse);
