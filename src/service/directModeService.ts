@@ -17,6 +17,8 @@ export class DirectModeService {
   private _isActive: boolean = false;
   private _currentSessionId?: string;
   private _lastMessage?: DirectModeResponse;
+  private _currentProcess?: any; // Track the running Claude process
+  private _isProcessRunning: boolean = false;
 
   constructor(private _workspaceRoot?: string) {}
 
@@ -68,7 +70,8 @@ export class DirectModeService {
       const args = [
         '-p', enhancedMessage,
         '--output-format', 'stream-json',
-        '--verbose'
+        '--verbose',
+        '--allowedTools', 'Write', 'Edit', 'MultiEdit'
       ];
 
       // Add --resume if we have a session ID from previous messages
@@ -86,6 +89,11 @@ export class DirectModeService {
         cwd: this._workspaceRoot || process.cwd(),
         stdio: ['ignore', 'pipe', 'pipe'] // ignore stdin, capture stdout/stderr
       });
+
+      // Track the current process and set running state
+      this._currentProcess = claudeProcess;
+      this._isProcessRunning = true;
+      this._notifyProcessStateChanged();
 
       let partialData = '';
 
@@ -126,6 +134,9 @@ export class DirectModeService {
       // Handle process exit
       claudeProcess.on('exit', (code: number | null) => {
         console.log(`Claude CLI process exited with code ${code}`);
+        this._isProcessRunning = false;
+        this._currentProcess = undefined;
+        this._notifyProcessStateChanged();
         if (code !== 0) {
           this._handleError(`Claude CLI exited with code ${code}`);
         }
@@ -134,6 +145,9 @@ export class DirectModeService {
       // Handle process errors
       claudeProcess.on('error', (error: Error) => {
         console.error('Claude CLI process error:', error);
+        this._isProcessRunning = false;
+        this._currentProcess = undefined;
+        this._notifyProcessStateChanged();
         this._handleError(`Failed to start Claude CLI: ${error.message}`);
       });
 
@@ -146,9 +160,53 @@ export class DirectModeService {
   }
 
   /**
+   * Terminates the currently running Claude process
+   */
+  terminateCurrentProcess(): boolean {
+    if (this._currentProcess && this._isProcessRunning) {
+      console.log('Terminating Claude CLI process...');
+      this._currentProcess.kill('SIGTERM');
+      
+      // Force kill if process doesn't terminate within 5 seconds
+      setTimeout(() => {
+        if (this._isProcessRunning && this._currentProcess) {
+          console.log('Force killing Claude CLI process...');
+          this._currentProcess.kill('SIGKILL');
+        }
+      }, 5000);
+      
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Checks if a Claude process is currently running
+   */
+  isProcessRunning(): boolean {
+    return this._isProcessRunning;
+  }
+
+  /**
+   * Clears the current conversation and session ID without stopping the service
+   */
+  clearConversation(): void {
+    // Terminate any running process first
+    this.terminateCurrentProcess();
+    
+    // Clear session ID to start fresh conversation
+    this._currentSessionId = undefined;
+    this._lastMessage = undefined;
+    console.log('Direct Mode conversation cleared (session ID reset)');
+  }
+
+  /**
    * Stops the current direct mode session
    */
   stop(): void {
+    // Terminate any running process first
+    this.terminateCurrentProcess();
+    
     this._isActive = false;
     this._currentSessionId = undefined; // Clear session ID
     console.log('Direct Mode service stopped (session cleared)');
@@ -166,6 +224,22 @@ export class DirectModeService {
    */
   isActive(): boolean {
     return this._isActive;
+  }
+
+  /**
+   * Notifies callback about process state changes for UI updates
+   */
+  private _notifyProcessStateChanged(): void {
+    if (this._responseCallback) {
+      this._responseCallback({
+        type: 'system',
+        subtype: 'process_state',
+        content: this._isProcessRunning ? 'Process running' : 'Process stopped',
+        metadata: {
+          processRunning: this._isProcessRunning
+        }
+      });
+    }
   }
 
   /**

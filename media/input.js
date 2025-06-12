@@ -17,6 +17,7 @@
   const mainModeToggleElement = document.getElementById('mainModeToggle');
   const directModeContainer = document.getElementById('directModeContainer');
   const clearResponsesBtn = document.getElementById('clearResponsesBtn');
+  const pauseProcessBtn = document.getElementById('pauseProcessBtn');
   const inputBottomActions = document.querySelector('.input-bottom-actions');
   const utilityRow = document.querySelector('.utility-row');
   const launchOptionsContainer = document.getElementById('launchOptionsContainer');
@@ -1008,7 +1009,7 @@
             <span class="message-sender assistant-sender">Claude${usageInfo}</span>
             <span class="message-time">${time}</span>
           </div>
-          <div class="message-content assistant-content">${formatAssistantContent(assistantContent)}</div>
+          <div class="message-content assistant-content">${formatAssistantContent(assistantContent, metadata)}</div>
         `;
         break;
         
@@ -1028,7 +1029,7 @@
             <span class="message-sender result-sender">Summary${resultInfo}</span>
             <span class="message-time">${time}</span>
           </div>
-          <div class="message-content result-content">${formatAssistantContent(content || 'Conversation complete')}</div>
+          <div class="message-content result-content">${formatAssistantContent(content || 'Conversation complete', metadata)}</div>
         `;
         break;
         
@@ -1108,11 +1109,17 @@
     return div.innerHTML;
   }
   
-  // Helper function to format assistant content (supports markdown-like formatting)
-  function formatAssistantContent(content) {
+  // Helper function to format assistant content (supports structured content and markdown)
+  function formatAssistantContent(content, metadata) {
     if (!content) return '';
     
-    // Basic markdown-like formatting
+    // Handle structured content (tool_use, tool_result, etc.)
+    if (metadata && metadata.originalMessage && metadata.originalMessage.message && 
+        Array.isArray(metadata.originalMessage.message.content)) {
+      return formatStructuredContent(metadata.originalMessage.message.content);
+    }
+    
+    // Handle string content with markdown-like formatting
     let formatted = escapeHtml(content);
     
     // Convert thinking blocks with special styling
@@ -1142,6 +1149,241 @@
     formatted = formatted.replace(/\n/g, '<br>');
     
     return formatted;
+  }
+  
+  // Helper function to format structured content (tool_use, tool_result, thinking, etc.)
+  function formatStructuredContent(contentArray) {
+    if (!Array.isArray(contentArray)) return '';
+    
+    let formattedParts = [];
+    
+    contentArray.forEach(item => {
+      if (!item || !item.type) return;
+      
+      switch (item.type) {
+        case 'text':
+          if (item.text) {
+            let textFormatted = escapeHtml(item.text);
+            // Apply basic markdown formatting to text blocks
+            textFormatted = textFormatted
+              .replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
+              .replace(/`([^`]+)`/g, '<code>$1</code>')
+              .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+              .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+              .replace(/\n/g, '<br>');
+            formattedParts.push(`<div class="content-text">${textFormatted}</div>`);
+          }
+          break;
+          
+        case 'thinking':
+          if (item.thinking) {
+            formattedParts.push(`
+              <div class="thinking-block">
+                <div class="thinking-header">🤔 Claude is thinking...</div>
+                <div class="thinking-content">${escapeHtml(item.thinking)}</div>
+              </div>
+            `);
+          }
+          break;
+          
+        case 'tool_use':
+          formattedParts.push(formatToolUse(item));
+          break;
+          
+        case 'tool_result':
+          if (item.content) {
+            formattedParts.push(`
+              <div class="tool-result">
+                <div class="tool-result-header">✅ Tool Result</div>
+                <div class="tool-result-content">${escapeHtml(item.content)}</div>
+              </div>
+            `);
+          }
+          break;
+          
+        default:
+          // Fallback for unknown content types
+          if (item.text || item.content) {
+            formattedParts.push(`<div class="content-unknown">${escapeHtml(item.text || item.content)}</div>`);
+          }
+      }
+    });
+    
+    return formattedParts.join('');
+  }
+  
+  // Helper function to format tool_use content with enhanced UI
+  function formatToolUse(toolUse) {
+    if (!toolUse.name) return '';
+    
+    const toolName = toolUse.name;
+    const toolIcon = getToolIcon(toolName);
+    let toolDescription = getToolDescription(toolName);
+    
+    // Special handling for Edit tool
+    if (toolName === 'Edit' && toolUse.input) {
+      return formatEditTool(toolUse.input, toolIcon);
+    }
+    
+    // Special handling for other file tools
+    if (['Write', 'Read', 'MultiEdit'].includes(toolName) && toolUse.input) {
+      return formatFileTool(toolName, toolUse.input, toolIcon);
+    }
+    
+    // Generic tool usage display
+    let inputDisplay = '';
+    if (toolUse.input && Object.keys(toolUse.input).length > 0) {
+      const inputKeys = Object.keys(toolUse.input);
+      if (inputKeys.length <= 3) {
+        inputDisplay = inputKeys.map(key => {
+          const value = toolUse.input[key];
+          if (typeof value === 'string' && value.length > 50) {
+            return `${key}: ${value.substring(0, 50)}...`;
+          }
+          return `${key}: ${value}`;
+        }).join(', ');
+      } else {
+        inputDisplay = `${inputKeys.length} parameters`;
+      }
+    }
+    
+    return `
+      <div class="tool-usage-block">
+        <div class="tool-header">
+          <span class="tool-icon">${toolIcon}</span>
+          <span class="tool-name">${toolName}</span>
+          <span class="tool-description">${toolDescription}</span>
+        </div>
+        ${inputDisplay ? `<div class="tool-input">${escapeHtml(inputDisplay)}</div>` : ''}
+      </div>
+    `;
+  }
+  
+  // Helper function to format Edit tool with enhanced file diff UI
+  function formatEditTool(input, toolIcon) {
+    if (!input.file_path) return '';
+    
+    const fileName = input.file_path.split('/').pop() || input.file_path;
+    const filePath = input.file_path;
+    
+    let changeInfo = '';
+    if (input.old_string && input.new_string) {
+      const oldLines = input.old_string.split('\n').length;
+      const newLines = input.new_string.split('\n').length;
+      const lineDiff = newLines - oldLines;
+      changeInfo = lineDiff === 0 ? 'Modified content' : 
+                  lineDiff > 0 ? `+${lineDiff} lines` : 
+                  `${lineDiff} lines`;
+    }
+    
+    return `
+      <div class="file-edit-block">
+        <div class="file-edit-header">
+          <div class="file-edit-info">
+            <span class="tool-icon">${toolIcon}</span>
+            <div class="file-details">
+              <div class="file-name">${escapeHtml(fileName)}</div>
+              <div class="file-path">${escapeHtml(filePath)}</div>
+            </div>
+          </div>
+          <div class="change-info">${changeInfo}</div>
+        </div>
+        
+        ${input.old_string && input.new_string ? `
+          <div class="file-diff">
+            <div class="diff-section removed">
+              <div class="diff-label">- Removed</div>
+              <div class="diff-content"><pre><code>${escapeHtml(input.old_string)}</code></pre></div>
+            </div>
+            <div class="diff-section added">
+              <div class="diff-label">+ Added</div>
+              <div class="diff-content"><pre><code>${escapeHtml(input.new_string)}</code></pre></div>
+            </div>
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }
+  
+  // Helper function to format other file tools (Write, Read, MultiEdit)
+  function formatFileTool(toolName, input, toolIcon) {
+    const fileName = input.file_path ? (input.file_path.split('/').pop() || input.file_path) : 'Unknown file';
+    const filePath = input.file_path || '';
+    
+    let actionText = '';
+    switch (toolName) {
+      case 'Write':
+        actionText = 'Writing to file';
+        break;
+      case 'Read':
+        actionText = 'Reading file';
+        break;
+      case 'MultiEdit':
+        actionText = `Making ${input.edits ? input.edits.length : 'multiple'} edits`;
+        break;
+    }
+    
+    return `
+      <div class="file-tool-block">
+        <div class="file-tool-header">
+          <span class="tool-icon">${toolIcon}</span>
+          <div class="file-details">
+            <div class="file-action">${actionText}</div>
+            <div class="file-name">${escapeHtml(fileName)}</div>
+            ${filePath ? `<div class="file-path">${escapeHtml(filePath)}</div>` : ''}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+  
+  // Helper function to get tool icons
+  function getToolIcon(toolName) {
+    const icons = {
+      'Edit': '✏️',
+      'Write': '📝',
+      'Read': '📖',
+      'MultiEdit': '📄',
+      'Bash': '💻',
+      'Grep': '🔍',
+      'Glob': '📁',
+      'LS': '📋',
+      'Task': '⚡'
+    };
+    return icons[toolName] || '🔧';
+  }
+  
+  // Helper function to get tool descriptions
+  function getToolDescription(toolName) {
+    const descriptions = {
+      'Edit': 'Editing file',
+      'Write': 'Writing file',
+      'Read': 'Reading file',
+      'MultiEdit': 'Multiple edits',
+      'Bash': 'Running command',
+      'Grep': 'Searching content',
+      'Glob': 'Finding files',
+      'LS': 'Listing directory',
+      'Task': 'Executing task'
+    };
+    return descriptions[toolName] || 'Using tool';
+  }
+  
+  // Function to update pause button visibility based on process state
+  function updatePauseButtonVisibility(isProcessRunning) {
+    if (pauseProcessBtn) {
+      if (isProcessRunning) {
+        pauseProcessBtn.classList.add('visible');
+        // Add pulsing animation to indicate active process
+        setTimeout(() => {
+          if (pauseProcessBtn.classList.contains('visible')) {
+            pauseProcessBtn.classList.add('pulsing');
+          }
+        }, 300); // Wait for slide-in animation to complete
+      } else {
+        pauseProcessBtn.classList.remove('visible', 'pulsing');
+      }
+    }
   }
 
   // Function to update UI based on current mode
@@ -1216,10 +1458,30 @@
         directModeMessages.innerHTML = '<div class="placeholder-message">Direct Mode - Ready to receive responses</div>';
       }
       
-      // Also stop the Direct Mode service to end the current session
+      // Clear the conversation and reset session ID without stopping the service
       vscode.postMessage({
-        command: 'stopDirectMode'
+        command: 'clearDirectMode'
       });
+    });
+  }
+  
+  // Event listener for pause process button
+  if (pauseProcessBtn) {
+    pauseProcessBtn.addEventListener('click', () => {
+      // Add visual feedback for the click
+      pauseProcessBtn.style.transform = 'scale(0.95)';
+      pauseProcessBtn.style.opacity = '0.8';
+      
+      // Send pause command to extension
+      vscode.postMessage({
+        command: 'pauseProcess'
+      });
+      
+      // Reset visual feedback after a short delay
+      setTimeout(() => {
+        pauseProcessBtn.style.transform = '';
+        pauseProcessBtn.style.opacity = '';
+      }, 150);
     });
   }
   
@@ -1574,6 +1836,11 @@
           message.response.displayName,
           message.response.isUpdate
         );
+        break;
+        
+      case 'updateProcessState':
+        // Update pause button visibility based on process state
+        updatePauseButtonVisibility(message.isProcessRunning);
         break;
         
     }

@@ -265,6 +265,14 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
           case "stopDirectMode":
             this._handleStopDirectMode();
             return;
+            
+          case "clearDirectMode":
+            this._handleClearDirectMode();
+            return;
+            
+          case "pauseProcess":
+            this._handlePauseProcess();
+            return;
         }
       },
       undefined,
@@ -1198,6 +1206,16 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
         return;
       }
 
+      // Handle special system messages for process state
+      if (response.type === 'system' && response.subtype === 'process_state') {
+        // Update UI based on process running state
+        this._view.webview.postMessage({
+          command: 'updateProcessState',
+          isProcessRunning: response.metadata?.processRunning || false
+        });
+        return;
+      }
+
       // Send response to webview for display
       this._view.webview.postMessage({
         command: 'directModeResponse',
@@ -1249,6 +1267,24 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
   }
 
   /**
+   * Handles clearing the Direct Mode conversation and resetting session
+   */
+  private _handleClearDirectMode(): void {
+    try {
+      if (this._directModeService) {
+        this._directModeService.clearConversation();
+        console.log('Direct Mode conversation cleared and session reset');
+        
+        // Show confirmation message to user
+        vscode.window.showInformationMessage('Conversation cleared and session reset');
+      }
+    } catch (error) {
+      console.error('Error clearing Direct Mode conversation:', error);
+      vscode.window.showErrorMessage(`Failed to clear conversation: ${error}`);
+    }
+  }
+
+  /**
    * Handles stopping the Direct Mode service
    */
   private _handleStopDirectMode(): void {
@@ -1259,6 +1295,27 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
       }
     } catch (error) {
       console.error('Error stopping Direct Mode service:', error);
+    }
+  }
+
+  /**
+   * Handles pausing the currently running Claude Code process
+   */
+  private _handlePauseProcess(): void {
+    try {
+      if (this._directModeService) {
+        const wasTerminated = this._directModeService.terminateCurrentProcess();
+        if (wasTerminated) {
+          console.log('Claude Code process terminated by user');
+          vscode.window.showInformationMessage('Claude Code process terminated');
+        } else {
+          console.log('No Claude Code process is currently running');
+          vscode.window.showWarningMessage('No Claude Code process is currently running');
+        }
+      }
+    } catch (error) {
+      console.error('Error pausing Claude Code process:', error);
+      vscode.window.showErrorMessage(`Failed to pause process: ${error}`);
     }
   }
 
@@ -1379,6 +1436,248 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
               min-height: 150px !important;
             }
           }
+          /* Pause button styles */
+          .pause-button {
+            background: linear-gradient(135deg, #ff6b6b, #ee5a52);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 6px 12px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            display: none;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 4px rgba(238, 90, 82, 0.3);
+            position: relative;
+            overflow: hidden;
+          }
+          .pause-button:hover {
+            background: linear-gradient(135deg, #ee5a52, #dc4c64);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(238, 90, 82, 0.4);
+          }
+          .pause-button:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 4px rgba(238, 90, 82, 0.3);
+          }
+          .pause-button.visible {
+            display: flex;
+            animation: slideInFromRight 0.3s ease-out;
+          }
+          .pause-button.visible.pulsing {
+            animation: pulseGlow 2s ease-in-out infinite;
+          }
+          .pause-icon {
+            width: 14px;
+            height: 14px;
+            fill: currentColor;
+          }
+          /* Pause button animations */
+          @keyframes slideInFromRight {
+            from {
+              opacity: 0;
+              transform: translateX(20px);
+            }
+            to {
+              opacity: 1;
+              transform: translateX(0);
+            }
+          }
+          @keyframes pulseGlow {
+            0%, 100% {
+              box-shadow: 0 2px 4px rgba(238, 90, 82, 0.3);
+            }
+            50% {
+              box-shadow: 0 2px 4px rgba(238, 90, 82, 0.6), 0 0 12px rgba(238, 90, 82, 0.4);
+            }
+          }
+          /* Direct mode header improvements */
+          .direct-mode-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            background: var(--vscode-editor-background);
+            border-bottom: 1px solid var(--vscode-panel-border);
+            font-weight: 500;
+          }
+          .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+          }
+          .clear-responses-btn {
+            background: var(--vscode-button-secondaryBackground);
+            color: var(--vscode-button-secondaryForeground);
+            border: 1px solid var(--vscode-button-border, transparent);
+            border-radius: 6px;
+            padding: 5px 10px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+          }
+          .clear-responses-btn:hover {
+            background: var(--vscode-button-secondaryHoverBackground);
+            transform: translateY(-1px);
+          }
+          /* Enhanced file edit and tool usage styles */
+          .file-edit-block {
+            border: 1px solid var(--vscode-panel-border);
+            border-radius: 8px;
+            margin: 8px 0;
+            background: var(--vscode-editor-background);
+            overflow: hidden;
+          }
+          .file-edit-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            background: var(--vscode-editor-selectionBackground, rgba(0, 123, 255, 0.1));
+            border-bottom: 1px solid var(--vscode-panel-border);
+          }
+          .file-edit-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+          }
+          .file-details .file-name {
+            font-weight: 600;
+            font-size: 14px;
+            color: var(--vscode-editor-foreground);
+          }
+          .file-details .file-path {
+            font-size: 12px;
+            color: var(--vscode-descriptionForeground);
+            margin-top: 2px;
+            font-family: var(--vscode-editor-font-family, 'Monaco', 'Menlo', monospace);
+          }
+          .change-info {
+            font-size: 12px;
+            color: var(--vscode-charts-blue);
+            font-weight: 500;
+            background: var(--vscode-badge-background);
+            padding: 2px 6px;
+            border-radius: 4px;
+          }
+          .file-diff {
+            border-top: 1px solid var(--vscode-panel-border);
+          }
+          .diff-section {
+            padding: 8px 0;
+          }
+          .diff-section.removed {
+            background: rgba(248, 81, 73, 0.1);
+            border-left: 3px solid #f85149;
+          }
+          .diff-section.added {
+            background: rgba(46, 160, 67, 0.1);
+            border-left: 3px solid #2ea043;
+          }
+          .diff-label {
+            padding: 4px 16px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--vscode-editor-foreground);
+          }
+          .diff-section.removed .diff-label {
+            color: #f85149;
+          }
+          .diff-section.added .diff-label {
+            color: #2ea043;
+          }
+          .diff-content {
+            margin: 0 16px;
+            border-radius: 4px;
+            overflow: hidden;
+          }
+          .diff-content pre {
+            margin: 0;
+            padding: 12px;
+            background: var(--vscode-textCodeBlock-background);
+            font-family: var(--vscode-editor-font-family, 'Monaco', 'Menlo', monospace);
+            font-size: 13px;
+            line-height: 1.4;
+            overflow-x: auto;
+            white-space: pre-wrap;
+          }
+          .file-tool-block {
+            border: 1px solid var(--vscode-panel-border);
+            border-radius: 6px;
+            margin: 6px 0;
+            background: var(--vscode-editor-background);
+            overflow: hidden;
+          }
+          .file-tool-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            background: var(--vscode-editor-selectionBackground, rgba(0, 123, 255, 0.05));
+          }
+          .file-action {
+            font-weight: 500;
+            font-size: 13px;
+            color: var(--vscode-editor-foreground);
+          }
+          .tool-usage-block {
+            border: 1px solid var(--vscode-panel-border);
+            border-radius: 6px;
+            margin: 6px 0;
+            background: var(--vscode-editor-background);
+            padding: 10px 14px;
+          }
+          .tool-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 4px;
+          }
+          .tool-name {
+            font-weight: 600;
+            color: var(--vscode-editor-foreground);
+          }
+          .tool-description {
+            color: var(--vscode-descriptionForeground);
+            font-size: 13px;
+          }
+          .tool-input {
+            font-size: 12px;
+            color: var(--vscode-descriptionForeground);
+            background: var(--vscode-textCodeBlock-background);
+            padding: 6px 8px;
+            border-radius: 4px;
+            font-family: var(--vscode-editor-font-family, 'Monaco', 'Menlo', monospace);
+            margin-top: 6px;
+          }
+          .tool-result {
+            border: 1px solid var(--vscode-charts-green);
+            border-radius: 6px;
+            margin: 6px 0;
+            background: rgba(46, 160, 67, 0.05);
+            overflow: hidden;
+          }
+          .tool-result-header {
+            padding: 8px 12px;
+            background: rgba(46, 160, 67, 0.1);
+            font-weight: 500;
+            font-size: 13px;
+            color: var(--vscode-charts-green);
+            border-bottom: 1px solid var(--vscode-charts-green);
+          }
+          .tool-result-content {
+            padding: 10px 12px;
+            font-family: var(--vscode-editor-font-family, 'Monaco', 'Menlo', monospace);
+            font-size: 12px;
+            white-space: pre-wrap;
+            color: var(--vscode-editor-foreground);
+          }
+          .content-text {
+            margin: 4px 0;
+          }
         </style>
       </head>
       <body>
@@ -1476,7 +1775,17 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
           <div id="directModeContainer" class="direct-mode-container hidden">
             <div class="direct-mode-header">
               <span>Claude Responses</span>
-              <button id="clearResponsesBtn" class="clear-responses-btn">Clear</button>
+              <div class="header-actions">
+                <button id="pauseProcessBtn" class="pause-button" title="Stop the currently running Claude Code process">
+                  <svg class="pause-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="12" cy="12" r="9" fill="currentColor" opacity="0.2"/>
+                    <rect x="8" y="8" width="2.5" height="8" rx="1" fill="currentColor"/>
+                    <rect x="13.5" y="8" width="2.5" height="8" rx="1" fill="currentColor"/>
+                  </svg>
+                  Stop
+                </button>
+                <button id="clearResponsesBtn" class="clear-responses-btn">Clear</button>
+              </div>
             </div>
             <div id="directModeMessages" class="direct-mode-messages">
               <div class="placeholder-message">Direct Mode - Ready to receive responses</div>

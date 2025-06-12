@@ -151,6 +151,7 @@ export interface DirectModeResponse {
     tools?: string[];
     model?: string;
     mcpServers?: MCPServerInfo[];
+    processRunning?: boolean; // Track Claude process state
   };
   originalMessage?: ClaudeMessage; // Store the original parsed message
   isUpdate?: boolean; // Flag to indicate this is an update to an existing message
