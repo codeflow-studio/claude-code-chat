@@ -13,6 +13,7 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
   private _currentMessage?: any;
   private _isConnectedToExistingTerminal: boolean = false;
   private _shouldShowLaunchOptions: boolean = false;
+  private _isDirectMode: boolean = false;
 
   constructor(
     private readonly _extensionUri: vscode.Uri,
@@ -235,6 +236,11 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
             
           case "toggleMode":
             this._handleModeToggle();
+            return;
+            
+          case "toggleMainMode":
+            this._isDirectMode = message.isDirectMode;
+            console.log(`Main mode toggled to: ${this._isDirectMode ? 'Direct' : 'Terminal'}`);
             return;
         }
       },
@@ -1162,6 +1168,14 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
               <img class="claude-icon" src="${claudeIconPath}" width="20" height="20" alt="Claude Icon" />
               <span>Claude Terminal Input</span>
             </div>
+            <div class="mode-toggle-switch">
+              <span class="mode-label">Terminal</span>
+              <label class="toggle-switch">
+                <input type="checkbox" id="mainModeToggle">
+                <span class="slider"></span>
+              </label>
+              <span class="mode-label">Direct</span>
+            </div>
           </div>
           
           <!-- Terminal status banner (shown when terminal is closed) -->
@@ -1235,6 +1249,17 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
             <div id="contextMenuContainer" class="context-menu-container" style="display: none;"></div>
             <div id="imagePreviewContainer" class="image-preview-container"></div>
             <div id="problemPreviewContainer" class="problem-preview-container"></div>
+          </div>
+          
+          <!-- Direct Mode Response Container -->
+          <div id="directModeContainer" class="direct-mode-container hidden">
+            <div class="direct-mode-header">
+              <span>Claude Responses</span>
+              <button id="clearResponsesBtn" class="clear-responses-btn">Clear</button>
+            </div>
+            <div id="directModeMessages" class="direct-mode-messages">
+              <div class="placeholder-message">Direct Mode - Ready to receive responses</div>
+            </div>
           </div>
           
           <!-- Claude attribution footer -->

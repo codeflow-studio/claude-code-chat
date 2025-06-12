@@ -1817,6 +1817,171 @@ button svg {
   display: none;
 }
 
+/* Mode Toggle Switch Styles */
+.mode-toggle-switch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-color);
+}
+
+.mode-label {
+  font-weight: 500;
+  opacity: 0.7;
+  transition: opacity 0.2s ease;
+}
+
+.toggle-switch {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  display: inline-block;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: var(--claude-border);
+  transition: 0.3s;
+  border-radius: 24px;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: 0.3s;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.toggle-switch input:checked + .slider {
+  background-color: var(--claude-primary);
+}
+
+.toggle-switch input:checked + .slider:before {
+  transform: translateX(20px);
+}
+
+.toggle-switch input:focus + .slider {
+  box-shadow: 0 0 1px var(--claude-primary);
+}
+
+/* Highlight active mode label */
+.mode-toggle-switch .mode-label {
+  opacity: 0.7;
+  transition: opacity 0.2s ease;
+}
+
+.mode-toggle-switch .mode-label.active {
+  opacity: 1;
+  font-weight: 600;
+}
+
+/* Direct Mode Container Styles */
+.direct-mode-container {
+  margin: 16px;
+  border: 1px solid var(--claude-border);
+  border-radius: 8px;
+  background: var(--bg-color);
+  max-height: 300px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.direct-mode-container.hidden {
+  display: none;
+}
+
+.direct-mode-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--claude-border);
+  background: var(--claude-input-bg);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-color);
+}
+
+.clear-responses-btn {
+  background: transparent;
+  border: 1px solid var(--claude-border);
+  color: var(--text-color);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.clear-responses-btn:hover {
+  background: var(--vscode-button-secondaryHoverBackground);
+}
+
+.direct-mode-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  min-height: 100px;
+  max-height: 250px;
+}
+
+.placeholder-message {
+  color: var(--vscode-descriptionForeground);
+  font-style: italic;
+  text-align: center;
+  padding: 20px;
+  font-size: 13px;
+}
+
+.direct-message {
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: var(--claude-input-bg);
+  border: 1px solid var(--claude-border);
+}
+
+.direct-message.user {
+  background: rgba(90, 50, 251, 0.1);
+  border-color: var(--claude-primary);
+}
+
+.direct-message.assistant {
+  background: var(--claude-input-bg);
+}
+
+.direct-message-header {
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+
+.direct-message-content {
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--text-color);
+}
+
 /* Responsive design for smaller panels */
 @media (max-width: 400px) {
   .launch-options-container {
@@ -1837,5 +2002,31 @@ button svg {
   .conversation-modal-content {
     width: 95%;
     max-height: 80vh;
+  }
+  
+  .mode-toggle-switch {
+    font-size: 11px;
+    gap: 6px;
+  }
+  
+  .toggle-switch {
+    width: 36px;
+    height: 20px;
+  }
+  
+  .slider:before {
+    height: 14px;
+    width: 14px;
+    left: 3px;
+    bottom: 3px;
+  }
+  
+  .toggle-switch input:checked + .slider:before {
+    transform: translateX(16px);
+  }
+  
+  .direct-mode-container {
+    margin: 12px;
+    max-height: 200px;
   }
 }

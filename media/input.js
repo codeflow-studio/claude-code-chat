@@ -14,6 +14,15 @@
   const imagePreviewContainer = document.getElementById('imagePreviewContainer');
   const problemPreviewContainer = document.getElementById('problemPreviewContainer');
   const modeToggleButtonElement = document.getElementById('modeToggleButton');
+  const mainModeToggleElement = document.getElementById('mainModeToggle');
+  const directModeContainer = document.getElementById('directModeContainer');
+  const clearResponsesBtn = document.getElementById('clearResponsesBtn');
+  const inputBottomActions = document.querySelector('.input-bottom-actions');
+  const utilityRow = document.querySelector('.utility-row');
+  const launchOptionsContainer = document.getElementById('launchOptionsContainer');
+  
+  // Mode state
+  let isDirectMode = false;
   
   // RegExp for detecting @ mentions
   const mentionRegex = /@((?:\/|\w+:\/\/)[^\s]+?|[a-f0-9]{7,40}\b|problems\b|git-changes\b)(?=[.,;:!?]?(?=[\s\r\n]|$))/;
@@ -870,6 +879,92 @@
   // Event listener for context button
   if (contextButtonElement) {
     contextButtonElement.addEventListener('click', handleContextButtonClick);
+  }
+  
+  // Event listener for main mode toggle switch
+  if (mainModeToggleElement) {
+    mainModeToggleElement.addEventListener('change', () => {
+      isDirectMode = mainModeToggleElement.checked;
+      updateModeUI();
+      vscode.postMessage({
+        command: 'toggleMainMode',
+        isDirectMode: isDirectMode
+      });
+    });
+  }
+  
+  // Function to update UI based on current mode
+  function updateModeUI() {
+    // Update mode labels to show active state
+    const modeLabels = document.querySelectorAll('.mode-label');
+    if (modeLabels.length >= 2) {
+      const terminalLabel = modeLabels[0]; // First label is "Terminal"
+      const directLabel = modeLabels[1];   // Second label is "Direct"
+      
+      if (isDirectMode) {
+        terminalLabel.classList.remove('active');
+        directLabel.classList.add('active');
+      } else {
+        terminalLabel.classList.add('active');
+        directLabel.classList.remove('active');
+      }
+    }
+    
+    if (isDirectMode) {
+      // Show direct mode container
+      if (directModeContainer) {
+        directModeContainer.classList.remove('hidden');
+      }
+      // Hide terminal-specific elements
+      if (modeToggleButtonElement) {
+        modeToggleButtonElement.style.display = 'none';
+      }
+      // Hide launch options (Start Claude Code section)
+      if (launchOptionsContainer) {
+        launchOptionsContainer.style.display = 'none';
+      }
+      // Hide terminal status banner
+      if (terminalStatusBanner) {
+        terminalStatusBanner.style.display = 'none';
+      }
+      // Hide footer
+      if (utilityRow) {
+        utilityRow.style.display = 'none';
+      }
+      // Keep bottom actions visible (@ and image buttons remain available)
+    } else {
+      // Hide direct mode container
+      if (directModeContainer) {
+        directModeContainer.classList.add('hidden');
+      }
+      // Show terminal-specific elements
+      if (modeToggleButtonElement) {
+        modeToggleButtonElement.style.display = 'flex';
+      }
+      // Show launch options (Start Claude Code section)
+      if (launchOptionsContainer) {
+        launchOptionsContainer.style.display = 'block';
+      }
+      // Show terminal status banner (if it was visible)
+      if (terminalStatusBanner) {
+        terminalStatusBanner.style.display = 'flex';
+      }
+      // Show footer
+      if (utilityRow) {
+        utilityRow.style.display = 'flex';
+      }
+      // Bottom actions (@ and image buttons) remain visible in both modes
+    }
+  }
+  
+  // Event listener for clear responses button
+  if (clearResponsesBtn) {
+    clearResponsesBtn.addEventListener('click', () => {
+      const directModeMessages = document.getElementById('directModeMessages');
+      if (directModeMessages) {
+        directModeMessages.innerHTML = '<div class="placeholder-message">Direct Mode - Ready to receive responses</div>';
+      }
+    });
   }
   
   // Function to resize textarea based on content
@@ -2059,6 +2154,9 @@
     
     // Initialize highlight layer
     updateHighlights();
+    
+    // Initialize mode UI (start in terminal mode)
+    updateModeUI();
   }
   
   // Run initialization
