@@ -1,4 +1,6 @@
 import { spawn } from 'child_process';
+import { ClaudeMessageHandler } from '../utils/claude-message-handler';
+import { ClaudeMessage, DirectModeResponse } from '../types/claude-message-types';
 
 export interface MessageContext {
   images?: Array<{
@@ -8,23 +10,6 @@ export interface MessageContext {
   }>;
   selectedProblemIds?: string[];
   filePaths?: string[];
-}
-
-export interface DirectModeResponse {
-  type: 'system' | 'assistant' | 'user' | 'result' | 'error';
-  subtype?: string;
-  message?: any;
-  content?: string;
-  error?: string;
-  metadata?: {
-    sessionId?: string;
-    cost?: number;
-    duration?: number;
-    usage?: any;
-    tools?: string[];
-    model?: string;
-    mcpServers?: any[];
-  };
 }
 
 export class DirectModeService {
@@ -118,9 +103,12 @@ export class DirectModeService {
           if (line.trim()) {
             console.log('Processing line:', line);
             try {
-              const jsonResponse = JSON.parse(line);
-              console.log('Parsed JSON:', jsonResponse);
-              this._processJsonResponse(jsonResponse);
+              const rawMessage = JSON.parse(line);
+              console.log('Parsed JSON:', rawMessage);
+              
+              // Normalize and process the message using our comprehensive handler
+              const claudeMessage = ClaudeMessageHandler.normalizeMessage(rawMessage);
+              this._processClaudeMessage(claudeMessage);
             } catch (error) {
               console.error('Failed to parse JSON response:', line, error);
             }
@@ -180,252 +168,103 @@ export class DirectModeService {
   }
 
   /**
-   * Processes a parsed JSON response from Claude CLI
+   * Processes a Claude message using the comprehensive message handler
    */
-  private _processJsonResponse(jsonResponse: any): void {
+  private _processClaudeMessage(claudeMessage: ClaudeMessage): void {
     try {
-      // Extract session ID from all responses that have it
-      if (jsonResponse.session_id) {
-        this._currentSessionId = jsonResponse.session_id;
-        console.log(`Session ID captured from ${jsonResponse.type} response:`, this._currentSessionId);
+      // Extract and store session ID from all messages that have it
+      const sessionId = ClaudeMessageHandler.extractSessionId(claudeMessage);
+      if (sessionId) {
+        this._currentSessionId = sessionId;
+        console.log(`Session ID captured from ${claudeMessage.type} message:`, this._currentSessionId);
       }
 
-      // Process different response types
-      const responseType = jsonResponse.type as 'system' | 'assistant' | 'user' | 'result';
-      
-      switch (responseType) {
-        case 'system':
-          this._handleSystemResponse(jsonResponse);
-          break;
-        case 'assistant':
-          this._handleAssistantResponse(jsonResponse);
-          break;
-        case 'user':
-          this._handleUserResponse(jsonResponse);
-          break;
-        case 'result':
-          this._handleResultResponse(jsonResponse);
-          break;
-        default:
-          console.warn('Unknown response type:', jsonResponse.type);
-          this._handleGenericResponse(jsonResponse);
+      // Check for errors
+      if (ClaudeMessageHandler.isError(claudeMessage)) {
+        const errorContent = ClaudeMessageHandler.extractContent(claudeMessage);
+        this._handleError(`Claude Error: ${errorContent}`);
+        return;
       }
+
+      // Convert to DirectModeResponse format and send to callback
+      const directModeResponse = ClaudeMessageHandler.toDirectModeResponse(claudeMessage);
+      
+      if (this._responseCallback) {
+        this._responseCallback(directModeResponse);
+      }
+
+      console.log(`Processed ${claudeMessage.type} message:`, {
+        type: claudeMessage.type,
+        subtype: claudeMessage.subtype,
+        hasContent: !!directModeResponse.content,
+        sessionId: sessionId
+      });
 
     } catch (error) {
-      console.error('Error processing JSON response:', error);
-      this._handleError(`Response processing error: ${error}`);
+      console.error('Error processing Claude message:', error);
+      this._handleError(`Message processing error: ${error}`);
     }
   }
 
   /**
-   * Handles system type responses (initialization, configuration)
+   * Add a user input message to track conversation history
    */
-  private _handleSystemResponse(jsonResponse: any): void {
-    const content = this._extractSystemContent(jsonResponse);
+  trackUserInput(
+    content: string,
+    subtype: 'prompt' | 'command' | 'file_reference' = 'prompt',
+    metadata?: {
+      files_referenced?: string[];
+      command_type?: string;
+    }
+  ): void {
+    const userInputMessage = ClaudeMessageHandler.createUserInputMessage(content, subtype, metadata);
+    const directModeResponse = ClaudeMessageHandler.toDirectModeResponse(userInputMessage);
     
     if (this._responseCallback) {
-      this._responseCallback({
-        type: 'system',
-        subtype: jsonResponse.subtype,
-        content: content,
-        metadata: {
-          sessionId: jsonResponse.session_id,
-          tools: jsonResponse.tools,
-          model: jsonResponse.model,
-          mcpServers: jsonResponse.mcp_servers
-        }
-      });
+      this._responseCallback(directModeResponse);
     }
   }
 
   /**
-   * Handles assistant type responses (Claude's messages and tool usage)
+   * Process conversation history with analytics
+   * This would typically be called with collected DirectModeResponse messages
    */
-  private _handleAssistantResponse(jsonResponse: any): void {
-    const content = this._extractAssistantContent(jsonResponse);
-    
-    if (this._responseCallback) {
-      this._responseCallback({
-        type: 'assistant',
-        subtype: jsonResponse.subtype,
-        message: jsonResponse.message,
-        content: content,
-        metadata: {
-          sessionId: jsonResponse.session_id,
-          usage: jsonResponse.message?.usage
-        }
-      });
-    }
+  static processConversationHistory(responses: DirectModeResponse[]) {
+    // Convert DirectModeResponse back to ClaudeMessage for analysis
+    const claudeMessages: ClaudeMessage[] = responses
+      .filter(response => response.originalMessage)
+      .map(response => response.originalMessage!);
+
+    return ClaudeMessageHandler.processConversation(claudeMessages);
   }
 
   /**
-   * Handles user type responses (tool results)
+   * Get conversation statistics from a set of responses
    */
-  private _handleUserResponse(jsonResponse: any): void {
-    const content = this._extractUserContent(jsonResponse);
-    
-    if (this._responseCallback) {
-      this._responseCallback({
-        type: 'user',
-        subtype: jsonResponse.subtype,
-        message: jsonResponse.message,
-        content: content,
-        metadata: {
-          sessionId: jsonResponse.session_id
-        }
-      });
-    }
-  }
+  static getConversationStats(responses: DirectModeResponse[]) {
+    const messageTypes = responses.reduce((acc, response) => {
+      acc[response.type] = (acc[response.type] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
 
-  /**
-   * Handles result type responses (final summary)
-   */
-  private _handleResultResponse(jsonResponse: any): void {
-    if (this._responseCallback) {
-      this._responseCallback({
-        type: 'result',
-        subtype: jsonResponse.subtype,
-        content: jsonResponse.result,
-        metadata: {
-          sessionId: jsonResponse.session_id,
-          cost: jsonResponse.cost_usd,
-          duration: jsonResponse.duration_ms,
-          usage: jsonResponse.usage
-        }
-      });
-    }
-  }
+    const totalCost = responses
+      .filter(r => r.metadata?.cost)
+      .reduce((sum, r) => sum + (r.metadata!.cost || 0), 0);
 
-  /**
-   * Handles unknown response types
-   */
-  private _handleGenericResponse(jsonResponse: any): void {
-    if (this._responseCallback) {
-      this._responseCallback({
-        type: jsonResponse.type || 'assistant',
-        subtype: jsonResponse.subtype,
-        message: jsonResponse.message,
-        content: this._extractContent(jsonResponse),
-        metadata: {
-          sessionId: jsonResponse.session_id
-        }
-      });
-    }
-  }
+    const totalDuration = responses
+      .filter(r => r.metadata?.duration)
+      .reduce((sum, r) => sum + (r.metadata!.duration || 0), 0);
 
-  /**
-   * Extracts content from system responses
-   */
-  private _extractSystemContent(jsonResponse: any): string | undefined {
-    if (jsonResponse.subtype === 'init') {
-      const parts: string[] = [];
-      
-      if (jsonResponse.model) {
-        parts.push(`Model: ${jsonResponse.model}`);
-      }
-      
-      if (jsonResponse.tools && jsonResponse.tools.length > 0) {
-        parts.push(`Available tools: ${jsonResponse.tools.length}`);
-      }
-      
-      if (jsonResponse.mcp_servers && jsonResponse.mcp_servers.length > 0) {
-        const connectedServers = jsonResponse.mcp_servers
-          .filter((server: any) => server.status === 'connected')
-          .map((server: any) => server.name)
-          .join(', ');
-        if (connectedServers) {
-          parts.push(`MCP servers: ${connectedServers}`);
-        }
-      }
-      
-      return parts.length > 0 ? `Session initialized\n${parts.join('\n')}` : 'Session initialized';
-    }
-    
-    return jsonResponse.content || 'System message';
-  }
+    const errors = responses.filter(r => r.type === 'error' || r.error);
 
-  /**
-   * Extracts content from assistant responses
-   */
-  private _extractAssistantContent(jsonResponse: any): string | undefined {
-    if (jsonResponse.message?.content) {
-      if (Array.isArray(jsonResponse.message.content)) {
-        const contentParts: string[] = [];
-        
-        jsonResponse.message.content.forEach((item: any) => {
-          if (item.type === 'text' && item.text) {
-            contentParts.push(item.text);
-          } else if (item.type === 'tool_use') {
-            const toolName = item.name || 'unknown';
-            const input = item.input ? ` (${Object.keys(item.input).join(', ')})` : '';
-            contentParts.push(`🔧 Using tool: ${toolName}${input}`);
-          }
-        });
-        
-        return contentParts.length > 0 ? contentParts.join('\n') : undefined;
-      }
-      
-      if (typeof jsonResponse.message.content === 'string') {
-        return jsonResponse.message.content;
-      }
-    }
-    
-    return undefined;
-  }
-
-  /**
-   * Extracts content from user responses (tool results)
-   */
-  private _extractUserContent(jsonResponse: any): string | undefined {
-    if (jsonResponse.message?.content && Array.isArray(jsonResponse.message.content)) {
-      const toolResults: string[] = [];
-      
-      jsonResponse.message.content.forEach((item: any) => {
-        if (item.type === 'tool_result') {
-          const toolId = item.tool_use_id;
-          let content = item.content;
-          
-          // Truncate very long tool results for better display
-          if (typeof content === 'string' && content.length > 500) {
-            content = content.substring(0, 500) + '...[truncated]';
-          }
-          
-          toolResults.push(`📊 Tool result${toolId ? ` (${toolId.slice(-8)})` : ''}:\n${content}`);
-        }
-      });
-      
-      return toolResults.length > 0 ? toolResults.join('\n\n') : undefined;
-    }
-    
-    return undefined;
-  }
-
-  /**
-   * Extracts content from various response formats (fallback)
-   */
-  private _extractContent(jsonResponse: any): string | undefined {
-    // Try specific extractors first
-    switch (jsonResponse.type) {
-      case 'system':
-        return this._extractSystemContent(jsonResponse);
-      case 'assistant':
-        return this._extractAssistantContent(jsonResponse);
-      case 'user':
-        return this._extractUserContent(jsonResponse);
-      case 'result':
-        return jsonResponse.result;
-    }
-
-    // Fallback for unknown types
-    if (typeof jsonResponse.content === 'string') {
-      return jsonResponse.content;
-    }
-
-    if (typeof jsonResponse.result === 'string') {
-      return jsonResponse.result;
-    }
-
-    return undefined;
+    return {
+      messageTypes,
+      totalMessages: responses.length,
+      totalCost: totalCost > 0 ? totalCost : undefined,
+      totalDuration: totalDuration > 0 ? totalDuration : undefined,
+      errorCount: errors.length,
+      hasErrors: errors.length > 0
+    };
   }
 
   /**

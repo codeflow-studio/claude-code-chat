@@ -894,7 +894,7 @@
   }
   
   // Function to add a message to the Direct Mode container
-  function addDirectModeMessage(type, content, timestamp, subtype, metadata) {
+  function addDirectModeMessage(type, content, timestamp, subtype, metadata, displayName) {
     const directModeMessages = document.getElementById('directModeMessages');
     if (!directModeMessages) return;
     
@@ -995,11 +995,23 @@
         `;
         break;
         
-      default:
-        // Fallback for unknown types
+      case 'user_input':
+        const userInputContent = content || 'User input';
         messageHTML = `
           <div class="message-header">
-            <span class="message-sender">Unknown (${type})</span>
+            <span class="message-sender">You</span>
+            <span class="message-time">${time}</span>
+          </div>
+          <div class="message-content user-content">${escapeHtml(userInputContent)}</div>
+        `;
+        break;
+        
+      default:
+        // Fallback for unknown types - use displayName if provided
+        const senderName = displayName || `Unknown (${type})`;
+        messageHTML = `
+          <div class="message-header">
+            <span class="message-sender">${escapeHtml(senderName)}</span>
             <span class="message-time">${time}</span>
           </div>
           <div class="message-content">${escapeHtml(content || '')}</div>
@@ -1055,6 +1067,17 @@
     
     // Basic markdown-like formatting
     let formatted = escapeHtml(content);
+    
+    // Convert thinking blocks with special styling
+    formatted = formatted.replace(/🤔 Thinking: (.*?)(?=🔧|$)/gs, function(match, thinkingContent) {
+      return `<div class="thinking-block">
+        <div class="thinking-header">🤔 Thinking</div>
+        <div class="thinking-content">${thinkingContent.trim()}</div>
+      </div>`;
+    });
+    
+    // Convert tool usage blocks
+    formatted = formatted.replace(/🔧 Using tool: (.*?)$/gm, '<div class="tool-usage">🔧 Using tool: $1</div>');
     
     // Convert code blocks
     formatted = formatted.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
@@ -1500,7 +1523,8 @@
           message.response.content || message.response.error, 
           message.response.timestamp,
           message.response.subtype,
-          message.response.metadata
+          message.response.metadata,
+          message.response.displayName
         );
         break;
         

@@ -4,7 +4,8 @@ import { searchFiles, getGitCommits } from "../fileSystem";
 import { ImageManager } from "../service/imageManager";
 import { fileServiceClient } from "../api/FileService";
 import { customCommandService } from "../service/customCommandService";
-import { DirectModeService, MessageContext, DirectModeResponse } from "../service/directModeService";
+import { DirectModeService, MessageContext } from "../service/directModeService";
+import { DirectModeResponse } from "../types/claude-message-types";
 
 export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = "claudeCodeInputView";
@@ -1116,6 +1117,12 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
       // Note: DirectModeService.sendMessage() will auto-start session if needed
       const context: MessageContext = {};
       
+      // Track user input metadata for conversation history
+      const userInputMetadata: {
+        files_referenced?: string[];
+        command_type?: string;
+      } = {};
+      
       if (this._currentMessage) {
         // Add images if present
         if (this._currentMessage.images && this._currentMessage.images.length > 0) {
@@ -1130,7 +1137,26 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
         if (this._currentMessage.selectedProblemIds && this._currentMessage.selectedProblemIds.length > 0) {
           context.selectedProblemIds = this._currentMessage.selectedProblemIds;
         }
+
+        // Track file paths for user input metadata
+        if (this._currentMessage.filePaths && this._currentMessage.filePaths.length > 0) {
+          context.filePaths = this._currentMessage.filePaths;
+          userInputMetadata.files_referenced = this._currentMessage.filePaths;
+        }
       }
+
+      // Determine message subtype based on content
+      let messageSubtype: 'prompt' | 'command' | 'file_reference' = 'prompt';
+      if (text.startsWith('/') || text.startsWith('!')) {
+        messageSubtype = 'command';
+        userInputMetadata.command_type = 'slash_command';
+      } else if (text.includes('@') || userInputMetadata.files_referenced) {
+        messageSubtype = 'file_reference';
+        userInputMetadata.command_type = 'file_analysis';
+      }
+
+      // Track user input first
+      this._directModeService.trackUserInput(text, messageSubtype, userInputMetadata);
 
       // Send message to Direct Mode service
       await this._directModeService.sendMessage(text, context);
@@ -1147,16 +1173,11 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
   private async _handleDirectModeMessage(text: string): Promise<void> {
     try {
       // Process the message through Direct Mode
+      // Note: _sendToDirectMode now handles user input tracking automatically
       await this._sendToDirectMode(text);
       
-      // Show user message in Direct Mode container
-      if (this._view) {
-        this._view.webview.postMessage({
-          command: 'directModeUserMessage',
-          text: text,
-          timestamp: new Date().toISOString()
-        });
-      }
+      // User message display is now handled via trackUserInput() in _sendToDirectMode()
+      // No need for separate directModeUserMessage command
       
     } catch (error) {
       console.error('Error handling Direct Mode message:', error);
@@ -1185,7 +1206,9 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
           subtype: response.subtype,
           content: response.content,
           error: response.error,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          // Add display name for better UI presentation
+          displayName: this._getDisplayNameForMessageType(response.type, response.subtype)
         }
       });
 
@@ -1198,6 +1221,28 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
       
     } catch (error) {
       console.error('Error handling Direct Mode response:', error);
+    }
+  }
+
+  /**
+   * Gets user-friendly display name for message types
+   */
+  private _getDisplayNameForMessageType(type: string, _subtype?: string): string {
+    switch (type) {
+      case 'user_input':
+        return 'You';
+      case 'system':
+        return 'Session';
+      case 'assistant':
+        return 'Claude';
+      case 'user':
+        return 'Tool Result';
+      case 'result':
+        return 'Result';
+      case 'error':
+        return 'Error';
+      default:
+        return type.charAt(0).toUpperCase() + type.slice(1);
     }
   }
 

@@ -2111,6 +2111,46 @@ button svg {
   color: var(--vscode-descriptionForeground);
 }
 
+/* Thinking block styles */
+.thinking-block {
+  background: rgba(90, 50, 251, 0.08);
+  border: 1px solid rgba(90, 50, 251, 0.2);
+  border-radius: 6px;
+  margin: 8px 0;
+  overflow: hidden;
+}
+
+.thinking-header {
+  background: rgba(90, 50, 251, 0.15);
+  padding: 6px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--claude-secondary);
+  border-bottom: 1px solid rgba(90, 50, 251, 0.1);
+}
+
+.thinking-content {
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--vscode-descriptionForeground);
+  font-style: italic;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+/* Tool usage styles */
+.tool-usage {
+  background: rgba(87, 184, 148, 0.08);
+  border: 1px solid rgba(87, 184, 148, 0.2);
+  border-radius: 4px;
+  padding: 6px 8px;
+  margin: 4px 0;
+  font-size: 12px;
+  color: var(--success-color);
+  font-weight: 500;
+}
+
 /* Metadata display styles */
 .usage-info {
   font-size: 9px;
