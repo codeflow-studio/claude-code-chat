@@ -893,6 +893,187 @@
     });
   }
   
+  // Function to add a message to the Direct Mode container
+  function addDirectModeMessage(type, content, timestamp, subtype, metadata) {
+    const directModeMessages = document.getElementById('directModeMessages');
+    if (!directModeMessages) return;
+    
+    // Remove placeholder message if it exists
+    const placeholder = directModeMessages.querySelector('.placeholder-message');
+    if (placeholder) {
+      placeholder.remove();
+    }
+    
+    // Create message element
+    const messageElement = document.createElement('div');
+    messageElement.className = `direct-mode-message ${type}-message`;
+    
+    // Format timestamp
+    const time = new Date(timestamp).toLocaleTimeString();
+    
+    let messageHTML = '';
+    
+    switch (type) {
+      case 'user':
+        const userContent = content || 'User message';
+        messageHTML = `
+          <div class="message-header">
+            <span class="message-sender">You</span>
+            <span class="message-time">${time}</span>
+          </div>
+          <div class="message-content user-content">${escapeHtml(userContent)}</div>
+        `;
+        break;
+        
+      case 'system':
+        let systemContent = content || 'System message';
+        let senderLabel = 'System';
+        
+        if (subtype === 'init') {
+          senderLabel = 'Session';
+          if (metadata?.tools || metadata?.mcpServers) {
+            systemContent = formatSystemInitContent(content, metadata);
+          }
+        }
+        
+        messageHTML = `
+          <div class="message-header">
+            <span class="message-sender system-sender">${senderLabel}</span>
+            <span class="message-time">${time}</span>
+          </div>
+          <div class="message-content system-content">${systemContent}</div>
+        `;
+        break;
+        
+      case 'assistant':
+        const assistantContent = content || '';
+        let usageInfo = '';
+        
+        if (metadata?.usage) {
+          const usage = metadata.usage;
+          if (usage.input_tokens || usage.output_tokens) {
+            usageInfo = ` <span class="usage-info">(${usage.input_tokens || 0}→${usage.output_tokens || 0} tokens)</span>`;
+          }
+        }
+        
+        messageHTML = `
+          <div class="message-header">
+            <span class="message-sender assistant-sender">Claude${usageInfo}</span>
+            <span class="message-time">${time}</span>
+          </div>
+          <div class="message-content assistant-content">${formatAssistantContent(assistantContent)}</div>
+        `;
+        break;
+        
+      case 'result':
+        let resultInfo = '';
+        if (metadata) {
+          const parts = [];
+          if (metadata.cost) parts.push(`$${metadata.cost.toFixed(4)}`);
+          if (metadata.duration) parts.push(`${(metadata.duration / 1000).toFixed(1)}s`);
+          if (parts.length > 0) {
+            resultInfo = ` <span class="result-info">(${parts.join(', ')})</span>`;
+          }
+        }
+        
+        messageHTML = `
+          <div class="message-header">
+            <span class="message-sender result-sender">Summary${resultInfo}</span>
+            <span class="message-time">${time}</span>
+          </div>
+          <div class="message-content result-content">${formatAssistantContent(content || 'Conversation complete')}</div>
+        `;
+        break;
+        
+      case 'error':
+        messageHTML = `
+          <div class="message-header">
+            <span class="message-sender error-sender">Error</span>
+            <span class="message-time">${time}</span>
+          </div>
+          <div class="message-content error-content">${escapeHtml(content || 'An error occurred')}</div>
+        `;
+        break;
+        
+      default:
+        // Fallback for unknown types
+        messageHTML = `
+          <div class="message-header">
+            <span class="message-sender">Unknown (${type})</span>
+            <span class="message-time">${time}</span>
+          </div>
+          <div class="message-content">${escapeHtml(content || '')}</div>
+        `;
+    }
+    
+    messageElement.innerHTML = messageHTML;
+    directModeMessages.appendChild(messageElement);
+    
+    // Auto-scroll to bottom
+    directModeMessages.scrollTop = directModeMessages.scrollHeight;
+  }
+  
+  // Helper function to format system init content
+  function formatSystemInitContent(content, metadata) {
+    if (!metadata) return escapeHtml(content || 'Session initialized');
+    
+    const parts = [];
+    
+    if (metadata.model) {
+      parts.push(`<strong>Model:</strong> ${escapeHtml(metadata.model)}`);
+    }
+    
+    if (metadata.tools && metadata.tools.length > 0) {
+      parts.push(`<strong>Tools:</strong> ${metadata.tools.length} available`);
+    }
+    
+    if (metadata.mcpServers && metadata.mcpServers.length > 0) {
+      const connectedServers = metadata.mcpServers
+        .filter(server => server.status === 'connected')
+        .map(server => server.name);
+      if (connectedServers.length > 0) {
+        parts.push(`<strong>MCP:</strong> ${connectedServers.join(', ')}`);
+      }
+    }
+    
+    return parts.length > 0 ? 
+      `<div class="system-init">Session initialized<br>${parts.join('<br>')}</div>` :
+      escapeHtml(content || 'Session initialized');
+  }
+  
+  // Helper function to escape HTML
+  function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+  
+  // Helper function to format assistant content (supports markdown-like formatting)
+  function formatAssistantContent(content) {
+    if (!content) return '';
+    
+    // Basic markdown-like formatting
+    let formatted = escapeHtml(content);
+    
+    // Convert code blocks
+    formatted = formatted.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
+    
+    // Convert inline code
+    formatted = formatted.replace(/`([^`]+)`/g, '<code>$1</code>');
+    
+    // Convert bold
+    formatted = formatted.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    
+    // Convert italic
+    formatted = formatted.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+    
+    // Convert line breaks
+    formatted = formatted.replace(/\n/g, '<br>');
+    
+    return formatted;
+  }
+
   // Function to update UI based on current mode
   function updateModeUI() {
     // Update mode labels to show active state
@@ -964,6 +1145,11 @@
       if (directModeMessages) {
         directModeMessages.innerHTML = '<div class="placeholder-message">Direct Mode - Ready to receive responses</div>';
       }
+      
+      // Also stop the Direct Mode service to end the current session
+      vscode.postMessage({
+        command: 'stopDirectMode'
+      });
     });
   }
   
@@ -1300,6 +1486,22 @@
           mainModeToggleElement.checked = isDirectMode;
         }
         updateModeUI();
+        break;
+        
+      case 'directModeUserMessage':
+        // Display user message in Direct Mode container
+        addDirectModeMessage('user', message.text, message.timestamp);
+        break;
+        
+      case 'directModeResponse':
+        // Display Claude's response in Direct Mode container
+        addDirectModeMessage(
+          message.response.type, 
+          message.response.content || message.response.error, 
+          message.response.timestamp,
+          message.response.subtype,
+          message.response.metadata
+        );
         break;
         
     }

@@ -4,6 +4,7 @@ import { searchFiles, getGitCommits } from "../fileSystem";
 import { ImageManager } from "../service/imageManager";
 import { fileServiceClient } from "../api/FileService";
 import { customCommandService } from "../service/customCommandService";
+import { DirectModeService, MessageContext, DirectModeResponse } from "../service/directModeService";
 
 export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = "claudeCodeInputView";
@@ -14,6 +15,7 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
   private _isConnectedToExistingTerminal: boolean = false;
   private _shouldShowLaunchOptions: boolean = false;
   private _isDirectMode: boolean = false;
+  private _directModeService?: DirectModeService;
 
   constructor(
     private readonly _extensionUri: vscode.Uri,
@@ -28,6 +30,11 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
     
     // Restore saved Direct Mode state
     this._isDirectMode = this._context.globalState.get('claudeCode.isDirectMode', false);
+    
+    // Initialize Direct Mode service
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    this._directModeService = new DirectModeService(workspaceRoot);
+    this._directModeService.setResponseCallback(this._handleDirectModeResponse.bind(this));
   }
 
   public updateTerminal(terminal: vscode.Terminal, isExistingTerminal: boolean = false) {
@@ -252,6 +259,10 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
             // Save the mode state for next launch
             this._context.globalState.update('claudeCode.isDirectMode', this._isDirectMode);
             console.log(`Main mode toggled to: ${this._isDirectMode ? 'Direct' : 'Terminal'} (saved)`);
+            return;
+            
+          case "stopDirectMode":
+            this._handleStopDirectMode();
             return;
         }
       },
@@ -515,10 +526,21 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
   private async _handleMessageWithContext(text: string): Promise<void> {
     if (!this._currentMessage) {
       // Fallback to simple send if no current message context
-      await this.sendTextSmart(text);
+      if (this._isDirectMode) {
+        await this._sendToDirectMode(text);
+      } else {
+        await this.sendTextSmart(text);
+      }
       return;
     }
     
+    // Check if we're in Direct Mode
+    if (this._isDirectMode) {
+      await this._handleDirectModeMessage(text);
+      return;
+    }
+    
+    // Terminal mode processing (existing logic)
     // Start with the base text
     let enhancedMessage = text;
     
@@ -1079,6 +1101,118 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
    */
   public async toggleMode(): Promise<void> {
     await this._handleModeToggle();
+  }
+
+  /**
+   * Sends a message to Direct Mode (Claude CLI with streaming JSON)
+   */
+  private async _sendToDirectMode(text: string): Promise<void> {
+    try {
+      if (!this._directModeService) {
+        throw new Error('Direct Mode service not initialized');
+      }
+
+      // Build message context from current message
+      // Note: DirectModeService.sendMessage() will auto-start session if needed
+      const context: MessageContext = {};
+      
+      if (this._currentMessage) {
+        // Add images if present
+        if (this._currentMessage.images && this._currentMessage.images.length > 0) {
+          context.images = this._currentMessage.images.map((img: any) => ({
+            name: img.name,
+            path: img.path,
+            type: img.type
+          }));
+        }
+        
+        // Add selected problem IDs if present
+        if (this._currentMessage.selectedProblemIds && this._currentMessage.selectedProblemIds.length > 0) {
+          context.selectedProblemIds = this._currentMessage.selectedProblemIds;
+        }
+      }
+
+      // Send message to Direct Mode service
+      await this._directModeService.sendMessage(text, context);
+      
+    } catch (error) {
+      console.error('Error sending to Direct Mode:', error);
+      vscode.window.showErrorMessage(`Direct Mode error: ${error}`);
+    }
+  }
+
+  /**
+   * Handles message processing for Direct Mode
+   */
+  private async _handleDirectModeMessage(text: string): Promise<void> {
+    try {
+      // Process the message through Direct Mode
+      await this._sendToDirectMode(text);
+      
+      // Show user message in Direct Mode container
+      if (this._view) {
+        this._view.webview.postMessage({
+          command: 'directModeUserMessage',
+          text: text,
+          timestamp: new Date().toISOString()
+        });
+      }
+      
+    } catch (error) {
+      console.error('Error handling Direct Mode message:', error);
+      this._handleDirectModeResponse({
+        type: 'error',
+        error: `Failed to process message: ${error}`
+      });
+    }
+  }
+
+  /**
+   * Handles responses from the Direct Mode service
+   */
+  private _handleDirectModeResponse(response: DirectModeResponse): void {
+    try {
+      if (!this._view) {
+        console.warn('No webview available for Direct Mode response');
+        return;
+      }
+
+      // Send response to webview for display
+      this._view.webview.postMessage({
+        command: 'directModeResponse',
+        response: {
+          type: response.type,
+          subtype: response.subtype,
+          content: response.content,
+          error: response.error,
+          timestamp: new Date().toISOString()
+        }
+      });
+
+      // Log response for debugging
+      if (response.type === 'error') {
+        console.error('Direct Mode response error:', response.error);
+      } else if (response.content) {
+        console.log('Direct Mode response:', response.type, response.subtype);
+      }
+      
+    } catch (error) {
+      console.error('Error handling Direct Mode response:', error);
+    }
+  }
+
+  /**
+   * Handles stopping the Direct Mode service
+   */
+  private _handleStopDirectMode(): void {
+    try {
+      if (this._directModeService) {
+        this._directModeService.stop();
+        console.log('Direct Mode service stopped');
+      }
+    } catch (error) {
+      console.error('Error stopping Direct Mode service:', error);
+    }
   }
 
   /**
