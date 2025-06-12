@@ -1338,6 +1338,16 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
           * {
             box-sizing: border-box;
           }
+          /* Ensure proper initial sizing before JavaScript loads */
+          .chat-container {
+            height: 100vh !important;
+            max-height: 100vh !important;
+            min-height: 100vh !important;
+            display: flex !important;
+            flex-direction: column !important;
+            overflow: hidden !important;
+            position: relative !important;
+          }
           .input-wrapper {
             width: 100% !important;
             min-width: 100% !important;
@@ -1349,6 +1359,25 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
           textarea {
             width: 100% !important;
             min-width: 100% !important;
+          }
+          /* Ensure Direct Mode container expands properly */
+          .direct-mode-container {
+            flex: 1 1 auto !important;
+            height: 0 !important;
+            min-height: 200px !important;
+          }
+          /* Specific handling for narrow widths */
+          @media (max-width: 300px) {
+            .chat-container {
+              height: 100vh !important;
+              max-height: 100vh !important;
+              min-height: 100vh !important;
+            }
+            .direct-mode-container {
+              flex: 1 1 auto !important;
+              height: 0 !important;
+              min-height: 150px !important;
+            }
           }
         </style>
       </head>

@@ -2400,6 +2400,127 @@
     }
   });
 
+  // Dynamic layout handling
+  let resizeTimeout;
+  let resizeObserver;
+  let isUpdating = false; // Prevent infinite loops
+
+  function updateContainerHeight() {
+    if (isUpdating) return; // Prevent infinite loops
+    
+    const container = document.querySelector('.chat-container');
+    if (!container) return;
+
+    isUpdating = true;
+
+    // Use viewport height for VSCode webview
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+    const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
+    
+    // Set CSS custom property for dynamic height
+    document.documentElement.style.setProperty('--webview-height', `${viewportHeight}px`);
+    document.documentElement.style.setProperty('--webview-width', `${viewportWidth}px`);
+    
+    // Force layout recalculation
+    container.style.height = `${viewportHeight}px`;
+    container.style.maxHeight = `${viewportHeight}px`;
+    container.style.minHeight = `${viewportHeight}px`;
+    
+    console.log(`[UI FIX] Container updated - width: ${viewportWidth}px, height: ${viewportHeight}px`);
+    
+    // Check if we're in a narrow width scenario
+    if (viewportWidth < 400) {
+      console.log(`[UI FIX] Narrow width detected (${viewportWidth}px)`);
+      container.classList.add('narrow-width');
+      
+      // Ensure Direct Mode container can expand (the CSS fix should handle this now)
+      const directModeContainer = document.querySelector('.direct-mode-container');
+      if (directModeContainer && !directModeContainer.classList.contains('hidden')) {
+        // The CSS max-height: none !important should fix the expansion issue
+        console.log(`[UI FIX] Direct Mode container found - CSS should now allow expansion`);
+      }
+    } else {
+      container.classList.remove('narrow-width');
+    }
+    
+    // Force a reflow and reset the flag
+    container.offsetHeight;
+    setTimeout(() => { isUpdating = false; }, 100);
+  }
+
+  function handleResize() {
+    // Debounce resize events
+    clearTimeout(resizeTimeout);
+    resizeTimeout = setTimeout(() => {
+      updateContainerHeight();
+    }, 16); // ~60fps
+  }
+
+  function setupResizeHandling() {
+    // Add window resize listener
+    window.addEventListener('resize', handleResize);
+    
+    // Use ResizeObserver for more reliable container tracking
+    if (window.ResizeObserver) {
+      const container = document.querySelector('.chat-container');
+      if (container) {
+        resizeObserver = new ResizeObserver((entries) => {
+          for (let entry of entries) {
+            const height = entry.contentRect.height;
+            const width = entry.contentRect.width;
+            
+            if (height > 0 || width > 0) {
+              console.log(`[ResizeObserver] Detected dimensions - width: ${width}px, height: ${height}px`);
+              
+              // Update container if either dimension changed significantly
+              const heightDiff = Math.abs(container.offsetHeight - height);
+              const widthDiff = Math.abs(container.offsetWidth - width);
+              
+              if (heightDiff > 5 || widthDiff > 5) {
+                console.log(`[ResizeObserver] Significant size change detected, updating layout`);
+                updateContainerHeight();
+              }
+            }
+          }
+        });
+        resizeObserver.observe(container);
+        
+        // Also observe the body element to catch external resizing
+        resizeObserver.observe(document.body);
+      }
+    }
+    
+    // Simplified MutationObserver (less aggressive since CSS fix should resolve the issue)
+    if (window.MutationObserver) {
+      const mutationObserver = new MutationObserver((mutations) => {
+        let needsUpdate = false;
+        mutations.forEach((mutation) => {
+          if (mutation.type === 'attributes' && 
+              mutation.attributeName === 'style' && 
+              !isUpdating) {
+            needsUpdate = true;
+          }
+        });
+        
+        if (needsUpdate) {
+          console.log(`[MutationObserver] External style change detected`);
+          setTimeout(updateContainerHeight, 200);
+        }
+      });
+      
+      // Only observe the body for style changes
+      mutationObserver.observe(document.body, { attributes: true, attributeFilter: ['style'] });
+    }
+    
+    // Initial sizing
+    updateContainerHeight();
+    
+    // Force another update after a short delay to handle VSCode timing
+    setTimeout(updateContainerHeight, 100);
+    setTimeout(updateContainerHeight, 300);
+    setTimeout(updateContainerHeight, 600); // Additional delay for slow loading
+  }
+
   // Initialize the UI
   function init() {
     console.log("Initializing terminal input UI");
@@ -2440,8 +2561,23 @@
     
     // Initialize mode UI (start in terminal mode)
     updateModeUI();
+    
+    // Setup resize handling for proper layout
+    setupResizeHandling();
   }
   
-  // Run initialization
-  init();
+  // Handle page visibility changes (when VSCode switches tabs)
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) {
+      // Re-calculate layout when webview becomes visible
+      setTimeout(updateContainerHeight, 50);
+    }
+  });
+  
+  // Run initialization when DOM is ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
 })();

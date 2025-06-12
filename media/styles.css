@@ -33,6 +33,10 @@
   --scrollbar-thumb: var(--vscode-scrollbarSlider-background, #6e6e6e);
   --scrollbar-thumb-hover: var(--vscode-scrollbarSlider-hoverBackground, #8a8a8a);
   --scrollbar-thumb-active: var(--vscode-scrollbarSlider-activeBackground, #9e9e9e);
+  
+  /* Dynamic sizing */
+  --webview-height: 100vh; /* Will be updated by JavaScript */
+  --webview-width: 100vw; /* Will be updated by JavaScript */
 }
 
 html, body {
@@ -73,24 +77,28 @@ body {
 .chat-container {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  max-height: 100vh;
+  height: var(--webview-height, 100vh);
+  max-height: var(--webview-height, 100vh);
   overflow: hidden;
   background-color: var(--bg-color);
+  position: relative; /* Ensure proper positioning context */
 }
 
 /* Special style for terminal input container */
 .chat-container.input-only {
-  height: 100vh; /* Take full viewport height */
-  max-height: 100vh; /* Limit to viewport height */
+  height: var(--webview-height, 100vh); /* Use dynamic height */
+  max-height: var(--webview-height, 100vh); /* Use dynamic height */
   display: flex;
   flex-direction: column;
-  min-height: 80px; /* Minimum height to fit all elements */
+  min-height: 200px; /* Reasonable minimum height */
   width: 100%; /* Ensure container takes full width */
   box-sizing: border-box; /* Include padding in width calculation */
   padding: 0; /* Remove any potential padding */
   margin: 0; /* Remove any potential margin */
   overflow: hidden; /* Prevent content from exceeding viewport */
+  /* Ensure flex children grow properly */
+  justify-content: flex-start;
+  align-items: stretch;
 }
 
 .chat-header {
@@ -327,7 +335,7 @@ body {
 
 /* Special styles for input-only view */
 .input-only .input-container {
-  flex-shrink: 0; /* Don't shrink, but don't expand either */
+  flex: 0 0 auto; /* Don't grow or shrink - fixed size based on content */
   border-top: none;
   display: flex;
   flex-direction: column;
@@ -491,10 +499,11 @@ button svg {
   font-size: 12px;
   color: var(--vscode-descriptionForeground, #8a8a8a);
   border-top: 1px solid var(--claude-border);
-  flex-shrink: 0; /* Prevent footer from shrinking */
+  flex: 0 0 auto; /* Fixed size footer - don't grow or shrink */
   min-height: 20px; /* Ensure minimum height */
   width: 100%; /* Full width */
   box-sizing: border-box; /* Include padding in width calculation */
+  margin-top: auto; /* Push to bottom */
 }
 
 .claude-attribution {
@@ -1722,7 +1731,7 @@ button svg {
   border-radius: 8px;
   margin: 16px 0;
   border: 1px solid var(--claude-border);
-  flex-shrink: 0; /* Prevent container from shrinking */
+  flex: 0 0 auto; /* Fixed size - don't grow or shrink */
 }
 
 .launch-options-container.hidden {
@@ -1902,11 +1911,13 @@ button svg {
   border: 1px solid var(--claude-border);
   border-radius: 8px;
   background: var(--bg-color);
-  flex: 1;
+  flex: 1 1 auto; /* Allow container to grow and shrink */
   min-height: 200px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  /* Ensure it takes available space */
+  height: 0; /* Allows flex-grow to work properly */
 }
 
 .direct-mode-container.hidden {
@@ -2227,6 +2238,64 @@ button svg {
   
   .direct-mode-container {
     margin: 12px;
-    max-height: 200px;
+    max-height: none !important; /* Remove height restriction for narrow widths */
+    flex: 1 1 auto !important;   /* Ensure flex growth works properly */
   }
+}
+
+/* Specific fixes for narrow widths */
+@media (max-width: 300px) {
+  .chat-container,
+  .chat-container.input-only {
+    height: var(--webview-height, 100vh) !important;
+    max-height: var(--webview-height, 100vh) !important;
+    min-height: var(--webview-height, 100vh) !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+  
+  .direct-mode-container {
+    flex: 1 1 auto !important;
+    height: 0 !important;
+    min-height: 150px !important;
+    margin: 8px !important;
+  }
+  
+  .input-container {
+    flex: 0 0 auto !important;
+  }
+  
+  .utility-row {
+    flex: 0 0 auto !important;
+    margin-top: auto !important;
+  }
+}
+
+/* JavaScript-applied narrow width class */
+.chat-container.narrow-width,
+.chat-container.narrow-width.input-only {
+  height: 100vh !important;
+  max-height: 100vh !important;
+  min-height: 100vh !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  position: relative !important;
+}
+
+.chat-container.narrow-width .direct-mode-container {
+  flex: 1 1 auto !important;
+  height: 0 !important;
+  min-height: 150px !important;
+  margin: 8px !important;
+  overflow-y: auto !important;
+}
+
+.chat-container.narrow-width .input-container {
+  flex: 0 0 auto !important;
+}
+
+.chat-container.narrow-width .utility-row {
+  flex: 0 0 auto !important;
+  margin-top: auto !important;
 }
