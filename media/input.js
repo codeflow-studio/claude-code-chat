@@ -1293,6 +1293,15 @@
         }
         break;
         
+      case 'setDirectMode':
+        // Set the initial Direct Mode state from saved preferences
+        isDirectMode = message.isDirectMode;
+        if (mainModeToggleElement) {
+          mainModeToggleElement.checked = isDirectMode;
+        }
+        updateModeUI();
+        break;
+        
     }
   });
   

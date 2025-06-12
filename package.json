@@ -77,6 +77,10 @@
       {
         "command": "claude-code-extension.explainCurrentFile",
         "title": "Explain File with Claude Code"
+      },
+      {
+        "command": "claude-code-extension.toggleMainMode",
+        "title": "Claude Code: Toggle Terminal/Direct Mode"
       }
     ],
     "viewsContainers": {

@@ -25,6 +25,9 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
     this._shouldShowLaunchOptions = !this._terminal;
     // If there's no terminal, consider it as "closed" for UI purposes
     this._isTerminalClosed = !this._terminal;
+    
+    // Restore saved Direct Mode state
+    this._isDirectMode = this._context.globalState.get('claudeCode.isDirectMode', false);
   }
 
   public updateTerminal(terminal: vscode.Terminal, isExistingTerminal: boolean = false) {
@@ -157,6 +160,12 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
       terminalName: this._terminal?.name || 'No Terminal'
     });
     
+    // Send initial Direct Mode state
+    webviewView.webview.postMessage({
+      command: "setDirectMode",
+      isDirectMode: this._isDirectMode
+    });
+    
     // Show launch options only if no terminal exists AND should show (prevents race condition)
     if (this._shouldShowLaunchOptions && !this._terminal) {
       console.log('Showing launch options during webview initialization');
@@ -240,7 +249,9 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
             
           case "toggleMainMode":
             this._isDirectMode = message.isDirectMode;
-            console.log(`Main mode toggled to: ${this._isDirectMode ? 'Direct' : 'Terminal'}`);
+            // Save the mode state for next launch
+            this._context.globalState.update('claudeCode.isDirectMode', this._isDirectMode);
+            console.log(`Main mode toggled to: ${this._isDirectMode ? 'Direct' : 'Terminal'} (saved)`);
             return;
         }
       },

@@ -441,6 +441,21 @@ export async function activate(context: vscode.ExtensionContext) {
 
   context.subscriptions.push(toggleModeCommand);
 
+  // Register command to toggle main mode (Terminal/Direct)
+  const toggleMainModeCommand = vscode.commands.registerCommand('claude-code-extension.toggleMainMode', () => {
+    // Check if provider is initialized
+    if (!claudeTerminalInputProvider) {
+      vscode.window.showErrorMessage('Claude terminal input provider not initialized');
+      return;
+    }
+
+    // This command is mainly for keyboard shortcuts or command palette
+    // The actual toggle happens via webview messages
+    vscode.window.showInformationMessage('Use the toggle switch in the Claude Code sidebar to switch modes');
+  });
+
+  context.subscriptions.push(toggleMainModeCommand);
+
   // Register command to focus Claude Code input
   const focusInputCommand = vscode.commands.registerCommand('claude-code-extension.focusInput', async () => {
     // Check if provider is initialized
