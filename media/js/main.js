@@ -11,7 +11,7 @@ import {
   BASE_CONTEXT_ITEMS
 } from './modules/utils.js';
 
-import { addDirectModeMessage, setupPermissionDialogHandlers } from './modules/messageHandler.js';
+import { addDirectModeMessage, setupPermissionDialogHandlers, initializeMessageHandler } from './modules/messageHandler.js';
 
 import { 
   initializeContextMenu,
@@ -153,6 +153,9 @@ class ClaudeCodeUI {
     // Initialize UI manager
     initializeUIManager(this.elements);
     
+    // Initialize message handler
+    initializeMessageHandler(this.vscode);
+    
     // Initialize permission dialog handlers
     setupPermissionDialogHandlers();
   }
@@ -230,7 +233,7 @@ class ClaudeCodeUI {
           break;
           
         case 'updateProcessState':
-          setProcessRunning(message.isRunning);
+          setProcessRunning(message.isProcessRunning);
           break;
           
         case 'fileSearchResults':

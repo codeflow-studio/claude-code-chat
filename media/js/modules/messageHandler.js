@@ -16,12 +16,19 @@ import {
   hideNewMessageIndicator
 } from './utils.js';
 
-// Get vscode API for sending messages to extension
-const vscode = acquireVsCodeApi();
+// VS Code API instance (will be set during initialization)
+let vscode = null;
 
 // Enhanced tool execution tracking for parallel tool calls
 let toolExecutionGroups = new Map();
 let currentGroupId = null;
+
+/**
+ * Initialize the message handler with VS Code API instance
+ */
+export function initializeMessageHandler(vscodeApi) {
+  vscode = vscodeApi;
+}
 
 /**
  * Creates a formatted message element for Direct Mode display
