@@ -58,7 +58,8 @@ import {
   handleDirectModeUserMessage,
   handleDirectModeResponse,
   showDirectMode,
-  hideDirectMode
+  hideDirectMode,
+  notifyClaudeResponseReceived
 } from './modules/modeManager.js';
 
 import {
@@ -220,6 +221,9 @@ class ClaudeCodeUI {
           break;
           
         case 'directModeResponse':
+          // Notify that we received a Claude response for loading indicator logic
+          notifyClaudeResponseReceived(message.response.type);
+          
           handleDirectModeResponse(
             message.response.type, 
             message.response.content, 

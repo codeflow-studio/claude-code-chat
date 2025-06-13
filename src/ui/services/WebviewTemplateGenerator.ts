@@ -378,8 +378,9 @@ export class WebviewTemplateGenerator {
           }
           /* Loading indicator styles */
           .loading-indicator {
-            display: none;
+            display: flex;
             align-items: center;
+            justify-content: center;
             gap: 12px;
             padding: 16px 20px;
             margin: 8px 0;
@@ -389,38 +390,25 @@ export class WebviewTemplateGenerator {
             font-size: 13px;
             color: var(--vscode-descriptionForeground);
           }
-          .loading-dots {
-            display: flex;
-            gap: 4px;
-          }
-          .loading-dot {
-            width: 6px;
-            height: 6px;
+          .loading-spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid var(--vscode-panel-border);
+            border-top: 2px solid var(--vscode-progressBar-background);
             border-radius: 50%;
-            background: var(--vscode-progressBar-background);
-            animation: loadingPulse 1.4s infinite ease-in-out;
-          }
-          .loading-dot:nth-child(1) {
-            animation-delay: -0.32s;
-          }
-          .loading-dot:nth-child(2) {
-            animation-delay: -0.16s;
-          }
-          .loading-dot:nth-child(3) {
-            animation-delay: 0s;
+            animation: loadingSpin 1s linear infinite;
           }
           .loading-text {
             font-style: italic;
+            font-size: 13px;
           }
-          /* Loading animation */
-          @keyframes loadingPulse {
-            0%, 80%, 100% {
-              opacity: 0.3;
-              transform: scale(0.8);
+          /* Loading animations */
+          @keyframes loadingSpin {
+            0% {
+              transform: rotate(0deg);
             }
-            40% {
-              opacity: 1;
-              transform: scale(1);
+            100% {
+              transform: rotate(360deg);
             }
           }
 

@@ -91,7 +91,7 @@ function handleDrop(e) {
   const dataTransfer = e.dataTransfer;
   if (!dataTransfer) return;
   
-  console.log('Drop event - data transfer types:', dataTransfer.types);
+  // console.log('Drop event - data transfer types:', dataTransfer.types);
 
   // Process different types of dropped content
   const imageUris = new Set();
@@ -343,7 +343,7 @@ export function processImageFilePaths(imagePaths) {
  * Processes resolved file/folder paths from the extension
  */
 export function processResolvedPaths(paths) {
-  console.log('processResolvedPaths called with:', paths);
+  // console.log('processResolvedPaths called with:', paths);
   if (paths && paths.length > 0) {
     insertDroppedPaths(paths, messageInputElement);
   }

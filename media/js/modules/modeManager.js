@@ -9,6 +9,7 @@ import { isUserNearBottom, hideNewMessageIndicator } from './utils.js';
 // Mode state
 let isDirectMode = false;
 let isProcessRunning = false;
+let hasReceivedClaudeResponse = false;
 
 // Elements (will be set during initialization)
 let mainModeToggleElement = null;
@@ -182,8 +183,23 @@ export function getIsDirectMode() {
  * Sets the process running state
  */
 export function setProcessRunning(running) {
+  console.log('setProcessRunning called:', { running, hasReceivedClaudeResponse, isDirectMode });
   isProcessRunning = running;
-  updateLoadingIndicator(running);
+  
+  // Only show loading indicator if we've received at least one Claude response
+  // This prevents the indicator from appearing right after user input
+  if (running && hasReceivedClaudeResponse) {
+    console.log('Showing loading indicator: process running and has Claude response');
+    updateLoadingIndicator(true);
+  } else if (!running) {
+    console.log('Hiding loading indicator: process not running');
+    updateLoadingIndicator(false);
+    // Reset for next conversation
+    hasReceivedClaudeResponse = false;
+  } else {
+    console.log('Not showing loading indicator: waiting for first Claude response');
+  }
+  
   updatePauseButtonVisibility(running);
 }
 
@@ -192,6 +208,25 @@ export function setProcessRunning(running) {
  */
 export function getIsProcessRunning() {
   return isProcessRunning;
+}
+
+/**
+ * Notifies that a Claude response has been received
+ */
+export function notifyClaudeResponseReceived(messageType) {
+  console.log('notifyClaudeResponseReceived called:', { messageType, hasReceivedClaudeResponse, isProcessRunning });
+  
+  // Track that we've received a response from Claude (not user input)
+  if (messageType !== 'user_input') {
+    console.log('Setting hasReceivedClaudeResponse to true for message type:', messageType);
+    hasReceivedClaudeResponse = true;
+    
+    // Show loading indicator if process is still running
+    if (isProcessRunning) {
+      console.log('Calling updateLoadingIndicator(true) after Claude response');
+      updateLoadingIndicator(true);
+    }
+  }
 }
 
 /**
@@ -216,14 +251,12 @@ function updateLoadingIndicator(show) {
   }
   
   if (show) {
-    // Add loading indicator at the bottom
+    // Add loading indicator at the very bottom
     const loadingIndicator = document.createElement('div');
     loadingIndicator.className = 'loading-indicator';
     loadingIndicator.innerHTML = `
-      <div class="loading-content">
-        <div class="loading-spinner"></div>
-        <span class="loading-text">Claude is processing...</span>
-      </div>
+      <div class="loading-spinner"></div>
+      <span class="loading-text">Claude is processing...</span>
     `;
     directModeMessages.appendChild(loadingIndicator);
     
@@ -253,10 +286,27 @@ function updatePauseButtonVisibility(processRunning) {
 export function addMessageToDirectMode(type, content, timestamp, subtype, metadata, displayName, isUpdate, toolExecutionContext) {
   if (!isDirectMode) return;
   
+  // Track that we've received a response from Claude (not user input)
+  // Include system messages as they indicate Claude has started responding
+  if (type !== 'user_input') {
+    console.log('Setting hasReceivedClaudeResponse to true for message type:', type);
+    hasReceivedClaudeResponse = true;
+  }
+  
+  // Remove loading indicator before adding message to prevent it from being in the wrong position
+  const directModeMessages = document.getElementById('directModeMessages');
+  if (directModeMessages && isProcessRunning) {
+    const existingIndicator = directModeMessages.querySelector('.loading-indicator');
+    if (existingIndicator) {
+      existingIndicator.remove();
+    }
+  }
+  
   addDirectModeMessage(type, content, timestamp, subtype, metadata, displayName, isUpdate, isProcessRunning, toolExecutionContext);
   
-  // Ensure loading indicator stays at the bottom if process is running
-  if (isProcessRunning) {
+  // Show loading indicator at the bottom if process is running and we've received Claude responses
+  if (isProcessRunning && hasReceivedClaudeResponse) {
+    console.log('Calling updateLoadingIndicator(true) after adding message');
     updateLoadingIndicator(true);
   }
 }
@@ -292,6 +342,9 @@ function clearDirectModeConversation() {
       </div>
     `;
   }
+  
+  // Reset the Claude response flag
+  hasReceivedClaudeResponse = false;
   
   // Send clear command to extension
   vscode.postMessage({
