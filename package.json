@@ -177,6 +177,7 @@
     "vsix": "vsce package"
   },
   "devDependencies": {
+    "@types/mocha": "^10.0.10",
     "@types/node": "^22.15.18",
     "@types/vscode": "^1.90.0",
     "@typescript-eslint/eslint-plugin": "^6.9.0",
@@ -186,6 +187,7 @@
     "css-loader": "^6.8.1",
     "eslint": "^8.52.0",
     "generator-code": "^1.11.9",
+    "mocha": "^11.6.0",
     "style-loader": "^3.3.3",
     "ts-loader": "^9.5.0",
     "typescript": "^5.8.3",

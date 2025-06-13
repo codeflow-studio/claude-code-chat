@@ -185,6 +185,12 @@ export function addDirectModeMessage(type, content, timestamp, subtype, metadata
   // Attach event listeners for any interactive elements
   attachGeneralEventListeners(messageElement);
   
+  // Attach thinking block event listeners
+  attachThinkingBlockEventListeners(messageElement);
+  
+  // Attach tool execution event listeners (for tool usage blocks)
+  attachToolExecutionEventListeners(messageElement);
+  
   directModeMessages.appendChild(messageElement);
   
   // Smart auto-scroll behavior
@@ -272,11 +278,22 @@ export function formatAssistantContent(content, metadata) {
   // Handle string content with markdown-like formatting
   let formatted = escapeHtml(content);
   
-  // Convert thinking blocks with special styling
+  // Convert thinking blocks with special styling and expand functionality
   formatted = formatted.replace(/🤔 Thinking: (.*?)(?=🔧|$)/gs, function(match, thinkingContent) {
-    return `<div class="thinking-block">
-      <div class="thinking-header">🤔 Thinking</div>
-      <div class="thinking-content">${thinkingContent.trim()}</div>
+    const thinkingId = 'thinking-' + Math.random().toString(36).substr(2, 9);
+    const contentPreview = thinkingContent.trim().substring(0, 100);
+    const hasMoreContent = thinkingContent.trim().length > 100;
+    
+    return `<div class="thinking-block collapsed" data-thinking-id="${thinkingId}">
+      <div class="thinking-header" data-toggle-thinking="${thinkingId}">
+        <span class="thinking-icon">🤔</span>
+        <span class="thinking-title">Claude is thinking...</span>
+        <span class="thinking-expand-indicator">▶</span>
+      </div>
+      <div class="thinking-content" data-thinking-content="${thinkingId}">
+        <div class="thinking-preview">${hasMoreContent ? contentPreview + '...' : thinkingContent.trim()}</div>
+        <div class="thinking-full" style="display: none;">${thinkingContent.trim()}</div>
+      </div>
     </div>`;
   });
   
@@ -330,10 +347,21 @@ export function formatStructuredContent(contentArray) {
         
       case 'thinking':
         if (item.thinking) {
+          const thinkingId = 'thinking-' + Math.random().toString(36).substr(2, 9);
+          const contentPreview = item.thinking.substring(0, 100);
+          const hasMoreContent = item.thinking.length > 100;
+          
           formattedParts.push(`
-            <div class="thinking-block">
-              <div class="thinking-header">🤔 Claude is thinking...</div>
-              <div class="thinking-content">${escapeHtml(item.thinking)}</div>
+            <div class="thinking-block collapsed" data-thinking-id="${thinkingId}">
+              <div class="thinking-header" data-toggle-thinking="${thinkingId}">
+                <span class="thinking-icon">🤔</span>
+                <span class="thinking-title">Claude is thinking...</span>
+                <span class="thinking-expand-indicator">▶</span>
+              </div>
+              <div class="thinking-content" data-thinking-content="${thinkingId}">
+                <div class="thinking-preview">${escapeHtml(hasMoreContent ? contentPreview + '...' : item.thinking)}</div>
+                <div class="thinking-full" style="display: none;">${escapeHtml(item.thinking)}</div>
+              </div>
             </div>
           `);
         }
@@ -1389,6 +1417,37 @@ function attachGeneralEventListeners(messageElement) {
 }
 
 /**
+ * Attach thinking block event listeners to message elements
+ */
+function attachThinkingBlockEventListeners(messageElement) {
+  // Thinking block toggle buttons
+  const thinkingHeaders = messageElement.querySelectorAll('[data-toggle-thinking]');
+  thinkingHeaders.forEach(header => {
+    header.removeEventListener('click', handleThinkingToggle);
+    header.addEventListener('click', handleThinkingToggle);
+  });
+}
+
+/**
+ * Attach tool execution event listeners to message elements
+ */
+function attachToolExecutionEventListeners(messageElement) {
+  // Tool execution header toggles
+  const toolHeaders = messageElement.querySelectorAll('[data-toggle-tool]');
+  toolHeaders.forEach(header => {
+    header.removeEventListener('click', handleToolToggle);
+    header.addEventListener('click', handleToolToggle);
+  });
+  
+  // Tool copy buttons
+  const copyButtons = messageElement.querySelectorAll('[data-copy-tool]');
+  copyButtons.forEach(button => {
+    button.removeEventListener('click', handleToolCopy);
+    button.addEventListener('click', handleToolCopy);
+  });
+}
+
+/**
  * Attach event listeners to Task workflow elements
  */
 function attachTaskWorkflowEventListeners(groupElement) {
@@ -1408,19 +1467,11 @@ function attachTaskWorkflowEventListeners(groupElement) {
     group.addEventListener('click', handleCompletedToolsToggle);
   });
   
-  // Tool execution header toggles
-  const toolHeaders = groupElement.querySelectorAll('[data-toggle-tool]');
-  toolHeaders.forEach(header => {
-    header.removeEventListener('click', handleToolToggle);
-    header.addEventListener('click', handleToolToggle);
-  });
+  // Tool execution event listeners (shared with regular messages)
+  attachToolExecutionEventListeners(groupElement);
   
-  // Tool copy buttons
-  const copyButtons = groupElement.querySelectorAll('[data-copy-tool]');
-  copyButtons.forEach(button => {
-    button.removeEventListener('click', handleToolCopy);
-    button.addEventListener('click', handleToolCopy);
-  });
+  // Thinking block event listeners within task workflows
+  attachThinkingBlockEventListeners(groupElement);
 }
 
 /**
@@ -1533,6 +1584,40 @@ function handleExpandToggle(event) {
     const expandIcon = button.querySelector('.expand-icon');
     if (expandIcon) {
       expandIcon.textContent = resultContainer.classList.contains('expanded') ? '⛝' : '⛶';
+    }
+  }
+}
+
+/**
+ * Handle thinking block expand/collapse toggle
+ */
+function handleThinkingToggle(event) {
+  event.stopPropagation();
+  
+  const header = event.currentTarget;
+  const thinkingId = header.getAttribute('data-toggle-thinking');
+  const thinkingBlock = document.querySelector(`[data-thinking-id="${thinkingId}"]`);
+  
+  if (thinkingBlock) {
+    const isCollapsed = thinkingBlock.classList.contains('collapsed');
+    const expandIndicator = header.querySelector('.thinking-expand-indicator');
+    const preview = thinkingBlock.querySelector('.thinking-preview');
+    const full = thinkingBlock.querySelector('.thinking-full');
+    
+    if (isCollapsed) {
+      // Expand
+      thinkingBlock.classList.remove('collapsed');
+      thinkingBlock.classList.add('expanded');
+      if (expandIndicator) expandIndicator.textContent = '▼';
+      if (preview) preview.style.display = 'none';
+      if (full) full.style.display = 'block';
+    } else {
+      // Collapse
+      thinkingBlock.classList.remove('expanded');
+      thinkingBlock.classList.add('collapsed');
+      if (expandIndicator) expandIndicator.textContent = '▶';
+      if (preview) preview.style.display = 'block';
+      if (full) full.style.display = 'none';
     }
   }
 }

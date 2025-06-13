@@ -1,7 +1,7 @@
 import { spawn } from 'child_process';
 import { ClaudeMessageHandler } from '../utils/claude-message-handler';
 import { ClaudeMessage, DirectModeResponse } from '../types/claude-message-types';
-import { formatMessageWithProblems, processImagesForMessage, type ImageContext } from '../utils/messageUtils';
+import { processImagesForMessage, type ImageContext } from '../utils/messageUtils';
 
 export interface MessageContext {
   images?: Array<{
