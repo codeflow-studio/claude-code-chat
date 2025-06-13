@@ -126,6 +126,11 @@
 
   // Function to check if slash command menu should be shown
   function shouldShowSlashCommands(text, position) {
+    // Don't show slash commands in Direct Mode
+    if (isDirectMode) {
+      return false;
+    }
+    
     // Check if text starts with "/" (at the beginning of input or after newline)
     const beforeCursor = text.slice(0, position);
     const lines = beforeCursor.split('\n');
@@ -144,22 +149,45 @@
     return false;
   }
 
+  // Function to extract file paths from @ mentions in text
+  function extractFilePathsFromText(text) {
+    const filePaths = [];
+    const matches = text.match(mentionRegexGlobal);
+    if (matches) {
+      matches.forEach(match => {
+        // Remove the @ symbol and extract the path
+        const path = match.substring(1);
+        // Skip special mentions like 'problems', 'git-changes'
+        if (path !== 'problems' && path !== 'git-changes') {
+          filePaths.push(path);
+        }
+      });
+    }
+    return filePaths;
+  }
+
   // Function to handle sending a message
   function sendMessage() {
     if (!messageInputElement) return;
     
     const text = messageInputElement.value.trim();
     const problemIds = pendingProblems.map(problem => problem.originalIndex);
-    if (!text && pendingImages.length === 0 && pendingProblems.length === 0 && problemIds.length === 0) {
+    const filePaths = extractFilePathsFromText(text);
+    
+    if (!text && pendingImages.length === 0 && pendingProblems.length === 0 && problemIds.length === 0 && filePaths.length === 0) {
       return;
     }
 
-    vscode.postMessage({
-      command: 'sendToTerminal',
+    // Build comprehensive message object with all input capabilities
+    const messageData = {
+      command: 'sendToTerminal', // This will be the same for both modes - backend will handle routing
       text: text,
       images: pendingImages,
-      selectedProblemIds: problemIds
-    });
+      selectedProblemIds: problemIds,
+      filePaths: filePaths // Include extracted file paths from @ mentions
+    };
+
+    vscode.postMessage(messageData);
     
     // Clear input, images, and problems after sending
     messageInputElement.value = '';

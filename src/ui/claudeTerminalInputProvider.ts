@@ -6,6 +6,7 @@ import { fileServiceClient } from "../api/FileService";
 import { customCommandService } from "../service/customCommandService";
 import { DirectModeService, MessageContext } from "../service/directModeService";
 import { DirectModeResponse } from "../types/claude-message-types";
+import { formatMessageWithProblems, processImagesForMessage, type ImageContext } from "../utils/messageUtils";
 
 export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = "claudeCodeInputView";
@@ -196,7 +197,8 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
             // Store message context for _handleMessageWithContext to access
             this._currentMessage = message;
             
-             if (message.text.trim().startsWith('/')) {
+            // In Direct Mode, don't support slash commands - treat them as regular messages
+            if (message.text.trim().startsWith('/') && !this._isDirectMode) {
                 await this._handleSlashCommand(message.text.trim());
               } else {
                 await this._handleMessageWithContext(message.text);
@@ -529,94 +531,230 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
   
 
   /**
-   * Unified method to handle messages with context (images and/or problems)
-   * Gets images and problems from this._currentMessage
+   * Unified method to handle messages with context (images, files, and problems)
+   * Formats message with problems and images before sending to mode handlers
+   * Works for both Terminal and Direct modes
    */
   private async _handleMessageWithContext(text: string): Promise<void> {
-    if (!this._currentMessage) {
-      // Fallback to simple send if no current message context
-      if (this._isDirectMode) {
-        await this._sendToDirectMode(text);
-      } else {
-        await this.sendTextSmart(text);
+    try {
+      // Prepare comprehensive message context
+      const messageContext = await this._prepareMessageContext(text);
+      
+      // Start with the base text
+      let enhancedMessage = messageContext.text;
+      
+      // Format message with problems first (if present)
+      if (messageContext.selectedProblems.length > 0) {
+        enhancedMessage = formatMessageWithProblems(enhancedMessage, messageContext.selectedProblems);
       }
-      return;
+      
+      // Format message with images (if present)
+      if (messageContext.images.length > 0) {
+        // Convert to shared ImageContext format
+        const imageContexts: ImageContext[] = messageContext.images.map(img => ({
+          name: img.name,
+          path: img.path,
+          type: img.type,
+          data: img.data,
+          isFromClipboard: img.isFromClipboard,
+          isExternalDrop: img.isExternalDrop
+        }));
+        
+        // Use shared processing utility to format with images
+        const imageResult = await processImagesForMessage(enhancedMessage, imageContexts, this._imageManager!);
+        
+        // Handle any failed images
+        if (imageResult.failedImages.length > 0) {
+          const failedList = imageResult.failedImages.join(', ');
+          vscode.window.showWarningMessage(
+            `Failed to process ${imageResult.failedImages.length} image(s): ${failedList}. Continuing with successfully processed images.`
+          );
+        }
+        
+        // Use the enhanced message with images
+        enhancedMessage = imageResult.enhancedMessage;
+        
+        // Log successful image processing
+        if (imageResult.imagePaths.length > 0) {
+          console.log(`Successfully processed ${imageResult.imagePaths.length} image(s):`, imageResult.imagePaths);
+        }
+      }
+      
+      // Ensure we have content to send
+      if (!enhancedMessage.trim()) {
+        vscode.window.showErrorMessage('No content to send after processing.');
+        return;
+      }
+      
+      // Route the formatted message to appropriate handler based on mode
+      if (this._isDirectMode) {
+        await this._sendToDirectModeUnified(enhancedMessage, messageContext);
+      } else {
+        await this._sendToTerminalUnified(enhancedMessage);
+      }
+      
+    } catch (error) {
+      console.error('Error handling message with context:', error);
+      const errorMessage = `Failed to process message: ${error}`;
+      
+      if (this._isDirectMode) {
+        this._handleDirectModeResponse({
+          type: 'error',
+          error: errorMessage
+        });
+      } else {
+        vscode.window.showErrorMessage(errorMessage);
+      }
     }
-    
-    // Check if we're in Direct Mode
-    if (this._isDirectMode) {
-      await this._handleDirectModeMessage(text);
-      return;
-    }
-    
-    // Terminal mode processing (existing logic)
-    // Start with the base text
-    let enhancedMessage = text;
-    
-    // Get selected problems if present
-    let selectedProblems: Array<{
+  }
+
+  /**
+   * Prepares comprehensive message context from current message data
+   */
+  private async _prepareMessageContext(text: string): Promise<{
+    text: string;
+    images: any[];
+    filePaths: string[];
+    selectedProblems: Array<{
       file: string;
       line: number;
       column: number;
       severity: string;
       message: string;
       source?: string;
-    }> = [];
-    
-    if (this._currentMessage.selectedProblemIds && this._currentMessage.selectedProblemIds.length > 0) {
-      // Get current problems from VSCode diagnostics
+    }>;
+    selectedProblemIds: string[];
+  }> {
+    const context = {
+      text,
+      images: [] as any[],
+      filePaths: [] as string[],
+      selectedProblems: [] as Array<{
+        file: string;
+        line: number;
+        column: number;
+        severity: string;
+        message: string;
+        source?: string;
+      }>,
+      selectedProblemIds: [] as string[]
+    };
+
+    if (!this._currentMessage) {
+      return context;
+    }
+
+    // Get images from current message
+    context.images = this._currentMessage.images || [];
+
+    // Get file paths from current message
+    context.filePaths = this._currentMessage.filePaths || [];
+
+    // Get selected problem IDs
+    context.selectedProblemIds = this._currentMessage.selectedProblemIds || [];
+
+    // Resolve problem details if we have selected problem IDs
+    if (context.selectedProblemIds.length > 0) {
       const allProblems = this._getCurrentProblems();
-      
-      // Filter problems based on selected IDs
-      selectedProblems = allProblems.filter((_, index) => 
-        this._currentMessage.selectedProblemIds.includes(index.toString())
+      context.selectedProblems = allProblems.filter((_, index) => 
+        context.selectedProblemIds.includes(index.toString())
       );
     }
-    
-    // If we have problems, add problems context
-    if (selectedProblems.length > 0) {
-      enhancedMessage = this._formatMessageWithProblems(enhancedMessage, selectedProblems);
-    }
-    
-    // Get images from current message
-    const images = this._currentMessage.images || [];
-    
-    // If we have images, handle them with the enhanced message
-    if (images.length > 0) {
-      await this._handleMessageWithImages(enhancedMessage, images);
-    } else {
-      // No images, use smart sending (paste mode for multi-line/long content)
-      await this.sendTextSmart(enhancedMessage);
-    }
+
+    return context;
   }
 
   /**
-   * Formats a message with problems context
+   * Unified Direct Mode message sending
+   * Receives pre-formatted message text and original context for metadata
    */
-  private _formatMessageWithProblems(text: string, selectedProblems: Array<{
-    file: string;
-    line: number;
-    column: number;
-    severity: string;
-    message: string;
-    source?: string;
-  }>): string {
-    let enhancedMessage = text;
-    
-    if (selectedProblems.length > 0) {
-      let problemsContext = `\n<problems>\n`;
-      
-      selectedProblems.forEach((problem, index) => {
-        const location = `${problem.file}#L${problem.line} Column:${problem.column}`;
-        const source = problem.source ? ` (${problem.source})` : '';
-        problemsContext += `${index + 1}. @${location}${source}\n   ${problem.severity}: ${problem.message}\n\n`;
-      });
-      problemsContext += "</problems>\n\n";
-
-      enhancedMessage = text + problemsContext;
+  private async _sendToDirectModeUnified(formattedMessage: string, messageContext: any): Promise<void> {
+    if (!this._directModeService) {
+      throw new Error('Direct Mode service not initialized');
     }
-    
-    return enhancedMessage;
+    // Track user input metadata for conversation history
+    const userInputMetadata: {
+      files_referenced?: string[];
+      command_type?: string;
+    } = {
+      files_referenced: messageContext.filePaths.length > 0 ? messageContext.filePaths : undefined
+    };
+
+    // Determine message subtype based on original content
+    let messageSubtype: 'prompt' | 'command' | 'file_reference' = 'prompt';
+    if (messageContext.text.startsWith('/') || messageContext.text.startsWith('!')) {
+      messageSubtype = 'command';
+      userInputMetadata.command_type = 'slash_command';
+    } else if (messageContext.text.includes('@') || messageContext.filePaths.length > 0) {
+      messageSubtype = 'file_reference';
+      userInputMetadata.command_type = 'file_analysis';
+    }
+
+    // Track user input with original text first
+    this._directModeService.trackUserInput(messageContext.text, messageSubtype, userInputMetadata);
+
+    // Send the pre-formatted message to Direct Mode service
+    await this._directModeService.sendMessage(formattedMessage);
+  }
+
+  /**
+   * Unified Terminal Mode message sending
+   * Receives pre-formatted message text (already contains problems and images)
+   */
+  private async _sendToTerminalUnified(formattedMessage: string): Promise<void> {
+    // Send the pre-formatted message using smart sending (paste mode for multi-line/long content)
+    await this.sendTextSmart(formattedMessage);
+  }
+
+  /**
+   * Unified image handling using shared utilities
+   * Replaces the old _handleMessageWithImages method
+   */
+  private async _handleMessageWithImagesUnified(text: string, images: any[]): Promise<void> {
+    try {
+      // Convert to shared ImageContext format
+      const imageContexts: ImageContext[] = images.map(img => ({
+        name: img.name,
+        path: img.path,
+        type: img.type,
+        data: img.data,
+        isFromClipboard: img.isFromClipboard,
+        isExternalDrop: img.isExternalDrop
+      }));
+      
+      // Use shared processing utility
+      const result = await processImagesForMessage(text, imageContexts, this._imageManager!);
+      
+      // Notify user about failed images
+      if (result.failedImages.length > 0) {
+        const failedList = result.failedImages.join(', ');
+        const vscode = await import('vscode');
+        vscode.window.showWarningMessage(
+          `Failed to process ${result.failedImages.length} image(s): ${failedList}. Continuing with successfully processed images.`
+        );
+      }
+      
+      // Only proceed if we have successfully processed images or text
+      if (result.imagePaths.length === 0 && !text) {
+        const vscode = await import('vscode');
+        vscode.window.showErrorMessage('No images were successfully processed and no text was provided.');
+        return;
+      }
+      
+      // Send to terminal only if we have content
+      if (result.enhancedMessage) {
+        await this.sendTextSmart(result.enhancedMessage);
+      }
+      
+    } catch (error) {
+      console.error('Error handling images:', error);
+      const vscode = await import('vscode');
+      vscode.window.showErrorMessage(`Failed to process images: ${error}`);
+      // Fallback to sending just text if available
+      if (text) {
+        await this.sendTextSmart(text);
+      }
+    }
   }
 
   /**
@@ -869,7 +1007,15 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
     }
   }
   
+  /**
+   * @deprecated Use _handleMessageWithImagesUnified instead
+   * Kept for backward compatibility, delegates to unified method
+   */
   private async _handleMessageWithImages(text: string, images: any[]): Promise<void> {
+    return this._handleMessageWithImagesUnified(text, images);
+  }
+
+  private async _handleMessageWithImagesOld(text: string, images: any[]): Promise<void> {
     try {
       const imagePaths: string[] = [];
       const failedImages: string[] = [];
@@ -1112,89 +1258,6 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
     await this._handleModeToggle();
   }
 
-  /**
-   * Sends a message to Direct Mode (Claude CLI with streaming JSON)
-   */
-  private async _sendToDirectMode(text: string): Promise<void> {
-    try {
-      if (!this._directModeService) {
-        throw new Error('Direct Mode service not initialized');
-      }
-
-      // Build message context from current message
-      // Note: DirectModeService.sendMessage() will auto-start session if needed
-      const context: MessageContext = {};
-      
-      // Track user input metadata for conversation history
-      const userInputMetadata: {
-        files_referenced?: string[];
-        command_type?: string;
-      } = {};
-      
-      if (this._currentMessage) {
-        // Add images if present
-        if (this._currentMessage.images && this._currentMessage.images.length > 0) {
-          context.images = this._currentMessage.images.map((img: any) => ({
-            name: img.name,
-            path: img.path,
-            type: img.type
-          }));
-        }
-        
-        // Add selected problem IDs if present
-        if (this._currentMessage.selectedProblemIds && this._currentMessage.selectedProblemIds.length > 0) {
-          context.selectedProblemIds = this._currentMessage.selectedProblemIds;
-        }
-
-        // Track file paths for user input metadata
-        if (this._currentMessage.filePaths && this._currentMessage.filePaths.length > 0) {
-          context.filePaths = this._currentMessage.filePaths;
-          userInputMetadata.files_referenced = this._currentMessage.filePaths;
-        }
-      }
-
-      // Determine message subtype based on content
-      let messageSubtype: 'prompt' | 'command' | 'file_reference' = 'prompt';
-      if (text.startsWith('/') || text.startsWith('!')) {
-        messageSubtype = 'command';
-        userInputMetadata.command_type = 'slash_command';
-      } else if (text.includes('@') || userInputMetadata.files_referenced) {
-        messageSubtype = 'file_reference';
-        userInputMetadata.command_type = 'file_analysis';
-      }
-
-      // Track user input first
-      this._directModeService.trackUserInput(text, messageSubtype, userInputMetadata);
-
-      // Send message to Direct Mode service
-      await this._directModeService.sendMessage(text, context);
-      
-    } catch (error) {
-      console.error('Error sending to Direct Mode:', error);
-      vscode.window.showErrorMessage(`Direct Mode error: ${error}`);
-    }
-  }
-
-  /**
-   * Handles message processing for Direct Mode
-   */
-  private async _handleDirectModeMessage(text: string): Promise<void> {
-    try {
-      // Process the message through Direct Mode
-      // Note: _sendToDirectMode now handles user input tracking automatically
-      await this._sendToDirectMode(text);
-      
-      // User message display is now handled via trackUserInput() in _sendToDirectMode()
-      // No need for separate directModeUserMessage command
-      
-    } catch (error) {
-      console.error('Error handling Direct Mode message:', error);
-      this._handleDirectModeResponse({
-        type: 'error',
-        error: `Failed to process message: ${error}`
-      });
-    }
-  }
 
   /**
    * Handles responses from the Direct Mode service

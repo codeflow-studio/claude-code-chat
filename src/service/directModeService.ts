@@ -1,15 +1,27 @@
 import { spawn } from 'child_process';
 import { ClaudeMessageHandler } from '../utils/claude-message-handler';
 import { ClaudeMessage, DirectModeResponse } from '../types/claude-message-types';
+import { formatMessageWithProblems, processImagesForMessage, type ImageContext } from '../utils/messageUtils';
 
 export interface MessageContext {
   images?: Array<{
     name: string;
     path: string;
     type: string;
+    data?: string;
+    isFromClipboard?: boolean;
+    isExternalDrop?: boolean;
   }>;
   selectedProblemIds?: string[];
   filePaths?: string[];
+  selectedProblems?: Array<{
+    file: string;
+    line: number;
+    column: number;
+    severity: string;
+    message: string;
+    source?: string;
+  }>;
 }
 
 export class DirectModeService {
@@ -44,31 +56,16 @@ export class DirectModeService {
    * Sends a message to Claude using claude -p with streaming JSON output
    * Each message spawns a separate claude -p process
    */
-  async sendMessage(text: string, context?: MessageContext): Promise<void> {
+  async sendMessage(text: string): Promise<void> {
     // Start session if not active
     if (!this._isActive) {
       await this.startSession();
     }
 
     try {
-      // Build the enhanced message with context
-      let enhancedMessage = text;
-
-      // Add file paths as @ mentions
-      if (context?.filePaths && context.filePaths.length > 0) {
-        const fileMentions = context.filePaths.map(path => `@${path}`).join(' ');
-        enhancedMessage = `${enhancedMessage} ${fileMentions}`;
-      }
-
-      // Add image paths
-      if (context?.images && context.images.length > 0) {
-        const imagePaths = context.images.map(img => img.path).join(' ');
-        enhancedMessage = `${enhancedMessage} ${imagePaths}`;
-      }
-
       // Build claude -p command with streaming JSON
       const args = [
-        '-p', enhancedMessage,
+        '-p', text,
         '--output-format', 'stream-json',
         '--verbose',
         '--allowedTools', 'Write', 'Edit', 'MultiEdit'
@@ -151,7 +148,9 @@ export class DirectModeService {
         this._handleError(`Failed to start Claude CLI: ${error.message}`);
       });
 
-      console.log('Message sent to Claude CLI (claude -p mode):', enhancedMessage);
+      console.log('Message sent to Claude CLI (claude -p mode):');
+      console.log('Enhanced message:', text);
+      console.log('Claude args:', args);
 
     } catch (error) {
       console.error('Error sending message:', error);
@@ -377,6 +376,31 @@ export class DirectModeService {
       totalDuration: totalDuration > 0 ? totalDuration : undefined,
       errorCount: errors.length,
       hasErrors: errors.length > 0
+    };
+  }
+
+  /**
+   * Process images for Direct Mode using shared utility
+   * Converts MessageContext images to ImageContext format
+   */
+  async processImagesWithMessage(
+    text: string, 
+    images: Array<{ name: string; path: string; type: string }>, 
+    imageManager: any
+  ): Promise<{ enhancedMessage: string; failedImages: string[] }> {
+    // Convert to shared ImageContext format
+    const imageContexts: ImageContext[] = images.map(img => ({
+      name: img.name,
+      path: img.path,
+      type: img.type
+    }));
+    
+    // Use shared processing utility
+    const result = await processImagesForMessage(text, imageContexts, imageManager);
+    
+    return {
+      enhancedMessage: result.enhancedMessage,
+      failedImages: result.failedImages
     };
   }
 
