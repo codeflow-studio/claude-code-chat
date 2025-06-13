@@ -908,11 +908,17 @@ export function createOrUpdateToolExecutionGroup(directModeMessages, executionGr
     
     groupElement.innerHTML = groupHeader + groupContent;
     directModeMessages.appendChild(groupElement);
+    
+    // Attach event listeners to newly created group
+    attachToolExecutionEventListeners(groupElement);
   } else {
     // Update existing group
     const container = groupElement.querySelector('.tool-execution-container');
     if (container) {
       container.innerHTML = formatToolExecutionList(executionGroup.executions);
+      
+      // Re-attach event listeners after updating content
+      attachToolExecutionEventListeners(groupElement);
     }
     
     // Update status
@@ -939,6 +945,9 @@ export function updateToolExecutionGroupWithResults(directModeMessages, toolExec
         if (toolElement) {
           // Update the tool element with result
           updateToolExecutionElement(toolElement, execution);
+          
+          // Re-attach event listeners to ensure clickability
+          attachToolExecutionEventListeners(groupElement);
           
           // Update group status
           const statusElement = groupElement.querySelector('.tool-execution-status');
@@ -996,12 +1005,21 @@ export function formatSingleToolExecution(execution) {
 
   // Generate result content (hidden by default)
   let resultContent = '';
-  if (execution.result && execution.status === 'completed') {
-    resultContent = `
-      <div class="tool-result-content">
-        ${formatToolResult(execution.result)}
-      </div>
-    `;
+  if (execution.status === 'completed') {
+    if (execution.result) {
+      resultContent = `
+        <div class="tool-result-content">
+          ${formatToolResult(execution.result)}
+        </div>
+      `;
+    } else {
+      // Show placeholder content for completed tools without explicit results
+      resultContent = `
+        <div class="tool-result-content">
+          <div class="result-text">Tool completed successfully</div>
+        </div>
+      `;
+    }
   }
   
   return `
@@ -1017,7 +1035,7 @@ export function formatSingleToolExecution(execution) {
           <span class="status-icon">${statusIcon}</span>
           <div class="tool-actions">
             ${execution.status === 'completed' ? `<button class="tool-action-btn" data-copy-tool="${execution.id}" title="Copy">📋</button>` : ''}
-            ${execution.result ? `<span class="expand-indicator">▶</span>` : ''}
+            ${(execution.result || execution.status === 'completed') ? `<span class="expand-indicator">▶</span>` : ''}
           </div>
         </div>
       </div>
@@ -1041,17 +1059,19 @@ export function updateToolExecutionElement(toolElement, execution) {
   }
   
   // Add result summary and actions for completed tools
-  if (execution.result && execution.status === 'completed') {
-    // Add result summary
-    const toolInfo = toolElement.querySelector('.tool-info');
-    if (toolInfo && !toolInfo.querySelector('.tool-result-preview')) {
-      const resultSummary = generateResultSummary(execution.result, execution.name);
-      if (resultSummary) {
-        toolInfo.insertAdjacentHTML('beforeend', `<span class="tool-result-preview">${escapeHtml(resultSummary)}</span>`);
+  if (execution.status === 'completed') {
+    // Add result summary if available
+    if (execution.result) {
+      const toolInfo = toolElement.querySelector('.tool-info');
+      if (toolInfo && !toolInfo.querySelector('.tool-result-preview')) {
+        const resultSummary = generateResultSummary(execution.result, execution.name);
+        if (resultSummary) {
+          toolInfo.insertAdjacentHTML('beforeend', `<span class="tool-result-preview">${escapeHtml(resultSummary)}</span>`);
+        }
       }
     }
     
-    // Add action buttons
+    // Add action buttons (copy button and expand indicator)
     const toolActions = toolElement.querySelector('.tool-actions');
     if (toolActions && !toolActions.querySelector('.tool-action-btn')) {
       toolActions.insertAdjacentHTML('afterbegin', `
@@ -1065,7 +1085,13 @@ export function updateToolExecutionElement(toolElement, execution) {
     if (!resultContainer) {
       resultContainer = document.createElement('div');
       resultContainer.className = 'tool-result-content';
-      resultContainer.innerHTML = formatToolResult(execution.result);
+      
+      if (execution.result) {
+        resultContainer.innerHTML = formatToolResult(execution.result);
+      } else {
+        resultContainer.innerHTML = '<div class="result-text">Tool completed successfully</div>';
+      }
+      
       toolElement.appendChild(resultContainer);
     }
   }
@@ -1543,15 +1569,30 @@ function handleCompletedToolsToggle(event) {
  * Handle tool execution toggle
  */
 function handleToolToggle(event) {
+  event.preventDefault();
+  event.stopPropagation();
+  
   const toolId = event.currentTarget.getAttribute('data-toggle-tool');
   const toolElement = document.querySelector(`[data-tool-id="${toolId}"]`);
+  
   if (toolElement) {
-    toolElement.classList.toggle('expanded');
+    const isExpanded = toolElement.classList.contains('expanded');
+    
+    if (isExpanded) {
+      toolElement.classList.remove('expanded');
+    } else {
+      toolElement.classList.add('expanded');
+    }
     
     const expandIndicator = toolElement.querySelector('.expand-indicator');
     if (expandIndicator) {
       expandIndicator.textContent = toolElement.classList.contains('expanded') ? '▼' : '▶';
     }
+    
+    // Debug logging (can be removed later)
+    console.log(`Tool ${toolId} toggled to ${toolElement.classList.contains('expanded') ? 'expanded' : 'collapsed'}`);
+  } else {
+    console.warn(`Tool element not found for ID: ${toolId}`);
   }
 }
 

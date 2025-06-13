@@ -602,6 +602,7 @@
   font-size: 8px;
   color: var(--vscode-descriptionForeground, #8a8a8a);
   margin-left: 2px;
+  cursor: pointer;
   transition: transform 0.15s ease;
 }
 
