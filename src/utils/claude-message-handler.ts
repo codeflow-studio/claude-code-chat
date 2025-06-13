@@ -372,11 +372,14 @@ export class ClaudeMessageHandler {
    * Extract content from assistant responses
    */
   private static extractAssistantContent(message: AssistantMessage): string | undefined {
-    if (message.message?.content) {
-      if (Array.isArray(message.message.content)) {
+    // Handle the actual Claude Code CLI message structure
+    const messageContent = (message as any).message?.content;
+    
+    if (messageContent) {
+      if (Array.isArray(messageContent)) {
         const contentParts: string[] = [];
         
-        message.message.content.forEach((item: MessageContent) => {
+        messageContent.forEach((item: MessageContent) => {
           if (item.type === 'text' && item.text) {
             contentParts.push(item.text);
           } else if (item.type === 'tool_use') {
@@ -420,8 +423,8 @@ export class ClaudeMessageHandler {
         return contentParts.length > 0 ? contentParts.join('\n') : undefined;
       }
       
-      if (typeof message.message.content === 'string') {
-        return message.message.content;
+      if (typeof messageContent === 'string') {
+        return messageContent;
       }
     }
     

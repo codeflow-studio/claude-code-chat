@@ -193,7 +193,8 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
     webviewView.webview.onDidReceiveMessage(
       async (message) => {
         switch (message.command) {
-          case "sendToTerminal": {
+          case "sendToTerminal":
+          case "sendMessage": {
             // Store message context for _handleMessageWithContext to access
             this._currentMessage = message;
             

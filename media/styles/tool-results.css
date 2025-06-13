@@ -4,7 +4,6 @@
   border-radius: 6px;
   background: var(--vscode-editor-background, #1e1e1e);
   margin: 12px 0;
-  overflow: hidden;
   font-family: var(--vscode-editor-font-family, 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   transition: max-height 0.3s ease-in-out;
@@ -96,10 +95,8 @@
   color: var(--vscode-editor-foreground, #d4d4d4);
   font-family: var(--vscode-editor-font-family, 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace);
   font-size: var(--vscode-editor-font-size, 14px);
-  line-height: var(--vscode-editor-line-height, 1.5);
-  overflow-x: auto;
-  overflow-y: auto;
-  max-height: 400px;
+  line-height: 1.1;
+  overflow: visible;
   position: relative;
 }
 
@@ -111,8 +108,8 @@
 .editor-line {
   display: flex;
   align-items: flex-start;
-  min-height: 20px;
-  line-height: 20px;
+  min-height: 1em;
+  line-height: 1.1;
   border-left: 3px solid transparent;
   transition: background-color 0.15s ease;
 }
@@ -192,8 +189,7 @@
 
 .tool-result-content {
   background: var(--vscode-editor-background, #1e1e1e);
-  max-height: 300px;
-  overflow-y: auto;
+  overflow: visible;
 }
 
 .result-text {
@@ -202,11 +198,12 @@
   color: var(--vscode-editor-foreground, #d4d4d4);
   font-family: var(--vscode-editor-font-family, 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace);
   font-size: var(--vscode-editor-font-size, 14px);
-  line-height: var(--vscode-editor-line-height, 1.5);
+  line-height: 1.1;
   white-space: pre-wrap;
   word-wrap: break-word;
   background: transparent;
   border: none;
+  overflow: visible;
 }
 
 /* Basic syntax highlighting for common patterns */
@@ -306,4 +303,102 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Diff display styles for Edit/MultiEdit tool results */
+.file-diff {
+  margin: 12px 0;
+  border: 1px solid var(--vscode-panel-border, var(--claude-border));
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--vscode-editor-background, #1e1e1e);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.file-diff .tool-result-header {
+  background: var(--vscode-editorGroupHeader-tabsBackground, #2d2d30);
+  border-bottom: 1px solid var(--vscode-panel-border, var(--claude-border));
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--vscode-tab-activeForeground, var(--text-color));
+}
+
+.diff-section {
+  border-left: 3px solid transparent;
+  background: var(--vscode-editor-background, #1e1e1e);
+}
+
+.diff-section.removed {
+  background: rgba(248, 81, 73, 0.15);
+  border-left-color: #f85149;
+}
+
+.diff-section.added {
+  background: rgba(46, 160, 67, 0.15);
+  border-left-color: #2ea043;
+}
+
+.diff-label {
+  padding: 6px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.025em;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  font-family: var(--vscode-editor-font-family, 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace);
+}
+
+.diff-section.removed .diff-label {
+  color: #f85149;
+  background: rgba(248, 81, 73, 0.1);
+}
+
+.diff-section.added .diff-label {
+  color: #2ea043;
+  background: rgba(46, 160, 67, 0.1);
+}
+
+.diff-content {
+  font-family: var(--vscode-editor-font-family, 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace);
+  font-size: var(--vscode-editor-font-size, 14px);
+  line-height: var(--vscode-editor-line-height, 1.5);
+  overflow-x: auto;
+}
+
+.diff-content .editor-line {
+  display: flex;
+  align-items: flex-start;
+  min-height: 1em;
+  line-height: 1.1;
+}
+
+.diff-content .line-number {
+  display: inline-block;
+  width: 50px;
+  padding: 0 8px 0 8px;
+  text-align: right;
+  color: var(--vscode-editorLineNumber-foreground, #858585);
+  background: var(--vscode-editorGutter-background, transparent);
+  font-size: calc(var(--vscode-editor-font-size, 14px) * 0.9);
+  user-select: none;
+  border-right: 1px solid var(--vscode-editorGutter-border, rgba(255, 255, 255, 0.1));
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.diff-content .line-content {
+  flex: 1;
+  padding: 0 12px 0 8px;
+  white-space: pre;
+  overflow-x: visible;
+  word-wrap: break-word;
+  color: var(--vscode-editor-foreground, #d4d4d4);
+}
+
+.diff-section.removed .line-content {
+  color: #f85149;
+}
+
+.diff-section.added .line-content {
+  color: #2ea043;
 }

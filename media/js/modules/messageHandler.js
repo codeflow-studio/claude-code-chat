@@ -27,12 +27,16 @@ export function createMessage(type, content, timestamp, subtype, metadata, displ
   switch (type) {
     case 'user':
       const userContent = content || 'User message';
+      // Check if this is a tool result that needs special formatting
+      const isToolResult = userContent.includes('Tool result (') || userContent.includes('→');
+      const formattedUserContent = isToolResult ? formatToolResultString(userContent) : escapeHtml(userContent);
+      
       messageHTML = `
         <div class="message-header">
           <span class="message-sender">You</span>
           <span class="message-time">${time}</span>
         </div>
-        <div class="message-content user-content">${escapeHtml(userContent)}</div>
+        <div class="message-content user-content">${formattedUserContent}</div>
       `;
       break;
       
@@ -655,4 +659,123 @@ function getLanguageFromFileName(fileName) {
     'sql': 'sql'
   };
   return languageMap[ext] || 'text';
+}
+
+/**
+ * Formats a tool result string (like from Read tool output) into a nice UI
+ */
+export function formatToolResultString(content) {
+  if (!content) return '';
+  
+  // Extract tool name and filename from content like "Tool result (Mahjef24):"
+  const firstLine = content.split('\n')[0];
+  let toolName = 'Tool';
+  let fileName = '';
+  
+  // Parse tool result header
+  const toolResultMatch = firstLine.match(/Tool result \(([^)]+)\):/);
+  if (toolResultMatch) {
+    toolName = toolResultMatch[1];
+  }
+  
+  // Get the actual content (everything after the first line)
+  const lines = content.split('\n');
+  const actualContent = lines.slice(1).join('\n');
+  
+  // Check if content has line numbers (like "1→# Planning Poker Application")
+  const hasLineNumbers = actualContent.includes('→');
+  
+  if (hasLineNumbers) {
+    // Extract filename from content patterns
+    const contentLines = actualContent.split('\n');
+    if (contentLines.length > 0) {
+      const firstContentLine = contentLines[0];
+      // Look for common patterns to determine file type
+      if (firstContentLine.includes('# ') || firstContentLine.includes('## ')) {
+        fileName = 'README.md';
+      } else if (firstContentLine.includes('<!DOCTYPE') || firstContentLine.includes('<html')) {
+        fileName = 'index.html';
+      } else if (firstContentLine.includes('package.json') || firstContentLine.includes('"name"')) {
+        fileName = 'package.json';
+      }
+      // Add more patterns as needed
+    }
+    
+    return formatFileContentForDisplay(actualContent, fileName || 'File');
+  } else {
+    // Generic tool result - just clean up the display
+    return `
+      <div class="tool-result-generic">
+        <div class="tool-result-header">
+          <div class="header-left">
+            <span class="result-icon">🔧</span>
+            <span class="result-title">Tool Result</span>
+          </div>
+        </div>
+        <div class="tool-result-content">
+          <pre class="result-text">${escapeHtml(actualContent)}</pre>
+        </div>
+      </div>
+    `;
+  }
+}
+
+/**
+ * Formats file content with proper line numbers and syntax highlighting
+ */
+function formatFileContentForDisplay(content, fileName) {
+  const lines = content.split('\n');
+  const language = getLanguageFromFileName(fileName) || 'text';
+  
+  // Process lines to remove the "N→" prefixes and create proper line numbers
+  let processedLines = [];
+  let lineNumber = 1;
+  
+  for (const line of lines) {
+    if (line.includes('→')) {
+      // Extract content after the arrow
+      const parts = line.split('→');
+      if (parts.length > 1) {
+        processedLines.push(parts.slice(1).join('→')); // Handle multiple arrows
+      } else {
+        processedLines.push('');
+      }
+    } else {
+      processedLines.push(line);
+    }
+  }
+  
+  // Create the formatted display
+  const editorContent = processedLines.map((line, index) => {
+    const lineNum = index + 1;
+    return `
+      <div class="editor-line">
+        <span class="line-number">${lineNum}</span>
+        <span class="line-content">${escapeHtml(line)}</span>
+      </div>
+    `;
+  }).join('');
+  
+  return `
+    <div class="tool-result-editor">
+      <div class="tool-result-header">
+        <div class="header-left">
+          <span class="result-icon">📖</span>
+          <span class="result-title">Read</span>
+          <span class="file-name">${escapeHtml(fileName)}</span>
+        </div>
+        <div class="header-right">
+          <span class="language-badge">${language}</span>
+          <span class="tool-id">tool</span>
+        </div>
+      </div>
+      <div class="tool-result-editor-content">
+        ${editorContent}
+      </div>
+      <div class="editor-footer">
+        <span class="line-count">${processedLines.length} lines</span>
+        <span class="language-badge">${language}</span>
+      </div>
+    </div>
+  `;
 }

@@ -215,13 +215,13 @@ class ClaudeCodeUI {
           
         case 'directModeResponse':
           handleDirectModeResponse(
-            message.type, 
-            message.content, 
-            message.timestamp, 
-            message.subtype, 
-            message.metadata, 
-            message.displayName, 
-            message.isUpdate
+            message.response.type, 
+            message.response.content, 
+            message.response.timestamp, 
+            message.response.subtype, 
+            message.response.metadata, 
+            message.response.displayName, 
+            message.response.isUpdate
           );
           break;
           
