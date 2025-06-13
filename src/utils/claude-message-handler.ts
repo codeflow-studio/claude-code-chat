@@ -509,7 +509,7 @@ export class ClaudeMessageHandler {
       'Grep': '🔍',
       'Glob': '📁',
       'LS': '📋',
-      'Task': '⚡'
+      'Task': '🎯'  // Changed to target icon for better Task representation
     };
     
     return icons[toolName] || '🔧';
@@ -528,7 +528,7 @@ export class ClaudeMessageHandler {
       'Grep': '🔍',
       'Glob': '📁',
       'LS': '📋',
-      'Task': '✨'
+      'Task': '🎯✅'  // Combined target and checkmark for completed Task
     };
     
     return toolName ? icons[toolName] || '📊' : '📊';
@@ -536,6 +536,7 @@ export class ClaudeMessageHandler {
 
   /**
    * Process assistant message for tool calls and start tracking them
+   * Enhanced to handle Task workflows with parent-child relationships
    */
   private static processAssistantToolCalls(message: AssistantMessage): ToolExecutionContext | undefined {
     if (!message.message?.content || typeof message.message.content === 'string') {
@@ -547,19 +548,52 @@ export class ClaudeMessageHandler {
       return undefined;
     }
 
-    // Start a new execution group for this set of tool calls
-    const groupId = this.pendingToolsManager.startExecutionGroup();
+    // Check if this is the start of a new workflow by looking for tools without parent_tool_use_id
+    const independentTools = toolUseItems.filter(tool => !tool.parent_tool_use_id && !message.parent_tool_use_id);
+    
+    // If we have independent tools, check for Task completion first
+    if (independentTools.length > 0) {
+      const completedTasks = this.pendingToolsManager.checkTaskCompletion(independentTools[0]);
+      if (completedTasks.length > 0) {
+        console.log(`Detected completion of ${completedTasks.length} Task(s)`);
+      }
+    }
+
+    let groupId: string;
+
+    // Check if this is a Task tool or sub-tools of an existing Task
+    const taskTool = toolUseItems.find(tool => tool.name === 'Task');
+    if (taskTool) {
+      // This is a Task tool - it will create its own execution group
+      groupId = '';  // Will be set by addTaskExecution
+    } else if (message.parent_tool_use_id) {
+      // These are sub-tools of a Task - don't create a new group
+      // The Task's group should already exist
+      const taskExecution = this.pendingToolsManager.getTaskExecution(message.parent_tool_use_id);
+      if (taskExecution) {
+        // Use the existing Task's group
+        groupId = ''; // Will be handled by Task group
+      } else {
+        // Fallback: create a new group for non-Task parent tools
+        groupId = this.pendingToolsManager.startExecutionGroup();
+      }
+    } else {
+      // Regular independent tools - create a new group
+      groupId = this.pendingToolsManager.startExecutionGroup();
+    }
 
     // Add all tool_use items to pending executions
     toolUseItems.forEach(toolUse => {
       try {
-        this.pendingToolsManager.addToolExecution(toolUse);
+        // Pass the parent_tool_use_id from the message or the tool itself
+        const parentId = message.parent_tool_use_id || toolUse.parent_tool_use_id;
+        this.pendingToolsManager.addToolExecution(toolUse, parentId);
       } catch (error) {
         console.warn('Failed to add tool execution:', error);
       }
     });
 
-    return this.pendingToolsManager.createExecutionContext(groupId);
+    return this.pendingToolsManager.createExecutionContext(groupId || undefined);
   }
 
   /**

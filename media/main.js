@@ -660,10 +660,12 @@ function addMessage(role, content) {
   }
   senderElement.appendChild(avatar);
   
-  // Add sender name
-  const senderName = document.createElement('span');
-  senderName.textContent = role === 'assistant' ? 'Claude' : 'You';
-  senderElement.appendChild(senderName);
+  // Add sender name (only for user messages)
+  if (role !== 'assistant') {
+    const senderName = document.createElement('span');
+    senderName.textContent = 'You';
+    senderElement.appendChild(senderName);
+  }
   
   messageGroup.appendChild(senderElement);
   

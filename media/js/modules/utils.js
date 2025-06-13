@@ -119,7 +119,7 @@ export function getToolIcon(toolName) {
     'Glob': '🔍',
     'Grep': '🔎',
     'LS': '📂',
-    'Task': '📋',
+    'Task': '🎯',
     'NotebookRead': '📓',
     'NotebookEdit': '📓',
     'WebFetch': '🌐',
@@ -151,7 +151,7 @@ export function getToolDescription(toolName) {
     'Glob': 'Find files',
     'Grep': 'Search content',
     'LS': 'List directory',
-    'Task': 'Execute task',
+    'Task': 'Run complex task',
     'NotebookRead': 'Read notebook',
     'NotebookEdit': 'Edit notebook',
     'WebFetch': 'Fetch web content',
@@ -183,7 +183,7 @@ export function getToolResultIcon(toolName) {
     'Glob': '📁',
     'Grep': '📊',
     'LS': '📋',
-    'Task': '✅',
+    'Task': '🎯✅',
     'NotebookRead': '📄',
     'NotebookEdit': '💾',
     'WebFetch': '📄',
@@ -245,10 +245,102 @@ export function extractFileNameFromResult(content, toolUseId) {
 }
 
 // UI Helper Functions
-export function isUserNearBottom(container, threshold = 100) {
+export function isUserNearBottom(container, threshold = 150) {
   if (!container) return true;
-  return container.scrollHeight - container.scrollTop - container.clientHeight <= threshold;
+  
+  const scrollTop = container.scrollTop;
+  const scrollHeight = container.scrollHeight;
+  const clientHeight = container.clientHeight;
+  const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+  
+  // Debug logging (remove in production)
+  console.log('Scroll check:', {
+    scrollTop,
+    scrollHeight,
+    clientHeight,
+    distanceFromBottom,
+    threshold,
+    isNearBottom: distanceFromBottom <= threshold
+  });
+  
+  return distanceFromBottom <= threshold;
 }
+
+/**
+ * Smart scroll behavior - auto-scroll only when user was at bottom
+ * Show new message indicator when user has scrolled up
+ */
+export function handleSmartScroll(container, wasAtBottom) {
+  if (!container) return;
+  
+  console.log('handleSmartScroll:', { wasAtBottom });
+  
+  if (wasAtBottom) {
+    // User was at bottom, auto-scroll to new content
+    // Use requestAnimationFrame to ensure DOM is updated first
+    requestAnimationFrame(() => {
+      container.scrollTop = container.scrollHeight;
+      console.log('Auto-scrolled to bottom');
+    });
+    // Hide new message indicator since we're scrolling
+    hideNewMessageIndicator();
+  } else {
+    // User was scrolled up, show new message indicator
+    console.log('User was scrolled up, showing indicator');
+    showNewMessageIndicator(container);
+  }
+}
+
+/**
+ * Show new message indicator
+ */
+export function showNewMessageIndicator(container) {
+  if (!container) return;
+  
+  let indicator = document.getElementById('newMessageIndicator');
+  if (!indicator) {
+    // Create new message indicator
+    indicator = document.createElement('div');
+    indicator.id = 'newMessageIndicator';
+    indicator.className = 'new-message-indicator';
+    indicator.innerHTML = `
+      <button class="new-message-btn" onclick="scrollToBottomAndHide()">
+        <span class="indicator-icon">↓</span>
+        <span class="indicator-text">New message</span>
+      </button>
+    `;
+    
+    // Add to the container's parent so it floats over the messages
+    const parent = container.parentElement;
+    if (parent) {
+      parent.appendChild(indicator);
+    }
+  }
+  
+  // Show the indicator
+  indicator.style.display = 'block';
+}
+
+/**
+ * Hide new message indicator
+ */
+export function hideNewMessageIndicator() {
+  const indicator = document.getElementById('newMessageIndicator');
+  if (indicator) {
+    indicator.style.display = 'none';
+  }
+}
+
+/**
+ * Scroll to bottom and hide indicator (called by clicking the indicator)
+ */
+window.scrollToBottomAndHide = function() {
+  const directModeMessages = document.getElementById('directModeMessages');
+  if (directModeMessages) {
+    directModeMessages.scrollTop = directModeMessages.scrollHeight;
+  }
+  hideNewMessageIndicator();
+};
 
 export function insertDroppedPaths(paths, messageInputElement) {
   if (!messageInputElement || !paths || paths.length === 0) return;

@@ -17,7 +17,7 @@
   --claude-bg: #1E1E1E;
   --claude-input-bg: #2D2D2D;
   --claude-message-bg: transparent;
-  --claude-user-message-bg: transparent;
+  --claude-user-message-bg: rgba(255, 255, 255, 0.03);
   --claude-border: #3E3E3E;
   --claude-active: #5A32FB;
   --claude-input-focus: #5A32FB;

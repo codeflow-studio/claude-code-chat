@@ -24,6 +24,7 @@ export interface MessageContent {
   content?: string; // for tool_result
   thinking?: string; // for thinking
   signature?: string; // for thinking (verification signature)
+  parent_tool_use_id?: string; // for hierarchical tools (Task workflows)
 }
 
 // MCP Server info for system messages
@@ -49,6 +50,21 @@ export interface ToolExecution {
   result?: MessageContent;
   timestamp: string;
   executionOrder: number;
+  parentToolUseId?: string; // For hierarchical tools (Task workflows)
+}
+
+// Task execution for hierarchical workflows
+export interface TaskExecution {
+  id: string;
+  name: 'Task';
+  input?: any;
+  status: 'pending' | 'running' | 'completed' | 'error';
+  result?: MessageContent;
+  timestamp: string;
+  executionOrder: number;
+  subTools: ToolExecution[];
+  isComplete: boolean;
+  completionDetectedAt?: string;
 }
 
 // Tool execution group for related parallel operations
@@ -58,6 +74,8 @@ export interface ToolExecutionGroup {
   startTime: string;
   endTime?: string;
   isComplete: boolean;
+  taskExecution?: TaskExecution; // Optional Task that owns this group
+  isTaskGroup?: boolean; // Flag to indicate this is a Task workflow group
 }
 
 // Enhanced DirectModeResponse with tool execution context
@@ -67,6 +85,8 @@ export interface ToolExecutionContext {
   hasPendingTools?: boolean;
   completedToolCount?: number;
   totalToolCount?: number;
+  taskExecution?: TaskExecution; // Optional Task context
+  isTaskWorkflow?: boolean; // Flag to indicate this is part of a Task workflow
 }
 
 // Result message (final responses)
@@ -100,6 +120,7 @@ export interface AssistantMessage extends BaseClaudeMessage {
     usage?: UsageStats;
   };
   session_id?: string;
+  parent_tool_use_id?: string; // For hierarchical tools (Task workflows)
 }
 
 // User message (tool results and user content)
@@ -109,6 +130,7 @@ export interface UserMessage extends BaseClaudeMessage {
     content: MessageContent[];
   };
   session_id?: string;
+  parent_tool_use_id?: string; // For hierarchical tools (Task workflows)
 }
 
 // Error message

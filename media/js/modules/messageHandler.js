@@ -11,7 +11,9 @@ import {
   extractToolNameFromResult, 
   extractFileNameFromResult,
   formatTime,
-  isUserNearBottom
+  isUserNearBottom,
+  handleSmartScroll,
+  hideNewMessageIndicator
 } from './utils.js';
 
 // Enhanced tool execution tracking for parallel tool calls
@@ -68,13 +70,13 @@ export function createMessage(type, content, timestamp, subtype, metadata, displ
       if (metadata?.usage) {
         const usage = metadata.usage;
         if (usage.input_tokens || usage.output_tokens) {
-          usageInfo = ` <span class="usage-info">(${usage.input_tokens || 0}→${usage.output_tokens || 0} tokens)</span>`;
+          usageInfo = `<span class="usage-info">Input: ${usage.input_tokens || 0} • Output: ${usage.output_tokens || 0}</span>`;
         }
       }
       
       messageHTML = `
         <div class="message-header">
-          <span class="message-sender assistant-sender">Claude${usageInfo}</span>
+          ${usageInfo ? `<span class="message-sender assistant-sender">${usageInfo}</span>` : ''}
           <span class="message-time">${time}</span>
         </div>
         <div class="message-content assistant-content">${formatAssistantContent(assistantContent, metadata)}</div>
@@ -144,6 +146,10 @@ export function addDirectModeMessage(type, content, timestamp, subtype, metadata
   const directModeMessages = document.getElementById('directModeMessages');
   if (!directModeMessages) return;
   
+  // Check if user is at bottom before adding message
+  const wasAtBottom = isUserNearBottom(directModeMessages);
+  console.log('Adding Direct Mode message:', { type, wasAtBottom });
+  
   // Remove placeholder message if it exists
   const placeholder = directModeMessages.querySelector('.placeholder-message');
   if (placeholder) {
@@ -163,10 +169,8 @@ export function addDirectModeMessage(type, content, timestamp, subtype, metadata
       const lastAssistantMessage = assistantMessages[assistantMessages.length - 1];
       updateMessageToResult(lastAssistantMessage, content, timestamp, metadata);
       
-      // Auto-scroll to bottom only if user is near bottom
-      if (isUserNearBottom(directModeMessages)) {
-        directModeMessages.scrollTop = directModeMessages.scrollHeight;
-      }
+      // Smart auto-scroll behavior for updates
+      handleSmartScroll(directModeMessages, wasAtBottom);
       return;
     }
   }
@@ -177,12 +181,14 @@ export function addDirectModeMessage(type, content, timestamp, subtype, metadata
   
   // Set message content
   messageElement.innerHTML = createMessage(type, content, timestamp, subtype, metadata, displayName);
+  
+  // Attach event listeners for any interactive elements
+  attachGeneralEventListeners(messageElement);
+  
   directModeMessages.appendChild(messageElement);
   
-  // Auto-scroll to bottom only if user is near bottom
-  if (isUserNearBottom(directModeMessages)) {
-    directModeMessages.scrollTop = directModeMessages.scrollHeight;
-  }
+  // Smart auto-scroll behavior
+  handleSmartScroll(directModeMessages, wasAtBottom);
 }
 
 /**
@@ -559,10 +565,10 @@ export function formatFileContentResult(content, toolName, resultIcon, fileName,
         </div>
         <div class="header-right">
           ${toolUseId ? `<span class="tool-id">${toolUseId.slice(-8)}</span>` : ''}
-          <button class="copy-btn" onclick="copyToolResult(this)" title="Copy content">
+          <button class="copy-btn" data-copy-result="true" title="Copy content">
             <span class="copy-icon">📋</span>
           </button>
-          ${hasLineNumbers ? `<button class="expand-btn" onclick="toggleExpand(this)" title="Expand/Collapse">
+          ${hasLineNumbers ? `<button class="expand-btn" data-toggle-expand="true" title="Expand/Collapse">
             <span class="expand-icon">⛶</span>
           </button>` : ''}
         </div>
@@ -591,7 +597,7 @@ export function formatGenericToolResult(content, toolName, resultIcon, toolUseId
         </div>
         <div class="header-right">
           ${toolUseId ? `<span class="tool-id">${toolUseId.slice(-8)}</span>` : ''}
-          <button class="copy-btn" onclick="copyToolResult(this)" title="Copy content">
+          <button class="copy-btn" data-copy-result="true" title="Copy content">
             <span class="copy-icon">📋</span>
           </button>
         </div>
@@ -760,9 +766,10 @@ function formatFileContentForDisplay(content, fileName) {
 
 /**
  * Handle tool execution context for enhanced parallel tool display
+ * Enhanced to handle Task workflows with hierarchical display
  */
 export function handleToolExecutionContext(directModeMessages, type, toolExecutionContext, content, timestamp, subtype, metadata, displayName) {
-  const { toolExecutions, executionGroup } = toolExecutionContext;
+  const { toolExecutions, executionGroup, taskExecution, isTaskWorkflow } = toolExecutionContext;
   
   if (!toolExecutions || toolExecutions.length === 0) {
     // Fallback to normal message display
@@ -774,17 +781,25 @@ export function handleToolExecutionContext(directModeMessages, type, toolExecuti
   }
   
   if (type === 'assistant' && executionGroup) {
-    // Create or update tool execution group display
-    createOrUpdateToolExecutionGroup(directModeMessages, executionGroup, content, timestamp, metadata);
+    if (isTaskWorkflow) {
+      // Handle Task workflow display
+      createOrUpdateTaskWorkflowGroup(directModeMessages, executionGroup, taskExecution, content, timestamp, metadata);
+    } else {
+      // Handle regular tool execution group display
+      createOrUpdateToolExecutionGroup(directModeMessages, executionGroup, content, timestamp, metadata);
+    }
   } else if (type === 'user') {
     // Update existing tool execution group with results
-    updateToolExecutionGroupWithResults(directModeMessages, toolExecutions);
+    if (isTaskWorkflow) {
+      updateTaskWorkflowGroupWithResults(directModeMessages, toolExecutions, taskExecution);
+    } else {
+      updateToolExecutionGroupWithResults(directModeMessages, toolExecutions);
+    }
   }
   
-  // Auto-scroll to bottom only if user is near bottom
-  if (isUserNearBottom(directModeMessages)) {
-    directModeMessages.scrollTop = directModeMessages.scrollHeight;
-  }
+  // Smart auto-scroll behavior for tool execution context
+  const wasAtBottom = isUserNearBottom(directModeMessages);
+  handleSmartScroll(directModeMessages, wasAtBottom);
 }
 
 /**
@@ -808,13 +823,13 @@ export function createOrUpdateToolExecutionGroup(directModeMessages, executionGr
     if (metadata?.usage) {
       const usage = metadata.usage;
       if (usage.input_tokens || usage.output_tokens) {
-        usageInfo = ` <span class="usage-info">(${usage.input_tokens || 0}→${usage.output_tokens || 0} tokens)</span>`;
+        usageInfo = `<span class="usage-info">Input: ${usage.input_tokens || 0} • Output: ${usage.output_tokens || 0}</span>`;
       }
     }
     
     const groupHeader = `
       <div class="message-header">
-        <span class="message-sender assistant-sender">Claude${usageInfo}</span>
+        ${usageInfo ? `<span class="message-sender assistant-sender">${usageInfo}</span>` : ''}
         <span class="message-time">${time}</span>
         <span class="tool-execution-status">${executionGroup.executions.length} tools</span>
       </div>
@@ -930,7 +945,7 @@ export function formatSingleToolExecution(execution) {
   
   return `
     <div class="tool-execution-item ${statusClass}" data-tool-id="${execution.id}" data-tool-type="${execution.name}">
-      <div class="tool-execution-header" onclick="toggleToolResult('${execution.id}')">
+      <div class="tool-execution-header" data-toggle-tool="${execution.id}">
         <div class="tool-info">
           <span class="tool-icon">${toolIcon}</span>
           <span class="tool-name">${execution.name}</span>
@@ -940,7 +955,7 @@ export function formatSingleToolExecution(execution) {
         <div class="tool-status">
           <span class="status-icon">${statusIcon}</span>
           <div class="tool-actions">
-            ${execution.status === 'completed' ? `<button class="tool-action-btn" onclick="copyToolResult(event, '${execution.id}')" title="Copy">📋</button>` : ''}
+            ${execution.status === 'completed' ? `<button class="tool-action-btn" data-copy-tool="${execution.id}" title="Copy">📋</button>` : ''}
             ${execution.result ? `<span class="expand-indicator">▶</span>` : ''}
           </div>
         </div>
@@ -979,7 +994,7 @@ export function updateToolExecutionElement(toolElement, execution) {
     const toolActions = toolElement.querySelector('.tool-actions');
     if (toolActions && !toolActions.querySelector('.tool-action-btn')) {
       toolActions.insertAdjacentHTML('afterbegin', `
-        <button class="tool-action-btn" onclick="copyToolResult(event, '${execution.id}')" title="Copy">📋</button>
+        <button class="tool-action-btn" data-copy-tool="${execution.id}" title="Copy">📋</button>
         <span class="expand-indicator">▶</span>
       `);
     }
@@ -1098,3 +1113,426 @@ window.toggleExpand = function(button) {
     }
   }
 };
+
+/**
+ * Create or update a Task workflow group display
+ */
+export function createOrUpdateTaskWorkflowGroup(directModeMessages, executionGroup, taskExecution, content, timestamp, metadata) {
+  const groupId = executionGroup.id;
+  const time = formatTime(timestamp);
+  
+  // Check if group already exists
+  let groupElement = directModeMessages.querySelector(`[data-execution-group-id="${groupId}"]`);
+  
+  if (!groupElement) {
+    // Create new Task workflow group element
+    groupElement = document.createElement('div');
+    groupElement.className = 'direct-mode-message assistant-message task-workflow-group';
+    groupElement.setAttribute('data-execution-group-id', groupId);
+    groupElement.setAttribute('data-task-id', taskExecution?.id || '');
+    
+    // Create Task workflow header
+    let usageInfo = '';
+    if (metadata?.usage) {
+      const usage = metadata.usage;
+      if (usage.input_tokens || usage.output_tokens) {
+        usageInfo = `<span class="usage-info">Input: ${usage.input_tokens || 0} • Output: ${usage.output_tokens || 0}</span>`;
+      }
+    }
+    
+    const taskIcon = getToolIcon('Task');
+    const taskStatus = taskExecution ? getTaskStatusIcon(taskExecution.status) : '⏳';
+    const taskDescription = taskExecution?.input?.description || 'Complex task';
+    
+    const groupHeader = `
+      <div class="message-header">
+        ${usageInfo ? `<span class="message-sender assistant-sender">${usageInfo}</span>` : ''}
+        <span class="message-time">${time}</span>
+      </div>
+      <div class="task-workflow-header" data-toggle-task="${groupId}">
+        <div class="task-info">
+          <span class="task-icon">${taskIcon}</span>
+          <span class="task-title">${escapeHtml(taskDescription)}</span>
+          <span class="task-status">${taskStatus}</span>
+        </div>
+        <div class="task-controls">
+          <span class="sub-tool-count">${executionGroup.executions.filter(e => e.name !== 'Task').length} sub-tools</span>
+          <span class="expand-indicator">▼</span>
+        </div>
+      </div>
+    `;
+    
+    // Create content area with task description and sub-tools container
+    // For Task workflows, skip the regular assistant content to avoid duplicate tool displays
+    const groupContent = `
+      <div class="message-content assistant-content">
+        <div class="task-sub-tools-container" data-group-id="${groupId}">
+          ${formatTaskSubTools(executionGroup.executions, taskExecution)}
+        </div>
+      </div>
+    `;
+    
+    groupElement.innerHTML = groupHeader + groupContent;
+    
+    // Add event listeners after creating the HTML
+    attachTaskWorkflowEventListeners(groupElement);
+    
+    directModeMessages.appendChild(groupElement);
+  } else {
+    // Update existing Task workflow group
+    const container = groupElement.querySelector('.task-sub-tools-container');
+    if (container) {
+      container.innerHTML = formatTaskSubTools(executionGroup.executions, taskExecution);
+      // Re-attach event listeners for the updated content
+      attachTaskWorkflowEventListeners(groupElement);
+    }
+    
+    // Update task status and sub-tool count
+    updateTaskWorkflowStatus(groupElement, executionGroup, taskExecution);
+  }
+}
+
+/**
+ * Update Task workflow group with results
+ */
+export function updateTaskWorkflowGroupWithResults(directModeMessages, toolExecutions, taskExecution) {
+  // Find the Task workflow group that contains these tool executions
+  const taskGroups = directModeMessages.querySelectorAll('.task-workflow-group');
+  
+  taskGroups.forEach(groupElement => {
+    const container = groupElement.querySelector('.task-sub-tools-container');
+    if (container) {
+      let updated = false;
+      
+      toolExecutions.forEach(execution => {
+        const toolElement = container.querySelector(`[data-tool-id="${execution.id}"]`);
+        if (toolElement) {
+          // Update the tool element with result
+          updateToolExecutionElement(toolElement, execution);
+          updated = true;
+        }
+      });
+      
+      if (updated) {
+        // Update Task workflow status
+        const groupId = groupElement.getAttribute('data-execution-group-id');
+        const mockExecutionGroup = {
+          executions: Array.from(container.querySelectorAll('[data-tool-id]')).map(el => ({
+            id: el.getAttribute('data-tool-id'),
+            status: el.classList.contains('tool-completed') ? 'completed' : 
+                   el.classList.contains('tool-error') ? 'error' : 'pending'
+          }))
+        };
+        updateTaskWorkflowStatus(groupElement, mockExecutionGroup, taskExecution);
+      }
+    }
+  });
+}
+
+/**
+ * Format Task sub-tools in a hierarchical display
+ */
+export function formatTaskSubTools(executions, taskExecution) {
+  if (!executions || executions.length === 0) {
+    return '<div class="task-no-subtools">No sub-tools yet</div>';
+  }
+  
+  // Separate the Task tool from sub-tools
+  const taskTool = executions.find(e => e.name === 'Task');
+  const subTools = executions.filter(e => e.name !== 'Task');
+  
+  let html = '';
+  
+  // Show Task tool if present
+  if (taskTool) {
+    html += `
+      <div class="task-main-tool">
+        ${formatSingleTaskTool(taskTool, taskExecution)}
+      </div>
+    `;
+  }
+  
+  // Show sub-tools with smart grouping
+  if (subTools.length > 0) {
+    // Separate running/pending from completed sub-tools
+    const activeTool = subTools.filter(t => t.status === 'pending');
+    const completedTools = subTools.filter(t => t.status === 'completed');
+    
+    html += `
+      <div class="task-sub-tools">
+        <div class="sub-tools-header">
+          <span class="sub-tools-label">Sub-tasks:</span>
+        </div>
+        <div class="sub-tools-list">
+    `;
+    
+    // Show active tools individually (always visible)
+    if (activeTool.length > 0) {
+      html += activeTool.map(tool => formatSingleToolExecution(tool)).join('');
+    }
+    
+    // Group completed tools if there are many
+    if (completedTools.length > 0) {
+      if (completedTools.length <= 3) {
+        // Show all completed tools if 3 or fewer
+        html += completedTools.map(tool => formatSingleToolExecution(tool)).join('');
+      } else {
+        // Show first completed tool and group the rest
+        html += formatSingleToolExecution(completedTools[0]);
+        const remainingCount = completedTools.length - 1;
+        html += `
+          <div class="completed-tools-group" data-toggle-completed="true">
+            <div class="completed-tools-summary">
+              <span class="completed-icon">▶</span>
+              <span class="completed-label">${remainingCount} more completed tools</span>
+            </div>
+            <div class="completed-tools-list" style="display: none;">
+              ${completedTools.slice(1).map(tool => formatSingleToolExecution(tool)).join('')}
+            </div>
+          </div>
+        `;
+      }
+    }
+    
+    html += `
+        </div>
+      </div>
+    `;
+  }
+  
+  return html;
+}
+
+/**
+ * Format a single Task tool with enhanced display
+ */
+export function formatSingleTaskTool(execution, taskExecution) {
+  const taskIcon = getToolIcon('Task');
+  const statusClass = `task-${execution.status}`;
+  const statusIcon = getTaskStatusIcon(execution.status);
+  
+  // Get task description from input
+  const taskDescription = execution.input?.description || taskExecution?.input?.description || 'Complex task';
+  
+  return `
+    <div class="task-tool-item ${statusClass}" data-tool-id="${execution.id}">
+      <div class="task-tool-header">
+        <div class="task-tool-info">
+          <span class="tool-icon">${taskIcon}</span>
+          <span class="task-description">${escapeHtml(taskDescription)}</span>
+        </div>
+        <div class="task-tool-status">
+          <span class="status-icon">${statusIcon}</span>
+        </div>
+      </div>
+      ${execution.result ? `
+        <div class="task-tool-result">
+          ${formatToolResult(execution.result)}
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+/**
+ * Get Task status icon
+ */
+function getTaskStatusIcon(status) {
+  const icons = {
+    'pending': '⏳',
+    'running': '🔄',
+    'completed': '✅',
+    'error': '❌'
+  };
+  return icons[status] || '⏳';
+}
+
+/**
+ * Update Task workflow status display
+ */
+function updateTaskWorkflowStatus(groupElement, executionGroup, taskExecution) {
+  const taskStatusElement = groupElement.querySelector('.task-status');
+  const subToolCountElement = groupElement.querySelector('.sub-tool-count');
+  
+  if (taskStatusElement && taskExecution) {
+    taskStatusElement.textContent = getTaskStatusIcon(taskExecution.status);
+  }
+  
+  if (subToolCountElement && executionGroup) {
+    // Only count sub-tools (exclude the Task tool itself)
+    const subTools = executionGroup.executions.filter(e => e.name !== 'Task');
+    const completedCount = subTools.filter(e => e.status === 'completed').length;
+    const totalCount = subTools.length;
+    const isRunning = subTools.some(e => e.status === 'pending');
+    
+    subToolCountElement.textContent = `${completedCount}/${totalCount} sub-tools${isRunning ? ' (running...)' : ' (complete)'}`;
+  }
+}
+
+/**
+ * Attach general event listeners to message elements
+ */
+function attachGeneralEventListeners(messageElement) {
+  // Copy result buttons
+  const copyButtons = messageElement.querySelectorAll('[data-copy-result]');
+  copyButtons.forEach(button => {
+    button.removeEventListener('click', handleCopyResult);
+    button.addEventListener('click', handleCopyResult);
+  });
+  
+  // Expand/collapse buttons for tool results
+  const expandButtons = messageElement.querySelectorAll('[data-toggle-expand]');
+  expandButtons.forEach(button => {
+    button.removeEventListener('click', handleExpandToggle);
+    button.addEventListener('click', handleExpandToggle);
+  });
+}
+
+/**
+ * Attach event listeners to Task workflow elements
+ */
+function attachTaskWorkflowEventListeners(groupElement) {
+  // Task workflow header toggle
+  const taskHeader = groupElement.querySelector('[data-toggle-task]');
+  if (taskHeader) {
+    // Remove existing listeners to avoid duplicates
+    taskHeader.removeEventListener('click', handleTaskWorkflowToggle);
+    taskHeader.addEventListener('click', handleTaskWorkflowToggle);
+  }
+  
+  // Completed tools group toggles
+  const completedGroups = groupElement.querySelectorAll('[data-toggle-completed]');
+  completedGroups.forEach(group => {
+    // Remove existing listeners to avoid duplicates
+    group.removeEventListener('click', handleCompletedToolsToggle);
+    group.addEventListener('click', handleCompletedToolsToggle);
+  });
+  
+  // Tool execution header toggles
+  const toolHeaders = groupElement.querySelectorAll('[data-toggle-tool]');
+  toolHeaders.forEach(header => {
+    header.removeEventListener('click', handleToolToggle);
+    header.addEventListener('click', handleToolToggle);
+  });
+  
+  // Tool copy buttons
+  const copyButtons = groupElement.querySelectorAll('[data-copy-tool]');
+  copyButtons.forEach(button => {
+    button.removeEventListener('click', handleToolCopy);
+    button.addEventListener('click', handleToolCopy);
+  });
+}
+
+/**
+ * Handle Task workflow toggle
+ */
+function handleTaskWorkflowToggle(event) {
+  const groupElement = event.currentTarget.closest('[data-execution-group-id]');
+  if (groupElement) {
+    groupElement.classList.toggle('collapsed');
+    
+    const expandIndicator = groupElement.querySelector('.expand-indicator');
+    if (expandIndicator) {
+      expandIndicator.textContent = groupElement.classList.contains('collapsed') ? '▶' : '▼';
+    }
+  }
+}
+
+/**
+ * Handle completed tools group toggle
+ */
+function handleCompletedToolsToggle(event) {
+  event.stopPropagation(); // Prevent triggering parent handlers
+  
+  const groupElement = event.currentTarget;
+  const completedList = groupElement.querySelector('.completed-tools-list');
+  const expandIcon = groupElement.querySelector('.completed-icon');
+  
+  if (completedList && expandIcon) {
+    const isVisible = completedList.style.display !== 'none';
+    completedList.style.display = isVisible ? 'none' : 'block';
+    expandIcon.textContent = isVisible ? '▶' : '▼';
+  }
+}
+
+/**
+ * Handle tool execution toggle
+ */
+function handleToolToggle(event) {
+  const toolId = event.currentTarget.getAttribute('data-toggle-tool');
+  const toolElement = document.querySelector(`[data-tool-id="${toolId}"]`);
+  if (toolElement) {
+    toolElement.classList.toggle('expanded');
+    
+    const expandIndicator = toolElement.querySelector('.expand-indicator');
+    if (expandIndicator) {
+      expandIndicator.textContent = toolElement.classList.contains('expanded') ? '▼' : '▶';
+    }
+  }
+}
+
+/**
+ * Handle tool copy action
+ */
+function handleToolCopy(event) {
+  event.stopPropagation(); // Prevent triggering parent handlers
+  
+  const toolId = event.currentTarget.getAttribute('data-copy-tool');
+  const toolElement = document.querySelector(`[data-tool-id="${toolId}"]`);
+  if (toolElement) {
+    const resultContainer = toolElement.querySelector('.tool-result-content .tool-result-editor-content, .tool-result-content .result-text');
+    if (resultContainer) {
+      navigator.clipboard.writeText(resultContainer.textContent).then(() => {
+        const copyBtn = event.currentTarget;
+        const originalText = copyBtn.textContent;
+        copyBtn.textContent = '✓';
+        setTimeout(() => {
+          copyBtn.textContent = originalText;
+        }, 1000);
+      }).catch(() => {
+        console.warn('Failed to copy tool result');
+      });
+    }
+  }
+}
+
+/**
+ * Handle copy result action (for tool result displays)
+ */
+function handleCopyResult(event) {
+  event.stopPropagation();
+  
+  const button = event.currentTarget;
+  const resultContainer = button.closest('.tool-result-editor, .tool-result-generic');
+  if (resultContainer) {
+    const contentElement = resultContainer.querySelector('.tool-result-editor-content, .result-text');
+    if (contentElement) {
+      navigator.clipboard.writeText(contentElement.textContent).then(() => {
+        const originalIcon = button.querySelector('.copy-icon').textContent;
+        button.querySelector('.copy-icon').textContent = '✓';
+        setTimeout(() => {
+          button.querySelector('.copy-icon').textContent = originalIcon;
+        }, 1000);
+      }).catch(() => {
+        console.warn('Failed to copy result');
+      });
+    }
+  }
+}
+
+/**
+ * Handle expand/collapse toggle for tool results
+ */
+function handleExpandToggle(event) {
+  event.stopPropagation();
+  
+  const button = event.currentTarget;
+  const resultContainer = button.closest('.tool-result-editor');
+  if (resultContainer) {
+    resultContainer.classList.toggle('expanded');
+    const expandIcon = button.querySelector('.expand-icon');
+    if (expandIcon) {
+      expandIcon.textContent = resultContainer.classList.contains('expanded') ? '⛝' : '⛶';
+    }
+  }
+}

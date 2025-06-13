@@ -4,7 +4,7 @@
  */
 
 import { addDirectModeMessage, updateMessageToResult } from './messageHandler.js';
-import { isUserNearBottom } from './utils.js';
+import { isUserNearBottom, hideNewMessageIndicator } from './utils.js';
 
 // Mode state
 let isDirectMode = false;
@@ -67,6 +67,23 @@ function setupEventListeners() {
   document.addEventListener('updateLoadingIndicator', (e) => {
     updateLoadingIndicator(e.detail.isRunning);
   });
+
+  // Add scroll listener for Direct Mode messages container
+  const directModeMessages = document.getElementById('directModeMessages');
+  if (directModeMessages) {
+    let scrollTimeout;
+    directModeMessages.addEventListener('scroll', () => {
+      // Debounce scroll events to avoid conflicts with auto-scroll
+      clearTimeout(scrollTimeout);
+      scrollTimeout = setTimeout(() => {
+        // Hide new message indicator when user manually scrolls to bottom
+        if (isUserNearBottom(directModeMessages)) {
+          console.log('User manually scrolled to bottom, hiding indicator');
+          hideNewMessageIndicator();
+        }
+      }, 100);
+    });
+  }
 }
 
 /**
