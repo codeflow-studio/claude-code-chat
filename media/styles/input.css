@@ -60,6 +60,22 @@
   transition: all 0.2s ease;
 }
 
+.drag-hint {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--claude-primary);
+  color: white;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  pointer-events: none;
+  z-index: 10;
+  box-shadow: 0 4px 12px rgba(90, 50, 251, 0.3);
+}
+
 textarea {
   flex: 1;
   background-color: transparent;

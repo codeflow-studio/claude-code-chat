@@ -742,6 +742,9 @@ export class WebviewTemplateGenerator {
                   </svg>
                 </button>
               </div>
+              <div class="drag-hint" style="display: none;">
+                Drop files here to add them to your message
+              </div>
             </div>
             <div class="input-bottom-actions">
               <button id="contextButton" title="Add Context (@)" class="context-button">

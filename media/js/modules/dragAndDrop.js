@@ -35,8 +35,11 @@ function setupEventListeners() {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'copy';
     
-    // Visual feedback
-    messageInputElement.classList.add('drag-over');
+    // Visual feedback - apply to input wrapper
+    const inputWrapper = messageInputElement.closest('.input-wrapper');
+    if (inputWrapper) {
+      inputWrapper.classList.add('drag-over');
+    }
     
     // Show hint about Shift key requirement for VSCode webview drops
     const dragHint = document.querySelector('.drag-hint');
@@ -48,7 +51,12 @@ function setupEventListeners() {
   // Dragleave event
   messageInputElement.addEventListener('dragleave', (e) => {
     e.preventDefault();
-    messageInputElement.classList.remove('drag-over');
+    
+    // Remove visual feedback from input wrapper
+    const inputWrapper = messageInputElement.closest('.input-wrapper');
+    if (inputWrapper) {
+      inputWrapper.classList.remove('drag-over');
+    }
     
     const dragHint = document.querySelector('.drag-hint');
     if (dragHint) {
@@ -68,7 +76,12 @@ function setupEventListeners() {
  */
 function handleDrop(e) {
   e.preventDefault();
-  messageInputElement.classList.remove('drag-over');
+  
+  // Remove visual feedback from input wrapper
+  const inputWrapper = messageInputElement.closest('.input-wrapper');
+  if (inputWrapper) {
+    inputWrapper.classList.remove('drag-over');
+  }
   
   const dragHint = document.querySelector('.drag-hint');
   if (dragHint) {
@@ -77,21 +90,23 @@ function handleDrop(e) {
 
   const dataTransfer = e.dataTransfer;
   if (!dataTransfer) return;
+  
+  console.log('Drop event - data transfer types:', dataTransfer.types);
 
   // Process different types of dropped content
-  const imageUris = [];
-  const fileUris = [];
+  const imageUris = new Set();
+  const fileUris = new Set();
   
-  // Check for VSCode specific formats first
+  // Check for VSCode specific formats first (prioritize this)
   if (dataTransfer.types.includes('resourceurls')) {
     try {
       const resourceData = JSON.parse(dataTransfer.getData('resourceurls'));
       if (Array.isArray(resourceData)) {
         resourceData.forEach(uri => {
           if (isImageFile(uri)) {
-            imageUris.push(uri);
+            imageUris.add(uri);
           } else {
-            fileUris.push(uri);
+            fileUris.add(uri);
           }
         });
       }
@@ -99,48 +114,50 @@ function handleDrop(e) {
       console.warn('Error parsing resourceurls:', error);
     }
   }
-  
-  // Check for other URI list formats
-  const uriListFormats = [
-    'application/vnd.code.uri-list',
-    'text/uri-list'
-  ];
-  
-  for (const format of uriListFormats) {
-    if (dataTransfer.types.includes(format)) {
-      try {
-        const uriList = dataTransfer.getData(format);
-        if (uriList) {
-          const uris = uriList.split('\n').filter(uri => uri.trim() && !uri.startsWith('#'));
-          uris.forEach(uri => {
-            const cleanUri = uri.trim();
-            if (isImageFile(cleanUri)) {
-              imageUris.push(cleanUri);
-            } else {
-              fileUris.push(cleanUri);
-            }
-          });
+  // Only check other formats if resourceurls didn't provide any results
+  else {
+    // Check for other URI list formats
+    const uriListFormats = [
+      'application/vnd.code.uri-list',
+      'text/uri-list'
+    ];
+    
+    for (const format of uriListFormats) {
+      if (dataTransfer.types.includes(format)) {
+        try {
+          const uriList = dataTransfer.getData(format);
+          if (uriList) {
+            const uris = uriList.split('\n').filter(uri => uri.trim() && !uri.startsWith('#'));
+            uris.forEach(uri => {
+              const cleanUri = uri.trim();
+              if (isImageFile(cleanUri)) {
+                imageUris.add(cleanUri);
+              } else {
+                fileUris.add(cleanUri);
+              }
+            });
+          }
+        } catch (error) {
+          console.warn(`Error parsing ${format}:`, error);
         }
-      } catch (error) {
-        console.warn(`Error parsing ${format}:`, error);
+        break; // Use the first available format
       }
-      break; // Use the first available format
     }
   }
   
   // If we found URIs from VSCode/system, send them to extension for resolution
-  if (imageUris.length > 0 || fileUris.length > 0) {
-    if (imageUris.length > 0) {
+  if (imageUris.size > 0 || fileUris.size > 0) {
+    if (imageUris.size > 0) {
       vscode.postMessage({
         command: 'resolveDroppedImages',
-        imageUris: imageUris
+        imageUris: Array.from(imageUris)
       });
     }
     
-    if (fileUris.length > 0) {
+    if (fileUris.size > 0) {
       vscode.postMessage({
         command: 'resolveDroppedPaths',
-        uris: fileUris
+        uris: Array.from(fileUris)
       });
     }
     return;
@@ -326,6 +343,7 @@ export function processImageFilePaths(imagePaths) {
  * Processes resolved file/folder paths from the extension
  */
 export function processResolvedPaths(paths) {
+  console.log('processResolvedPaths called with:', paths);
   if (paths && paths.length > 0) {
     insertDroppedPaths(paths, messageInputElement);
   }

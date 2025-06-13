@@ -345,6 +345,8 @@ window.scrollToBottomAndHide = function() {
 export function insertDroppedPaths(paths, messageInputElement) {
   if (!messageInputElement || !paths || paths.length === 0) return;
   
+  console.log('insertDroppedPaths called with:', paths);
+  
   // Convert paths to @ mentions
   const mentions = paths.map(path => `@${path}`).join(' ');
   

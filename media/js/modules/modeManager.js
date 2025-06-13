@@ -198,11 +198,16 @@ export function getIsProcessRunning() {
  * Updates the loading indicator for Direct Mode
  */
 function updateLoadingIndicator(show) {
+  console.log('updateLoadingIndicator called:', { show, isDirectMode });
+  
   // Only show loading indicator in Direct Mode
   if (!isDirectMode) return;
   
   const directModeMessages = document.getElementById('directModeMessages');
-  if (!directModeMessages) return;
+  if (!directModeMessages) {
+    console.log('directModeMessages element not found');
+    return;
+  }
   
   // Remove existing loading indicator
   const existingIndicator = directModeMessages.querySelector('.loading-indicator');
