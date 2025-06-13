@@ -401,10 +401,8 @@ class ClaudeCodeUI {
       problemIds: problemIds
     });
     
-    // If in Direct Mode, show the user message immediately
-    if (getIsDirectMode()) {
-      handleDirectModeUserMessage(text);
-    }
+    // Don't show user message immediately - let extension echo it back
+    // This prevents duplicate user messages in Direct Mode
   }
 
   /**
