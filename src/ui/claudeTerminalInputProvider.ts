@@ -1422,7 +1422,7 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
       vscode.Uri.joinPath(this._extensionUri, "media", "styles.css")
     );
     const scriptUri = webview.asWebviewUri(
-      vscode.Uri.joinPath(this._extensionUri, "media", "input.js")
+      vscode.Uri.joinPath(this._extensionUri, "media", "js", "main.js")
     );
     const claudeIconPath = webview.asWebviewUri(
       vscode.Uri.joinPath(this._extensionUri, "resources", "claude-icon.svg")
@@ -2148,7 +2148,7 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
             </div>
           </div>
         </div>
-        <script nonce="${nonce}" src="${scriptUri}"></script>
+        <script type="module" nonce="${nonce}" src="${scriptUri}"></script>
       </body>
       </html>
     `;
