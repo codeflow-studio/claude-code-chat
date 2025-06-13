@@ -1,0 +1,226 @@
+/* Component styles */
+.loading {
+  display: flex;
+  align-items: center;
+  padding: 8px 0;
+  margin: 0 0 0 28px;
+}
+
+.loading .dots {
+  display: flex;
+}
+
+.loading .dot {
+  width: 6px;
+  height: 6px;
+  margin: 0 3px;
+  background-color: var(--claude-primary);
+  border-radius: 50%;
+  animation: pulse 1.5s infinite;
+  opacity: 0.7;
+}
+
+.loading .dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.loading .dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(0.7); opacity: 0.5; }
+  50% { transform: scale(1); opacity: 0.9; }
+}
+
+.claude-flower-spinner {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  animation: spin 2s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.loading-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--vscode-foreground);
+  border-radius: 50%;
+  border-top-color: transparent;
+  animation: spin 1s linear infinite;
+  margin-right: 8px;
+}
+
+.claude-flower {
+  color: var(--claude-primary);
+}
+
+.tooltip {
+  position: relative;
+}
+
+.tooltip::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 8px;
+  background-color: var(--vscode-editorHoverWidget-background, #252526);
+  color: var(--vscode-editorHoverWidget-foreground, #cccccc);
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s, visibility 0.2s;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.tooltip:hover::after {
+  opacity: 1;
+  visibility: visible;
+}
+
+.mode-toggle-switch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-color);
+}
+
+.mode-label {
+  font-weight: 500;
+  opacity: 0.7;
+  transition: opacity 0.2s ease;
+}
+
+.mode-label.active {
+  opacity: 1;
+  font-weight: 600;
+}
+
+.toggle-switch {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  display: inline-block;
+}
+
+.toggle-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: var(--claude-border);
+  transition: 0.3s;
+  border-radius: 24px;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: 0.3s;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.toggle-switch input:checked + .slider {
+  background-color: var(--claude-primary);
+}
+
+.toggle-switch input:checked + .slider:before {
+  transform: translateX(20px);
+}
+
+.toggle-switch input:focus + .slider {
+  box-shadow: 0 0 1px var(--claude-primary);
+}
+
+.launch-options-container {
+  padding: 24px 16px;
+  background: var(--claude-input-bg);
+  border-radius: 8px;
+  margin: 16px 0;
+  border: 1px solid var(--claude-border);
+  flex: 0 0 auto;
+}
+
+.launch-options-container.hidden {
+  display: none;
+}
+
+.launch-header {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.launch-header h3 {
+  margin: 0 0 8px 0;
+  color: var(--claude-primary);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.launch-header p {
+  margin: 0;
+  color: var(--text-color);
+  opacity: 0.8;
+  font-size: 14px;
+}
+
+.launch-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.launch-icon {
+  font-size: 20px;
+  min-width: 24px;
+  text-align: center;
+}
+
+.launch-text {
+  flex: 1;
+}
+
+.launch-title {
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: var(--text-color);
+}
+
+.launch-desc {
+  font-size: 12px;
+  color: var(--text-color);
+  opacity: 0.7;
+}
+
+.chat-container.no-claude .launch-options-container {
+  display: block;
+}
+
+.chat-container.claude-active .launch-options-container {
+  display: none;
+}

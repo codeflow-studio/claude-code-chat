@@ -1,0 +1,134 @@
+/* Layout and container styles */
+.chat-container {
+  display: flex;
+  flex-direction: column;
+  height: var(--webview-height, 100vh);
+  max-height: var(--webview-height, 100vh);
+  overflow: hidden;
+  background-color: var(--bg-color);
+  position: relative;
+}
+
+.chat-container.input-only {
+  height: var(--webview-height, 100vh);
+  max-height: var(--webview-height, 100vh);
+  display: flex;
+  flex-direction: column;
+  min-height: 200px;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
+  justify-content: flex-start;
+  align-items: stretch;
+}
+
+.chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--claude-border);
+  background-color: var(--bg-color);
+  flex-shrink: 0;
+}
+
+.chat-title {
+  display: flex;
+  align-items: center;
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.chat-title .claude-icon {
+  margin-right: 8px;
+}
+
+.chat-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.chat-actions button {
+  background-color: transparent;
+  color: var(--text-color);
+  border: 1px solid var(--claude-border);
+  border-radius: 4px;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.chat-actions button:hover {
+  background-color: var(--claude-input-bg);
+}
+
+.terminal-status-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background-color: rgba(242, 201, 76, 0.1);
+  border-left: 3px solid var(--warning-color);
+  margin: 0 0 8px 0;
+  font-size: 13px;
+  flex-shrink: 0;
+  min-height: 20px;
+}
+
+.terminal-status-banner.hidden {
+  display: none;
+  height: 0;
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
+}
+
+.terminal-status-icon {
+  font-size: 16px;
+}
+
+.terminal-status-message {
+  flex: 1;
+}
+
+.messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  margin-bottom: 8px;
+}
+
+.utility-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 16px;
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground, #8a8a8a);
+  border-top: 1px solid var(--claude-border);
+  flex: 0 0 auto;
+  min-height: 20px;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: auto;
+}
+
+.claude-attribution {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+  line-height: 16px;
+}
+
+.claude-version {
+  display: flex;
+  align-items: center;
+}

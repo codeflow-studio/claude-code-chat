@@ -691,7 +691,7 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
     }
 
     // Track user input with original text first
-    this._directModeService.trackUserInput(messageContext.text, messageSubtype, userInputMetadata);
+    this._directModeService.trackUserInput(formattedMessage, messageSubtype, userInputMetadata);
 
     // Send the pre-formatted message to Direct Mode service
     await this._directModeService.sendMessage(formattedMessage);
@@ -1786,6 +1786,244 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
             40% {
               opacity: 1;
               transform: scale(1);
+            }
+          }
+
+          /* Enhanced Tool Result Editor UI */
+          .tool-result-editor, .tool-result-generic {
+            border: 1px solid var(--vscode-panel-border);
+            border-radius: 8px;
+            margin: 8px 0;
+            background: var(--vscode-editor-background);
+            overflow: hidden;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+          }
+
+          .tool-result-editor .tool-result-header,
+          .tool-result-generic .tool-result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            background: var(--vscode-editorGroupHeader-tabsBackground);
+            border-bottom: 1px solid var(--vscode-panel-border);
+            font-size: 13px;
+          }
+
+          .header-left {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+          }
+
+          .header-right {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+          }
+
+          .result-icon {
+            font-size: 16px;
+          }
+
+          .result-title {
+            font-weight: 500;
+            color: var(--vscode-foreground);
+          }
+
+          .file-name {
+            padding: 2px 6px;
+            background: var(--vscode-badge-background);
+            color: var(--vscode-badge-foreground);
+            border-radius: 4px;
+            font-size: 11px;
+            font-family: var(--vscode-editor-font-family, monospace);
+          }
+
+          .tool-id {
+            padding: 2px 6px;
+            background: var(--vscode-descriptionForeground);
+            color: var(--vscode-editor-background);
+            border-radius: 4px;
+            font-size: 10px;
+            font-family: var(--vscode-editor-font-family, monospace);
+            opacity: 0.7;
+          }
+
+          .copy-btn, .expand-btn {
+            background: none;
+            border: none;
+            padding: 4px;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 12px;
+            transition: background-color 0.2s ease;
+          }
+
+          .copy-btn:hover, .expand-btn:hover {
+            background: var(--vscode-toolbar-hoverBackground);
+          }
+
+          .copy-icon, .expand-icon {
+            display: block;
+          }
+
+          /* Editor Content Area */
+          .tool-result-editor-content {
+            max-height: 300px;
+            overflow-y: auto;
+            background: var(--vscode-editor-background);
+            font-family: var(--vscode-editor-font-family, 'Monaco', 'Menlo', monospace);
+            font-size: var(--vscode-editor-font-size, 12px);
+            line-height: 1.4;
+          }
+
+          .tool-result-editor-content.expanded {
+            max-height: 600px;
+          }
+
+          .editor-line {
+            display: flex;
+            min-height: 18px;
+            position: relative;
+          }
+
+          .editor-line:hover {
+            background: var(--vscode-editor-hoverHighlightBackground);
+          }
+
+          .line-number {
+            display: inline-block;
+            width: 50px;
+            text-align: right;
+            padding: 0 8px 0 4px;
+            color: var(--vscode-editorLineNumber-foreground);
+            background: var(--vscode-editorGutter-background);
+            border-right: 1px solid var(--vscode-editorGutter-background);
+            font-size: 11px;
+            user-select: none;
+            flex-shrink: 0;
+          }
+
+          .line-content {
+            padding: 0 8px;
+            white-space: pre-wrap;
+            word-break: break-word;
+            flex: 1;
+            color: var(--vscode-editor-foreground);
+          }
+
+          .editor-content-raw {
+            padding: 12px;
+            white-space: pre-wrap;
+            word-break: break-word;
+            color: var(--vscode-editor-foreground);
+          }
+
+          /* Editor Footer */
+          .editor-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 4px 12px;
+            background: var(--vscode-statusBar-background);
+            border-top: 1px solid var(--vscode-panel-border);
+            font-size: 11px;
+            color: var(--vscode-statusBar-foreground);
+          }
+
+          .line-count {
+            opacity: 0.8;
+          }
+
+          .language-badge {
+            padding: 2px 6px;
+            background: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+            border-radius: 3px;
+            font-size: 10px;
+            font-weight: 500;
+          }
+
+          /* Generic Tool Result */
+          .tool-result-content {
+            padding: 0;
+            background: var(--vscode-editor-background);
+          }
+
+          .result-text {
+            margin: 0;
+            padding: 12px;
+            background: transparent;
+            border: none;
+            font-family: var(--vscode-editor-font-family, 'Monaco', 'Menlo', monospace);
+            font-size: var(--vscode-editor-font-size, 12px);
+            color: var(--vscode-editor-foreground);
+            white-space: pre-wrap;
+            word-break: break-word;
+            max-height: 300px;
+            overflow-y: auto;
+          }
+
+          /* Syntax highlighting hints (basic) */
+          .tool-result-editor-content[data-language="javascript"] .line-content,
+          .tool-result-editor-content[data-language="typescript"] .line-content {
+            color: var(--vscode-symbolIcon-textForeground, var(--vscode-editor-foreground));
+          }
+
+          .tool-result-editor-content[data-language="python"] .line-content {
+            color: var(--vscode-symbolIcon-keywordForeground, var(--vscode-editor-foreground));
+          }
+
+          .tool-result-editor-content[data-language="json"] .line-content {
+            color: var(--vscode-symbolIcon-stringForeground, var(--vscode-editor-foreground));
+          }
+
+          /* Scrollbar styling for editor content */
+          .tool-result-editor-content::-webkit-scrollbar,
+          .result-text::-webkit-scrollbar {
+            width: 12px;
+          }
+
+          .tool-result-editor-content::-webkit-scrollbar-track,
+          .result-text::-webkit-scrollbar-track {
+            background: var(--vscode-scrollbarSlider-background);
+          }
+
+          .tool-result-editor-content::-webkit-scrollbar-thumb,
+          .result-text::-webkit-scrollbar-thumb {
+            background: var(--vscode-scrollbarSlider-background);
+            border-radius: 6px;
+          }
+
+          .tool-result-editor-content::-webkit-scrollbar-thumb:hover,
+          .result-text::-webkit-scrollbar-thumb:hover {
+            background: var(--vscode-scrollbarSlider-hoverBackground);
+          }
+
+          /* Animation for expand/collapse */
+          .tool-result-editor-content {
+            transition: max-height 0.3s ease-in-out;
+          }
+
+          /* Mobile responsiveness */
+          @media (max-width: 600px) {
+            .line-number {
+              width: 40px;
+              font-size: 10px;
+            }
+            
+            .tool-result-editor-content,
+            .result-text {
+              font-size: 11px;
+            }
+            
+            .header-right {
+              gap: 4px;
+            }
+            
+            .file-name {
+              display: none; /* Hide on mobile to save space */
             }
           }
         </style>

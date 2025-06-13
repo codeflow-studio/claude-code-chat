@@ -980,8 +980,10 @@
         const lastAssistantMessage = assistantMessages[assistantMessages.length - 1];
         updateMessageToResult(lastAssistantMessage, content, timestamp, metadata);
         
-        // Auto-scroll to bottom
-        directModeMessages.scrollTop = directModeMessages.scrollHeight;
+        // Auto-scroll to bottom only if user is near bottom
+        if (isUserNearBottom(directModeMessages)) {
+          directModeMessages.scrollTop = directModeMessages.scrollHeight;
+        }
         return;
       }
     }
@@ -1108,10 +1110,17 @@
       updateLoadingIndicator(true);
     }
     
-    // Auto-scroll to bottom
-    directModeMessages.scrollTop = directModeMessages.scrollHeight;
+    // Auto-scroll to bottom only if user is near bottom
+    if (isUserNearBottom(directModeMessages)) {
+      directModeMessages.scrollTop = directModeMessages.scrollHeight;
+    }
   }
   
+  // Helper function to check if user is near bottom of chat
+  function isUserNearBottom(container, threshold = 100) {
+    return container.scrollTop + container.clientHeight >= container.scrollHeight - threshold;
+  }
+
   // Helper function to format system init content
   function formatSystemInitContent(content, metadata) {
     if (!metadata) return escapeHtml(content || 'Session initialized');
@@ -1226,17 +1235,20 @@
           break;
           
         case 'tool_use':
+          // Store tool use data for pairing with result
+          if (item.input && item.input.file_path) {
+            pendingToolUse = {
+              name: item.name,
+              filePath: item.input.file_path,
+              id: item.id || Date.now().toString()
+            };
+          }
           formattedParts.push(formatToolUse(item));
           break;
           
         case 'tool_result':
           if (item.content) {
-            formattedParts.push(`
-              <div class="tool-result">
-                <div class="tool-result-header">✅ Tool Result</div>
-                <div class="tool-result-content">${escapeHtml(item.content)}</div>
-              </div>
-            `);
+            formattedParts.push(formatToolResult(item));
           }
           break;
           
@@ -1407,6 +1419,244 @@
     };
     return descriptions[toolName] || 'Using tool';
   }
+
+  // Enhanced function to format tool results with editor-like UI
+  function formatToolResult(toolResult) {
+    const content = toolResult.content;
+    const toolUseId = toolResult.tool_use_id;
+    
+    // Try to extract tool name from the content or tool_use_id
+    const toolName = extractToolNameFromResult(content, toolUseId);
+    const resultIcon = getToolResultIcon(toolName);
+    const fileName = extractFileNameFromResult(content, toolUseId);
+    
+    // Check if content looks like file content (has line numbers)
+    const isFileContent = content && content.includes('→');
+    
+    if (isFileContent) {
+      return formatFileContentResult(content, toolName, resultIcon, fileName, toolUseId);
+    } else {
+      return formatGenericToolResult(content, toolName, resultIcon, toolUseId);
+    }
+  }
+
+  // Store tool_use data for pairing with tool_result
+  let pendingToolUse = null;
+
+  // Format file content with text editor-like UI
+  function formatFileContentResult(content, toolName, resultIcon, fileName, toolUseId) {
+    const lines = content.split('\n');
+    const hasLineNumbers = lines[0] && lines[0].includes('→');
+    
+    // Process lines for better display
+    let processedContent = '';
+    let language = 'text';
+    
+    if (hasLineNumbers) {
+      // Extract language from file extension
+      if (fileName) {
+        language = getLanguageFromFileName(fileName);
+      }
+      
+      // Format lines with proper syntax highlighting structure
+      const formattedLines = lines.map(line => {
+        if (line.includes('→')) {
+          const parts = line.split('→', 2);
+          if (parts.length === 2) {
+            const lineNum = parts[0].trim();
+            const codeContent = parts[1] || '';
+            return `<div class="editor-line" data-line="${lineNum}">
+              <span class="line-number">${lineNum}</span>
+              <span class="line-content">${escapeHtml(codeContent)}</span>
+            </div>`;
+          }
+        }
+        return `<div class="editor-line">
+          <span class="line-content">${escapeHtml(line)}</span>
+        </div>`;
+      }).join('');
+      
+      processedContent = formattedLines;
+    } else {
+      // For content without line numbers, just escape and preserve formatting
+      processedContent = `<div class="editor-content-raw">${escapeHtml(content)}</div>`;
+    }
+    
+    // Create editor-like UI
+    return `
+      <div class="tool-result-editor">
+        <div class="tool-result-header">
+          <div class="header-left">
+            <span class="result-icon">${resultIcon}</span>
+            <span class="result-title">${toolName || 'Tool'} Result</span>
+            ${fileName ? `<span class="file-name">${fileName}</span>` : ''}
+          </div>
+          <div class="header-right">
+            ${toolUseId ? `<span class="tool-id">${toolUseId.slice(-8)}</span>` : ''}
+            <button class="copy-btn" onclick="copyToolResult(this)" title="Copy content">
+              <span class="copy-icon">📋</span>
+            </button>
+            ${hasLineNumbers ? `<button class="expand-btn" onclick="toggleExpand(this)" title="Expand/Collapse">
+              <span class="expand-icon">⛶</span>
+            </button>` : ''}
+          </div>
+        </div>
+        <div class="tool-result-editor-content" data-language="${language}">
+          ${processedContent}
+        </div>
+        ${hasLineNumbers ? `<div class="editor-footer">
+          <span class="line-count">${lines.length} lines</span>
+          <span class="language-badge">${language.toUpperCase()}</span>
+        </div>` : ''}
+      </div>
+    `;
+  }
+
+  // Format generic tool results (non-file content)
+  function formatGenericToolResult(content, toolName, resultIcon, toolUseId) {
+    return `
+      <div class="tool-result-generic">
+        <div class="tool-result-header">
+          <div class="header-left">
+            <span class="result-icon">${resultIcon}</span>
+            <span class="result-title">${toolName || 'Tool'} Result</span>
+          </div>
+          <div class="header-right">
+            ${toolUseId ? `<span class="tool-id">${toolUseId.slice(-8)}</span>` : ''}
+            <button class="copy-btn" onclick="copyToolResult(this)" title="Copy content">
+              <span class="copy-icon">📋</span>
+            </button>
+          </div>
+        </div>
+        <div class="tool-result-content">
+          <pre class="result-text">${escapeHtml(content)}</pre>
+        </div>
+      </div>
+    `;
+  }
+
+  // Helper functions for tool result formatting
+  function extractToolNameFromResult(content, toolUseId) {
+    const toolNames = ['Read', 'Edit', 'Write', 'MultiEdit', 'Bash', 'Grep', 'Glob', 'LS', 'Task'];
+    if (toolUseId) {
+      return toolNames.find(name => toolUseId.toLowerCase().includes(name.toLowerCase()));
+    }
+    return null;
+  }
+
+  function extractFileNameFromResult(content, toolUseId) {
+    // First try to get filename from pending tool use
+    if (pendingToolUse && pendingToolUse.filePath) {
+      const fileName = pendingToolUse.filePath.split('/').pop();
+      // Clear pending tool use after using it
+      pendingToolUse = null;
+      return fileName;
+    }
+    
+    // Try to extract filename from content if it looks like a file path
+    if (content && content.includes('→')) {
+      const firstLine = content.split('\n')[0];
+      if (firstLine && firstLine.includes('import') || firstLine.includes('export') || firstLine.includes('function')) {
+        // This looks like code, but we don't have filename info
+        return null;
+      }
+    }
+    return null;
+  }
+
+  function getLanguageFromFileName(fileName) {
+    const ext = fileName.split('.').pop()?.toLowerCase();
+    const languageMap = {
+      'js': 'javascript',
+      'ts': 'typescript',
+      'jsx': 'javascript',
+      'tsx': 'typescript',
+      'py': 'python',
+      'java': 'java',
+      'cpp': 'cpp',
+      'c': 'c',
+      'cs': 'csharp',
+      'php': 'php',
+      'rb': 'ruby',
+      'go': 'go',
+      'rs': 'rust',
+      'swift': 'swift',
+      'kt': 'kotlin',
+      'html': 'html',
+      'css': 'css',
+      'scss': 'scss',
+      'json': 'json',
+      'xml': 'xml',
+      'yaml': 'yaml',
+      'yml': 'yaml',
+      'md': 'markdown',
+      'sh': 'bash',
+      'sql': 'sql'
+    };
+    return languageMap[ext] || 'text';
+  }
+
+  function getToolResultIcon(toolName) {
+    const icons = {
+      'Read': '📄',
+      'Edit': '✅',
+      'Write': '💾', 
+      'MultiEdit': '📝',
+      'Bash': '⚡',
+      'Grep': '🔍',
+      'Glob': '📁',
+      'LS': '📋',
+      'Task': '✨'
+    };
+    return toolName ? icons[toolName] || '📊' : '📊';
+  }
+
+  // Interactive functions for tool results
+  function copyToolResult(button) {
+    const resultContainer = button.closest('.tool-result-editor, .tool-result-generic');
+    const contentElement = resultContainer.querySelector('.tool-result-editor-content, .tool-result-content');
+    
+    let textToCopy = '';
+    if (contentElement.querySelector('.editor-line')) {
+      // Extract text from editor lines
+      const lines = contentElement.querySelectorAll('.editor-line .line-content');
+      textToCopy = Array.from(lines).map(line => line.textContent).join('\n');
+    } else {
+      textToCopy = contentElement.textContent;
+    }
+    
+    navigator.clipboard.writeText(textToCopy).then(() => {
+      // Visual feedback
+      const icon = button.querySelector('.copy-icon');
+      const originalIcon = icon.textContent;
+      icon.textContent = '✅';
+      setTimeout(() => {
+        icon.textContent = originalIcon;
+      }, 1000);
+    }).catch(err => {
+      console.error('Failed to copy: ', err);
+    });
+  }
+
+  function toggleExpand(button) {
+    const resultContainer = button.closest('.tool-result-editor');
+    const contentElement = resultContainer.querySelector('.tool-result-editor-content');
+    const icon = button.querySelector('.expand-icon');
+    
+    if (contentElement.classList.contains('expanded')) {
+      contentElement.classList.remove('expanded');
+      icon.textContent = '⛶';
+      button.title = 'Expand';
+    } else {
+      contentElement.classList.add('expanded');
+      icon.textContent = '⛷';
+      button.title = 'Collapse';
+    }
+  }
+
+  // Expose functions globally for onclick handlers
+  window.copyToolResult = copyToolResult;
+  window.toggleExpand = toggleExpand;
   
   // Function to update pause button visibility based on process state
   function updatePauseButtonVisibility(processRunning) {

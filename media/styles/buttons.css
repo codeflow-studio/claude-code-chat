@@ -1,0 +1,244 @@
+/* Button styles */
+button {
+  background-color: var(--claude-primary);
+  color: white;
+  border: none;
+  border-radius: 16px;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s ease;
+}
+
+button:hover {
+  background-color: var(--claude-dark);
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+button svg {
+  width: 14px;
+  height: 14px;
+  margin-left: 6px;
+}
+
+#sendButton {
+  background-color: transparent;
+  border: none;
+  color: var(--claude-primary);
+  padding: 6px;
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+}
+
+#sendButton:hover {
+  background-color: rgba(90, 50, 251, 0.1);
+}
+
+#sendButton svg {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+}
+
+.context-button {
+  background-color: transparent;
+  color: var(--vscode-editor-foreground);
+  border: 1px solid var(--vscode-input-border);
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  transition: background-color 0.2s ease;
+}
+
+.context-button:hover {
+  background-color: var(--vscode-button-secondaryHoverBackground);
+}
+
+.image-button {
+  color: var(--claude-primary);
+  background: transparent;
+  border: none;
+  padding: 6px 8px;
+  cursor: pointer;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  height: 30px;
+  width: 30px;
+  transition: background-color 0.2s ease;
+}
+
+.image-button:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+
+.launch-option-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  background: var(--input-bg);
+  border: 2px solid var(--claude-border);
+  border-radius: 8px;
+  color: var(--text-color);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: left;
+  width: 100%;
+  font-family: inherit;
+  font-size: 14px;
+}
+
+.launch-option-btn:hover {
+  border-color: var(--claude-secondary);
+  background: var(--claude-input-bg);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px var(--shadow-color);
+}
+
+.launch-option-btn.primary {
+  border-color: var(--claude-primary);
+  background: rgba(90, 50, 251, 0.1);
+}
+
+.launch-option-btn.primary:hover {
+  border-color: var(--claude-primary);
+  background: rgba(90, 50, 251, 0.2);
+}
+
+.clear-responses-btn {
+  background: transparent;
+  border: 1px solid var(--claude-border);
+  color: var(--text-color);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.clear-responses-btn:hover {
+  background: var(--vscode-button-secondaryHoverBackground);
+}
+
+.copy-btn, .expand-btn {
+  background: transparent;
+  border: none;
+  color: var(--vscode-icon-foreground, #cccccc);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s ease;
+  font-size: 12px;
+}
+
+.copy-btn:hover, .expand-btn:hover {
+  background: var(--vscode-toolbar-hoverBackground, rgba(255, 255, 255, 0.1));
+}
+
+.copy-btn:focus, .expand-btn:focus {
+  outline: 1px solid var(--vscode-focusBorder, #5A32FB);
+  outline-offset: 2px;
+}
+
+.copy-btn.copied {
+  color: var(--success-color);
+}
+
+.copy-btn.copied .copy-icon::after {
+  content: '✓';
+  position: absolute;
+  font-size: 10px;
+}
+
+.problem-remove-btn {
+  background: none;
+  border: none;
+  color: var(--vscode-badge-foreground);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 0;
+  width: 16px;
+  height: 16px;
+  border-radius: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s ease;
+}
+
+.problem-remove-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.image-remove-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: var(--error-color);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 20px;
+  height: 20px;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.8;
+  transition: opacity 0.2s ease;
+}
+
+.image-remove-btn:hover {
+  opacity: 1;
+}
+
+.problem-menu-btn {
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground);
+  border: none;
+  border-radius: 2px;
+  padding: 2px 6px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+  min-width: 24px;
+  text-align: center;
+}
+
+.problem-menu-btn:hover {
+  background: var(--vscode-button-secondaryHoverBackground);
+}
+
+.problem-menu-btn.primary {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+}
+
+.problem-menu-btn.primary:hover {
+  background: var(--vscode-button-hoverBackground);
+}

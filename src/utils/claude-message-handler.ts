@@ -381,8 +381,33 @@ export class ClaudeMessageHandler {
             contentParts.push(item.text);
           } else if (item.type === 'tool_use') {
             const toolName = item.name || 'unknown';
-            const input = item.input ? ` (${Object.keys(item.input).join(', ')})` : '';
-            contentParts.push(`🔧 Using tool: ${toolName}${input}`);
+            const toolIcon = this.getToolIcon(toolName);
+            
+            // Enhanced tool use display with file path extraction
+            let toolDescription = `${toolIcon} Using tool: ${toolName}`;
+            
+            if (item.input) {
+              // Extract file path for file operations
+              if (item.input.file_path) {
+                const fileName = item.input.file_path.split('/').pop() || item.input.file_path;
+                toolDescription += ` → ${fileName}`;
+              } else if (item.input.command) {
+                // Show command for Bash tool
+                const command = item.input.command.length > 50 
+                  ? item.input.command.substring(0, 50) + '...'
+                  : item.input.command;
+                toolDescription += ` → ${command}`;
+              } else if (item.input.pattern) {
+                // Show pattern for Grep/Glob tools
+                toolDescription += ` → ${item.input.pattern}`;
+              } else {
+                // Show parameter names for other tools
+                const params = Object.keys(item.input).join(', ');
+                toolDescription += ` (${params})`;
+              }
+            }
+            
+            contentParts.push(toolDescription);
           } else if (item.type === 'thinking' && item.thinking) {
             // Display thinking content with special formatting
             const thinkingPreview = item.thinking.length > 150 
@@ -415,12 +440,32 @@ export class ClaudeMessageHandler {
           const toolId = item.tool_use_id;
           let content = item.content;
           
-          // Truncate very long tool results for better display
-          if (typeof content === 'string' && content.length > 500) {
-            content = content.substring(0, 500) + '...[truncated]';
+          // Enhanced tool result processing for better UI display
+          if (typeof content === 'string') {
+            // Detect file operations by checking for line number format
+            const hasLineNumbers = content.includes('→');
+            
+            if (hasLineNumbers) {
+              // For file reads with line numbers, keep more content and format better
+              const maxLines = 50; // Show up to 50 lines for file content
+              const lines = content.split('\n');
+              
+              if (lines.length > maxLines) {
+                const truncatedLines = lines.slice(0, maxLines);
+                content = truncatedLines.join('\n') + `\n...[showing ${maxLines} of ${lines.length} lines]`;
+              }
+            } else if (content.length > 1000) {
+              // For non-file content, use longer truncation limit
+              content = content.substring(0, 1000) + '...[truncated]';
+            }
           }
           
-          toolResults.push(`📊 Tool result${toolId ? ` (${toolId.slice(-8)})` : ''}:\n${content}`);
+          // Enhanced tool result display with better formatting
+          const toolName = this.extractToolNameFromId(toolId);
+          const resultIcon = this.getToolResultIcon(toolName);
+          const resultHeader = toolName ? `${resultIcon} ${toolName} result` : `📊 Tool result`;
+          
+          toolResults.push(`${resultHeader}${toolId ? ` (${toolId.slice(-8)})` : ''}:\n${content}`);
         }
       });
       
@@ -428,5 +473,54 @@ export class ClaudeMessageHandler {
     }
     
     return undefined;
+  }
+
+  /**
+   * Extract tool name from tool use ID for better display
+   */
+  private static extractToolNameFromId(toolId?: string): string | undefined {
+    if (!toolId) return undefined;
+    
+    // Tool IDs often contain the tool name, extract it
+    const toolNames = ['Read', 'Edit', 'Write', 'MultiEdit', 'Bash', 'Grep', 'Glob', 'LS', 'Task'];
+    return toolNames.find(name => toolId.toLowerCase().includes(name.toLowerCase()));
+  }
+
+  /**
+   * Get appropriate icon for tool usage
+   */
+  private static getToolIcon(toolName: string): string {
+    const icons: Record<string, string> = {
+      'Read': '📖',
+      'Edit': '✏️', 
+      'Write': '📝',
+      'MultiEdit': '📄',
+      'Bash': '💻',
+      'Grep': '🔍',
+      'Glob': '📁',
+      'LS': '📋',
+      'Task': '⚡'
+    };
+    
+    return icons[toolName] || '🔧';
+  }
+
+  /**
+   * Get appropriate icon for tool results
+   */
+  private static getToolResultIcon(toolName?: string): string {
+    const icons: Record<string, string> = {
+      'Read': '📄',
+      'Edit': '✅', 
+      'Write': '💾',
+      'MultiEdit': '📝',
+      'Bash': '⚡',
+      'Grep': '🔍',
+      'Glob': '📁',
+      'LS': '📋',
+      'Task': '✨'
+    };
+    
+    return toolName ? icons[toolName] || '📊' : '📊';
   }
 }

@@ -1,0 +1,40 @@
+/* CSS Custom Properties (Variables) */
+:root {
+  --text-color: var(--vscode-editor-foreground, #e9e9e9);
+  --bg-color: var(--vscode-editor-background, #1e1e1e);
+  --input-bg: var(--vscode-input-background, #3c3c3c);
+  --input-fg: var(--vscode-input-foreground, #cccccc);
+  --button-bg: var(--vscode-button-background, #0e639c);
+  --button-fg: var(--vscode-button-foreground, #ffffff);
+  --button-hover-bg: var(--vscode-button-hoverBackground, #1177bb);
+  --border-color: var(--vscode-widget-border, #474747);
+  
+  /* Claude specific colors */
+  --claude-primary: #5A32FB;
+  --claude-secondary: #9E8CFC;
+  --claude-light: #E8E8FD;
+  --claude-dark: #2D1A7C;
+  --claude-bg: #1E1E1E;
+  --claude-input-bg: #2D2D2D;
+  --claude-message-bg: transparent;
+  --claude-user-message-bg: transparent;
+  --claude-border: #3E3E3E;
+  --claude-active: #5A32FB;
+  --claude-input-focus: #5A32FB;
+  --claude-input-text: var(--text-color);
+  
+  /* Status colors */
+  --warning-color: #F2C94C;
+  --error-color: #E25141;
+  --success-color: #57B894;
+
+  /* Other UI elements */
+  --shadow-color: rgba(0, 0, 0, 0.15);
+  --scrollbar-thumb: var(--vscode-scrollbarSlider-background, #6e6e6e);
+  --scrollbar-thumb-hover: var(--vscode-scrollbarSlider-hoverBackground, #8a8a8a);
+  --scrollbar-thumb-active: var(--vscode-scrollbarSlider-activeBackground, #9e9e9e);
+  
+  /* Dynamic sizing */
+  --webview-height: 100vh; /* Will be updated by JavaScript */
+  --webview-width: 100vw; /* Will be updated by JavaScript */
+}
