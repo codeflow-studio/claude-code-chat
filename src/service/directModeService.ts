@@ -196,6 +196,10 @@ export class DirectModeService {
     // Clear session ID to start fresh conversation
     this._currentSessionId = undefined;
     this._lastMessage = undefined;
+    
+    // Clear pending tool executions
+    ClaudeMessageHandler.clearPendingTools();
+    
     console.log('Direct Mode conversation cleared (session ID reset)');
   }
 
@@ -208,6 +212,10 @@ export class DirectModeService {
     
     this._isActive = false;
     this._currentSessionId = undefined; // Clear session ID
+    
+    // Clear pending tool executions
+    ClaudeMessageHandler.clearPendingTools();
+    
     console.log('Direct Mode service stopped (session cleared)');
   }
 

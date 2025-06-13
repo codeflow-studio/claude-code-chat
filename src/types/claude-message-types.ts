@@ -19,6 +19,7 @@ export interface MessageContent {
   text?: string;
   name?: string; // for tool_use
   input?: any; // for tool_use
+  id?: string; // for tool_use (unique identifier)
   tool_use_id?: string; // for tool_result
   content?: string; // for tool_result
   thinking?: string; // for thinking
@@ -37,6 +38,35 @@ export interface UsageStats {
   output_tokens?: number;
   cache_creation_input_tokens?: number;
   cache_read_input_tokens?: number;
+}
+
+// Tool execution tracking for parallel tool calls
+export interface ToolExecution {
+  id: string;
+  name: string;
+  input?: any;
+  status: 'pending' | 'completed' | 'error';
+  result?: MessageContent;
+  timestamp: string;
+  executionOrder: number;
+}
+
+// Tool execution group for related parallel operations
+export interface ToolExecutionGroup {
+  id: string;
+  executions: ToolExecution[];
+  startTime: string;
+  endTime?: string;
+  isComplete: boolean;
+}
+
+// Enhanced DirectModeResponse with tool execution context
+export interface ToolExecutionContext {
+  toolExecutions?: ToolExecution[];
+  executionGroup?: ToolExecutionGroup;
+  hasPendingTools?: boolean;
+  completedToolCount?: number;
+  totalToolCount?: number;
 }
 
 // Result message (final responses)
@@ -155,4 +185,5 @@ export interface DirectModeResponse {
   };
   originalMessage?: ClaudeMessage; // Store the original parsed message
   isUpdate?: boolean; // Flag to indicate this is an update to an existing message
+  toolExecutionContext?: ToolExecutionContext; // Enhanced tool execution tracking
 }

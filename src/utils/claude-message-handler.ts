@@ -9,6 +9,7 @@ import {
   ErrorMessage,
   UserInputMessage,
   MessageContent,
+  ToolExecutionContext,
   isResultMessage,
   isSystemMessage,
   isAssistantMessage,
@@ -16,12 +17,14 @@ import {
   isErrorMessage,
   isUserInputMessage,
 } from '../types/claude-message-types';
+import { PendingToolsManager } from './pending-tools-manager';
 
 /**
  * Comprehensive message handler for Claude Code responses
  * Handles all message types with proper parsing and content extraction
  */
 export class ClaudeMessageHandler {
+  private static pendingToolsManager = new PendingToolsManager();
   /**
    * Parse raw JSON output from Claude Code CLI
    */
@@ -118,6 +121,7 @@ export class ClaudeMessageHandler {
       case 'assistant':
         if (isAssistantMessage(message)) {
           const content = this.extractAssistantContent(message);
+          const toolExecutionContext = this.processAssistantToolCalls(message);
           return {
             ...baseResponse,
             message: message.message,
@@ -125,7 +129,8 @@ export class ClaudeMessageHandler {
             metadata: {
               sessionId: message.session_id,
               usage: message.message.usage,
-            }
+            },
+            toolExecutionContext
           };
         }
         break;
@@ -133,13 +138,15 @@ export class ClaudeMessageHandler {
       case 'user':
         if (isUserMessage(message)) {
           const content = this.extractUserContent(message);
+          const toolExecutionContext = this.processUserToolResults(message);
           return {
             ...baseResponse,
             message: message.message,
             content,
             metadata: {
               sessionId: message.session_id,
-            }
+            },
+            toolExecutionContext
           };
         }
         break;
@@ -525,5 +532,79 @@ export class ClaudeMessageHandler {
     };
     
     return toolName ? icons[toolName] || '📊' : '📊';
+  }
+
+  /**
+   * Process assistant message for tool calls and start tracking them
+   */
+  private static processAssistantToolCalls(message: AssistantMessage): ToolExecutionContext | undefined {
+    if (!message.message?.content || typeof message.message.content === 'string') {
+      return undefined;
+    }
+
+    const toolUseItems = message.message.content.filter(item => item.type === 'tool_use');
+    if (toolUseItems.length === 0) {
+      return undefined;
+    }
+
+    // Start a new execution group for this set of tool calls
+    const groupId = this.pendingToolsManager.startExecutionGroup();
+
+    // Add all tool_use items to pending executions
+    toolUseItems.forEach(toolUse => {
+      try {
+        this.pendingToolsManager.addToolExecution(toolUse);
+      } catch (error) {
+        console.warn('Failed to add tool execution:', error);
+      }
+    });
+
+    return this.pendingToolsManager.createExecutionContext(groupId);
+  }
+
+  /**
+   * Process user message for tool results and pair them with pending tool calls
+   */
+  private static processUserToolResults(message: UserMessage): ToolExecutionContext | undefined {
+    if (!message.message?.content) {
+      return undefined;
+    }
+
+    const toolResultItems = message.message.content.filter(item => item.type === 'tool_result');
+    if (toolResultItems.length === 0) {
+      return undefined;
+    }
+
+    // Process each tool result and complete corresponding executions
+    const completedExecutions = toolResultItems
+      .map(toolResult => this.pendingToolsManager.completeToolExecution(toolResult))
+      .filter(Boolean);
+
+    if (completedExecutions.length > 0) {
+      return this.pendingToolsManager.createExecutionContext();
+    }
+
+    return undefined;
+  }
+
+  /**
+   * Get the pending tools manager instance for external access
+   */
+  static getPendingToolsManager(): PendingToolsManager {
+    return this.pendingToolsManager;
+  }
+
+  /**
+   * Clear all pending tool executions (useful for conversation reset)
+   */
+  static clearPendingTools(): void {
+    this.pendingToolsManager.clear();
+  }
+
+  /**
+   * Get current tool execution statistics
+   */
+  static getToolExecutionStats() {
+    return this.pendingToolsManager.getStats();
   }
 }

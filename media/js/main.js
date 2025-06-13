@@ -221,7 +221,8 @@ class ClaudeCodeUI {
             message.response.subtype, 
             message.response.metadata, 
             message.response.displayName, 
-            message.response.isUpdate
+            message.response.isUpdate,
+            message.response.toolExecutionContext
           );
           break;
           

@@ -217,10 +217,10 @@ function updatePauseButtonVisibility(processRunning) {
 /**
  * Adds a message to Direct Mode
  */
-export function addMessageToDirectMode(type, content, timestamp, subtype, metadata, displayName, isUpdate) {
+export function addMessageToDirectMode(type, content, timestamp, subtype, metadata, displayName, isUpdate, toolExecutionContext) {
   if (!isDirectMode) return;
   
-  addDirectModeMessage(type, content, timestamp, subtype, metadata, displayName, isUpdate, isProcessRunning);
+  addDirectModeMessage(type, content, timestamp, subtype, metadata, displayName, isUpdate, isProcessRunning, toolExecutionContext);
   
   // Ensure loading indicator stays at the bottom if process is running
   if (isProcessRunning) {
@@ -241,10 +241,10 @@ export function handleDirectModeUserMessage(message) {
 /**
  * Handles Claude responses in Direct Mode
  */
-export function handleDirectModeResponse(type, content, timestamp, subtype, metadata, displayName, isUpdate) {
+export function handleDirectModeResponse(type, content, timestamp, subtype, metadata, displayName, isUpdate, toolExecutionContext) {
   if (!isDirectMode) return;
   
-  addDirectModeMessage(type, content, timestamp, subtype, metadata, displayName, isUpdate);
+  addDirectModeMessage(type, content, timestamp, subtype, metadata, displayName, isUpdate, isProcessRunning, toolExecutionContext);
 }
 
 /**
