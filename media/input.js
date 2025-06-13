@@ -24,6 +24,7 @@
   
   // Mode state
   let isDirectMode = false;
+  let isProcessRunning = false;
   
   // RegExp for detecting @ mentions
   const mentionRegex = /@((?:\/|\w+:\/\/)[^\s]+?|[a-f0-9]{7,40}\b|problems\b|git-changes\b)(?=[.,;:!?]?(?=[\s\r\n]|$))/;
@@ -926,6 +927,11 @@
     if (contentElement) {
       contentElement.className = 'message-content result-content';
     }
+    
+    // Ensure loading indicator stays at the bottom if process is running
+    if (isProcessRunning) {
+      updateLoadingIndicator(true);
+    }
   }
   
   // Function to add a message to the Direct Mode container
@@ -1068,6 +1074,11 @@
     
     messageElement.innerHTML = messageHTML;
     directModeMessages.appendChild(messageElement);
+    
+    // Ensure loading indicator stays at the bottom if process is running
+    if (isProcessRunning) {
+      updateLoadingIndicator(true);
+    }
     
     // Auto-scroll to bottom
     directModeMessages.scrollTop = directModeMessages.scrollHeight;
@@ -1370,7 +1381,10 @@
   }
   
   // Function to update pause button visibility based on process state
-  function updatePauseButtonVisibility(isProcessRunning) {
+  function updatePauseButtonVisibility(processRunning) {
+    // Update global state
+    isProcessRunning = processRunning;
+    
     if (pauseProcessBtn) {
       if (isProcessRunning) {
         pauseProcessBtn.classList.add('visible');
@@ -1383,6 +1397,44 @@
       } else {
         pauseProcessBtn.classList.remove('visible', 'pulsing');
       }
+    }
+    
+    // Update loading indicator visibility
+    updateLoadingIndicator(isProcessRunning);
+  }
+  
+  // Function to update loading indicator visibility
+  function updateLoadingIndicator(isProcessRunning) {
+    if (!isDirectMode) return; // Only show loading indicator in Direct Mode
+    
+    const directModeMessages = document.getElementById('directModeMessages');
+    if (!directModeMessages) return;
+    
+    // Remove any existing loading indicator first
+    const existingIndicator = directModeMessages.querySelector('.loading-indicator');
+    if (existingIndicator) {
+      existingIndicator.remove();
+    }
+    
+    if (isProcessRunning) {
+      // Create new loading indicator and append to the end
+      const loadingIndicator = document.createElement('div');
+      loadingIndicator.className = 'loading-indicator';
+      loadingIndicator.innerHTML = `
+        <div class="loading-dots">
+          <div class="loading-dot"></div>
+          <div class="loading-dot"></div>
+          <div class="loading-dot"></div>
+        </div>
+        <span class="loading-text">Claude is processing...</span>
+      `;
+      loadingIndicator.style.display = 'flex';
+      
+      // Always append to the end (after all messages)
+      directModeMessages.appendChild(loadingIndicator);
+      
+      // Auto-scroll to show loading indicator
+      directModeMessages.scrollTop = directModeMessages.scrollHeight;
     }
   }
 

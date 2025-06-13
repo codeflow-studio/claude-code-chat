@@ -1678,6 +1678,53 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
           .content-text {
             margin: 4px 0;
           }
+          /* Loading indicator styles */
+          .loading-indicator {
+            display: none;
+            align-items: center;
+            gap: 12px;
+            padding: 16px 20px;
+            margin: 8px 0;
+            background: var(--vscode-editor-background);
+            border: 1px solid var(--vscode-panel-border);
+            border-radius: 8px;
+            font-size: 13px;
+            color: var(--vscode-descriptionForeground);
+          }
+          .loading-dots {
+            display: flex;
+            gap: 4px;
+          }
+          .loading-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--vscode-progressBar-background);
+            animation: loadingPulse 1.4s infinite ease-in-out;
+          }
+          .loading-dot:nth-child(1) {
+            animation-delay: -0.32s;
+          }
+          .loading-dot:nth-child(2) {
+            animation-delay: -0.16s;
+          }
+          .loading-dot:nth-child(3) {
+            animation-delay: 0s;
+          }
+          .loading-text {
+            font-style: italic;
+          }
+          /* Loading animation */
+          @keyframes loadingPulse {
+            0%, 80%, 100% {
+              opacity: 0.3;
+              transform: scale(0.8);
+            }
+            40% {
+              opacity: 1;
+              transform: scale(1);
+            }
+          }
         </style>
       </head>
       <body>
