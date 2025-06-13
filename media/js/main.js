@@ -11,7 +11,7 @@ import {
   BASE_CONTEXT_ITEMS
 } from './modules/utils.js';
 
-import { addDirectModeMessage } from './modules/messageHandler.js';
+import { addDirectModeMessage, setupPermissionDialogHandlers } from './modules/messageHandler.js';
 
 import { 
   initializeContextMenu,
@@ -152,6 +152,9 @@ class ClaudeCodeUI {
     
     // Initialize UI manager
     initializeUIManager(this.elements);
+    
+    // Initialize permission dialog handlers
+    setupPermissionDialogHandlers();
   }
 
   /**

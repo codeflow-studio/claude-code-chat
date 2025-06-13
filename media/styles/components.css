@@ -1,4 +1,94 @@
 /* Component styles */
+
+/* Permission Dialog */
+.permission-dialog {
+  background: var(--vscode-editor-background);
+  border: 1px solid var(--vscode-editorWidget-border);
+  border-radius: 4px;
+  padding: 16px;
+  margin: 8px 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.permission-dialog-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 12px;
+  color: var(--vscode-editorWarning-foreground);
+  font-weight: 600;
+}
+
+.permission-dialog-icon {
+  margin-right: 8px;
+  font-size: 16px;
+}
+
+.permission-dialog-content {
+  margin-bottom: 16px;
+  line-height: 1.4;
+  color: var(--vscode-foreground);
+}
+
+.permission-dialog-tool-name {
+  font-family: var(--vscode-editor-font-family);
+  background: var(--vscode-textBlockQuote-background);
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-weight: 600;
+}
+
+.permission-dialog-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.permission-dialog-button {
+  padding: 6px 12px;
+  border: 1px solid var(--vscode-button-border);
+  border-radius: 3px;
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.permission-dialog-button:hover {
+  background: var(--vscode-button-hoverBackground);
+}
+
+.permission-dialog-button.approve {
+  background: var(--vscode-testing-iconPassed);
+  color: white;
+  border-color: var(--vscode-testing-iconPassed);
+}
+
+.permission-dialog-button.approve:hover {
+  opacity: 0.9;
+}
+
+.permission-dialog-button.approve-all {
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground);
+  border-color: var(--vscode-button-secondaryBorder);
+}
+
+.permission-dialog-button.approve-all:hover {
+  background: var(--vscode-button-secondaryHoverBackground);
+}
+
+.permission-dialog-button.reject {
+  background: var(--vscode-testing-iconFailed);
+  color: white;
+  border-color: var(--vscode-testing-iconFailed);
+}
+
+.permission-dialog-button.reject:hover {
+  opacity: 0.9;
+}
+
 .loading {
   display: flex;
   align-items: center;

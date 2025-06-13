@@ -63,6 +63,13 @@ function setupEventListeners() {
     });
   }
 
+  // Event listener for pause process button
+  if (pauseProcessBtn) {
+    pauseProcessBtn.addEventListener('click', () => {
+      pauseCurrentProcess();
+    });
+  }
+
   // Listen for custom events
   document.addEventListener('updateLoadingIndicator', (e) => {
     updateLoadingIndicator(e.detail.isRunning);
@@ -227,7 +234,11 @@ function updateLoadingIndicator(show) {
  */
 function updatePauseButtonVisibility(processRunning) {
   if (pauseProcessBtn) {
-    pauseProcessBtn.style.display = processRunning ? 'block' : 'none';
+    if (processRunning) {
+      pauseProcessBtn.classList.add('visible', 'pulsing');
+    } else {
+      pauseProcessBtn.classList.remove('visible', 'pulsing');
+    }
   }
 }
 
@@ -307,4 +318,17 @@ export function hideDirectMode() {
       isDirectMode: false
     });
   }
+}
+
+/**
+ * Pauses the current Claude Code process
+ */
+function pauseCurrentProcess() {
+  // Send pause command to extension
+  vscode.postMessage({
+    command: 'pauseProcess'
+  });
+  
+  // Update UI immediately to provide visual feedback
+  setProcessRunning(false);
 }

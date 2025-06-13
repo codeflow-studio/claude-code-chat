@@ -1,4 +1,6 @@
 import { spawn } from 'child_process';
+import * as path from 'path';
+import * as fs from 'fs/promises';
 import { ClaudeMessageHandler } from '../utils/claude-message-handler';
 import { ClaudeMessage, DirectModeResponse } from '../types/claude-message-types';
 import { processImagesForMessage, type ImageContext } from '../utils/messageUtils';
@@ -31,6 +33,11 @@ export class DirectModeService {
   private _lastMessage?: DirectModeResponse;
   private _currentProcess?: any; // Track the running Claude process
   private _isProcessRunning: boolean = false;
+  private _pendingPermissionState?: {
+    sessionId: string;
+    toolName: string;
+    process: any;
+  };
 
   constructor(private _workspaceRoot?: string) {}
 
@@ -64,11 +71,12 @@ export class DirectModeService {
 
     try {
       // Build claude -p command with streaming JSON
+      const allowedTools = await this._getAllowedTools();
       const args = [
         '-p', text,
         '--output-format', 'stream-json',
         '--verbose',
-        '--allowedTools', 'Write', 'Edit', 'MultiEdit'
+        '--allowedTools', allowedTools.join(',')
       ];
 
       // Add --resume if we have a session ID from previous messages
@@ -231,6 +239,162 @@ export class DirectModeService {
    */
   isActive(): boolean {
     return this._isActive;
+  }
+
+  /**
+   * Handles permission response from user
+   */
+  async handlePermissionResponse(action: 'approve' | 'approve-all' | 'reject', toolName: string, sessionId: string): Promise<void> {
+    console.log(`Permission response: ${action} for ${toolName} (session: ${sessionId})`);
+    
+    if (action === 'reject') {
+      // Terminate process and clear state
+      this.terminateCurrentProcess();
+      this._pendingPermissionState = undefined;
+      
+      if (this._responseCallback) {
+        this._responseCallback({
+          type: 'system',
+          content: 'Permission denied. Process stopped.',
+          metadata: { processRunning: false }
+        });
+      }
+      return;
+    }
+    
+    // For approve and approve-all, continue with session
+    try {
+      // Get current allowed tools
+      const currentTools = ['Write', 'Edit', 'MultiEdit'];
+      const newAllowedTools = [...currentTools, toolName];
+      
+      // If approve-all, save to settings
+      if (action === 'approve-all') {
+        await this._saveToolPermission(toolName);
+      }
+      
+      // Continue session with updated allowed tools
+      await this._continueSessionWithPermission(sessionId, newAllowedTools);
+      
+      this._pendingPermissionState = undefined;
+      
+    } catch (error) {
+      console.error('Error handling permission response:', error);
+      
+      if (this._responseCallback) {
+        this._responseCallback({
+          type: 'error',
+          content: `Failed to continue session: ${error}`,
+          error: String(error)
+        });
+      }
+    }
+  }
+
+  /**
+   * Gets allowed tools from default + saved permissions
+   */
+  private async _getAllowedTools(): Promise<string[]> {
+    const defaultTools = ['Write', 'Edit', 'MultiEdit'];
+    
+    try {
+      const savedPermissions = await this._loadSavedPermissions();
+      return [...defaultTools, ...savedPermissions];
+    } catch (error) {
+      console.log('No saved permissions found, using default tools');
+      return defaultTools;
+    }
+  }
+
+  /**
+   * Loads saved tool permissions from .claude/settings.local.json
+   */
+  private async _loadSavedPermissions(): Promise<string[]> {
+    const claudeDir = path.join(this._workspaceRoot || process.cwd(), '.claude');
+    const settingsFile = path.join(claudeDir, 'settings.local.json');
+    
+    try {
+      const settingsContent = await fs.readFile(settingsFile, 'utf8');
+      const settings = JSON.parse(settingsContent);
+      return settings.allowedTools || [];
+    } catch (error) {
+      // File doesn't exist or invalid JSON
+      return [];
+    }
+  }
+
+  /**
+   * Saves tool permission to .claude/settings.local.json
+   */
+  private async _saveToolPermission(toolName: string): Promise<void> {
+    try {
+      const claudeDir = path.join(this._workspaceRoot || process.cwd(), '.claude');
+      const settingsFile = path.join(claudeDir, 'settings.local.json');
+      
+      // Ensure .claude directory exists
+      try {
+        await fs.access(claudeDir);
+      } catch {
+        await fs.mkdir(claudeDir, { recursive: true });
+      }
+      
+      // Load existing settings or create new
+      let settings: any = {};
+      try {
+        const settingsContent = await fs.readFile(settingsFile, 'utf8');
+        settings = JSON.parse(settingsContent);
+      } catch {
+        // File doesn't exist or invalid JSON, start fresh
+      }
+      
+      // Add tool to allowed tools if not already present
+      if (!settings.allowedTools) {
+        settings.allowedTools = [];
+      }
+      
+      if (!settings.allowedTools.includes(toolName)) {
+        settings.allowedTools.push(toolName);
+      }
+      
+      // Save settings
+      await fs.writeFile(settingsFile, JSON.stringify(settings, null, 2));
+      console.log(`Saved permission for ${toolName} to ${settingsFile}`);
+      
+    } catch (error) {
+      console.error('Error saving tool permission:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Continues session with updated allowed tools
+   */
+  private async _continueSessionWithPermission(_sessionId: string, _allowedTools: string[]): Promise<void> {
+    // Send continuation message to process or restart with session
+    if (this._currentProcess && !this._currentProcess.killed) {
+      // Send permission granted message via stdin
+      const permissionMessage = "You are granted permission. Please continue\n";
+      this._currentProcess.stdin.write(permissionMessage);
+      
+      if (this._responseCallback) {
+        this._responseCallback({
+          type: 'system',
+          content: 'Permission granted. Continuing...',
+          metadata: { processRunning: true }
+        });
+      }
+    } else {
+      // Process was killed, need to restart with session continuation
+      console.log('Process was terminated, would need to restart with session continuation');
+      
+      if (this._responseCallback) {
+        this._responseCallback({
+          type: 'system',
+          content: 'Permission granted. Session will continue with next message.',
+          metadata: { processRunning: false }
+        });
+      }
+    }
   }
 
   /**

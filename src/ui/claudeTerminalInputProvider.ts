@@ -275,6 +275,10 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
           case "pauseProcess":
             this._modeManager.pauseProcess();
             return;
+            
+          case "permissionResponse":
+            await this._handlePermissionResponse(message);
+            return;
         }
       },
       undefined,
@@ -343,6 +347,30 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
       } else {
         vscode.window.showErrorMessage(errorMessage);
       }
+    }
+  }
+
+  /**
+   * Handles permission response from user
+   */
+  private async _handlePermissionResponse(message: any): Promise<void> {
+    try {
+      const { action, toolName, sessionId } = message;
+      
+      console.log(`Received permission response: ${action} for ${toolName} (session: ${sessionId})`);
+      
+      // Get the Direct Mode service to handle the permission
+      const directModeService = this._modeManager.getDirectModeService();
+      if (directModeService) {
+        await directModeService.handlePermissionResponse(action, toolName, sessionId);
+      } else {
+        console.error('Direct Mode service not available for permission handling');
+        vscode.window.showErrorMessage('Permission handling failed: Direct Mode service not available');
+      }
+      
+    } catch (error) {
+      console.error('Error handling permission response:', error);
+      vscode.window.showErrorMessage(`Permission handling failed: ${error}`);
     }
   }
 

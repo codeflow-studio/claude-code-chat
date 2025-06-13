@@ -16,6 +16,9 @@ import {
   hideNewMessageIndicator
 } from './utils.js';
 
+// Get vscode API for sending messages to extension
+const vscode = acquireVsCodeApi();
+
 // Enhanced tool execution tracking for parallel tool calls
 let toolExecutionGroups = new Map();
 let currentGroupId = null;
@@ -145,6 +148,29 @@ export function createMessage(type, content, timestamp, subtype, metadata, displ
 export function addDirectModeMessage(type, content, timestamp, subtype, metadata, displayName, isUpdate, isProcessRunning, toolExecutionContext) {
   const directModeMessages = document.getElementById('directModeMessages');
   if (!directModeMessages) return;
+  
+  // Check for permission requests in user messages
+  if (type === 'user' && content) {
+    const permissionInfo = isPermissionRequest(content);
+    if (permissionInfo) {
+      // Extract session ID from metadata or current state
+      const sessionId = metadata?.sessionId || metadata?.session_id || 'unknown';
+      
+      // Show permission dialog instead of error message
+      const permissionHTML = createPermissionDialog(permissionInfo.toolName, sessionId);
+      
+      const messageElement = document.createElement('div');
+      messageElement.className = 'direct-mode-message permission-request-message';
+      messageElement.innerHTML = permissionHTML;
+      
+      directModeMessages.appendChild(messageElement);
+      
+      // Scroll to show the permission dialog
+      handleSmartScroll(directModeMessages, true);
+      
+      return; // Don't process as regular message
+    }
+  }
   
   // Check if user is at bottom before adding message
   const wasAtBottom = isUserNearBottom(directModeMessages);
@@ -1620,4 +1646,113 @@ function handleThinkingToggle(event) {
       if (full) full.style.display = 'none';
     }
   }
+}
+
+/**
+ * Permission Dialog Functions
+ */
+
+/**
+ * Detects if content contains a permission request
+ */
+export function isPermissionRequest(content) {
+  if (typeof content !== 'string') return null;
+  
+  // Match permission request patterns
+  const permissionPattern = /Claude requested permissions to use (.+?), but you haven't granted it yet/i;
+  const match = content.match(permissionPattern);
+  
+  if (match) {
+    return {
+      isPermissionRequest: true,
+      toolName: match[1].trim(),
+      originalContent: content
+    };
+  }
+  
+  return null;
+}
+
+/**
+ * Creates permission dialog HTML
+ */
+export function createPermissionDialog(toolName, sessionId) {
+  const toolDisplayName = toolName === 'Bash' ? 'Bash (shell commands)' : toolName;
+  const toolDescription = getToolDescription(toolName);
+  
+  return `
+    <div class="permission-dialog" data-session-id="${escapeHtml(sessionId)}" data-tool-name="${escapeHtml(toolName)}">
+      <div class="permission-dialog-header">
+        <span class="permission-dialog-icon">🛡️</span>
+        Permission Request
+      </div>
+      <div class="permission-dialog-content">
+        Claude is requesting permission to use the <span class="permission-dialog-tool-name">${escapeHtml(toolDisplayName)}</span> tool.
+        <br><br>
+        ${toolDescription ? `<strong>What this tool does:</strong> ${escapeHtml(toolDescription)}` : ''}
+        <br><br>
+        Please choose how to proceed:
+      </div>
+      <div class="permission-dialog-actions">
+        <button class="permission-dialog-button approve" data-action="approve">
+          Approve
+        </button>
+        <button class="permission-dialog-button approve-all" data-action="approve-all">
+          Approve All ${escapeHtml(toolName)}
+        </button>
+        <button class="permission-dialog-button reject" data-action="reject">
+          Reject
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Handles permission dialog button clicks
+ */
+export function setupPermissionDialogHandlers() {
+  document.addEventListener('click', (event) => {
+    if (event.target.classList.contains('permission-dialog-button')) {
+      const dialog = event.target.closest('.permission-dialog');
+      if (!dialog) return;
+      
+      const action = event.target.dataset.action;
+      const toolName = dialog.dataset.toolName;
+      const sessionId = dialog.dataset.sessionId;
+      
+      // Disable all buttons to prevent double-clicks
+      const buttons = dialog.querySelectorAll('.permission-dialog-button');
+      buttons.forEach(btn => {
+        btn.disabled = true;
+        btn.style.opacity = '0.5';
+      });
+      
+      // Send permission response to extension
+      vscode.postMessage({
+        command: 'permissionResponse',
+        action: action,
+        toolName: toolName,
+        sessionId: sessionId
+      });
+      
+      // Show feedback message
+      const feedbackMessage = action === 'approve' ? 'Permission granted' :
+                            action === 'approve-all' ? `Permission granted for all ${toolName} requests` :
+                            'Permission denied';
+      
+      dialog.innerHTML = `
+        <div class="permission-dialog-content" style="text-align: center; padding: 16px;">
+          ${escapeHtml(feedbackMessage)}${action === 'reject' ? '. Process stopped.' : '. Continuing...'}
+        </div>
+      `;
+      
+      // Remove dialog after 2 seconds if not rejected
+      if (action !== 'reject') {
+        setTimeout(() => {
+          dialog.remove();
+        }, 2000);
+      }
+    }
+  });
 }

@@ -143,7 +143,7 @@ export function getToolIcon(toolName) {
 
 export function getToolDescription(toolName) {
   const descriptions = {
-    'Bash': 'Run command',
+    'Bash': 'Execute shell commands and scripts on your system',
     'Read': 'Read file',
     'Write': 'Write file',
     'Edit': 'Edit file',
