@@ -602,26 +602,17 @@ export class WebviewTemplateGenerator {
             color: var(--vscode-symbolIcon-stringForeground, var(--vscode-editor-foreground));
           }
 
-          /* Scrollbar styling for editor content */
+          /* Hide scrollbars for cleaner appearance */
           .tool-result-editor-content::-webkit-scrollbar,
           .result-text::-webkit-scrollbar {
-            width: 12px;
+            width: 0px;
+            background: transparent;
           }
 
-          .tool-result-editor-content::-webkit-scrollbar-track,
-          .result-text::-webkit-scrollbar-track {
-            background: var(--vscode-scrollbarSlider-background);
-          }
-
-          .tool-result-editor-content::-webkit-scrollbar-thumb,
-          .result-text::-webkit-scrollbar-thumb {
-            background: var(--vscode-scrollbarSlider-background);
-            border-radius: 6px;
-          }
-
-          .tool-result-editor-content::-webkit-scrollbar-thumb:hover,
-          .result-text::-webkit-scrollbar-thumb:hover {
-            background: var(--vscode-scrollbarSlider-hoverBackground);
+          .tool-result-editor-content,
+          .result-text {
+            scrollbar-width: none; /* Firefox */
+            -ms-overflow-style: none; /* IE and Edge */
           }
 
           /* Animation for expand/collapse */

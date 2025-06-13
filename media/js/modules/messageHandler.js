@@ -615,32 +615,12 @@ export function formatFileContentResult(content, toolName, resultIcon, fileName,
     processedContent = `<div class="editor-content-raw">${escapeHtml(content)}</div>`;
   }
   
-  // Create editor-like UI
+  // Create clean content-only UI
   return `
     <div class="tool-result-editor">
-      <div class="tool-result-header">
-        <div class="header-left">
-          <span class="result-icon">${resultIcon}</span>
-          <span class="result-title">${toolName || 'Tool'} Result</span>
-          ${fileName ? `<span class="file-name">${fileName}</span>` : ''}
-        </div>
-        <div class="header-right">
-          ${toolUseId ? `<span class="tool-id">${toolUseId.slice(-8)}</span>` : ''}
-          <button class="copy-btn" data-copy-result="true" title="Copy content">
-            <span class="copy-icon">📋</span>
-          </button>
-          ${hasLineNumbers ? `<button class="expand-btn" data-toggle-expand="true" title="Expand/Collapse">
-            <span class="expand-icon">⛶</span>
-          </button>` : ''}
-        </div>
-      </div>
       <div class="tool-result-editor-content" data-language="${language}">
         ${processedContent}
       </div>
-      ${hasLineNumbers ? `<div class="editor-footer">
-        <span class="line-count">${lines.length} lines</span>
-        <span class="language-badge">${language.toUpperCase()}</span>
-      </div>` : ''}
     </div>
   `;
 }
@@ -651,18 +631,6 @@ export function formatFileContentResult(content, toolName, resultIcon, fileName,
 export function formatGenericToolResult(content, toolName, resultIcon, toolUseId) {
   return `
     <div class="tool-result-generic">
-      <div class="tool-result-header">
-        <div class="header-left">
-          <span class="result-icon">${resultIcon}</span>
-          <span class="result-title">${toolName || 'Tool'} Result</span>
-        </div>
-        <div class="header-right">
-          ${toolUseId ? `<span class="tool-id">${toolUseId.slice(-8)}</span>` : ''}
-          <button class="copy-btn" data-copy-result="true" title="Copy content">
-            <span class="copy-icon">📋</span>
-          </button>
-        </div>
-      </div>
       <div class="tool-result-content">
         <pre class="result-text">${escapeHtml(content)}</pre>
       </div>
@@ -751,12 +719,6 @@ export function formatToolResultString(content) {
     // Generic tool result - just clean up the display
     return `
       <div class="tool-result-generic">
-        <div class="tool-result-header">
-          <div class="header-left">
-            <span class="result-icon">🔧</span>
-            <span class="result-title">Tool Result</span>
-          </div>
-        </div>
         <div class="tool-result-content">
           <pre class="result-text">${escapeHtml(actualContent)}</pre>
         </div>
@@ -803,23 +765,8 @@ function formatFileContentForDisplay(content, fileName) {
   
   return `
     <div class="tool-result-editor">
-      <div class="tool-result-header">
-        <div class="header-left">
-          <span class="result-icon">📖</span>
-          <span class="result-title">Read</span>
-          <span class="file-name">${escapeHtml(fileName)}</span>
-        </div>
-        <div class="header-right">
-          <span class="language-badge">${language}</span>
-          <span class="tool-id">tool</span>
-        </div>
-      </div>
       <div class="tool-result-editor-content">
         ${editorContent}
-      </div>
-      <div class="editor-footer">
-        <span class="line-count">${processedLines.length} lines</span>
-        <span class="language-badge">${language}</span>
       </div>
     </div>
   `;
@@ -1460,7 +1407,7 @@ function updateTaskWorkflowStatus(groupElement, executionGroup, taskExecution) {
  * Attach general event listeners to message elements
  */
 function attachGeneralEventListeners(messageElement) {
-  // Copy result buttons
+  // Copy result buttons (for backward compatibility)
   const copyButtons = messageElement.querySelectorAll('[data-copy-result]');
   copyButtons.forEach(button => {
     button.removeEventListener('click', handleCopyResult);
@@ -1472,6 +1419,13 @@ function attachGeneralEventListeners(messageElement) {
   expandButtons.forEach(button => {
     button.removeEventListener('click', handleExpandToggle);
     button.addEventListener('click', handleExpandToggle);
+  });
+  
+  // Right-click context menu for tool result content
+  const toolResultElements = messageElement.querySelectorAll('.tool-result-editor-content, .tool-result-content .result-text');
+  toolResultElements.forEach(element => {
+    element.removeEventListener('contextmenu', handleToolResultContextMenu);
+    element.addEventListener('contextmenu', handleToolResultContextMenu);
   });
 }
 
@@ -1693,6 +1647,35 @@ function handleThinkingToggle(event) {
       if (preview) preview.style.display = 'block';
       if (full) full.style.display = 'none';
     }
+  }
+}
+
+/**
+ * Handle right-click context menu on tool result content
+ */
+function handleToolResultContextMenu(event) {
+  event.preventDefault(); // Prevent default browser context menu
+  
+  const element = event.currentTarget;
+  const content = element.textContent;
+  
+  if (content && content.trim()) {
+    // Copy to clipboard
+    navigator.clipboard.writeText(content).then(() => {
+      // Show temporary visual feedback
+      const originalStyle = element.style.backgroundColor;
+      element.style.backgroundColor = 'var(--vscode-editor-selectionBackground)';
+      element.style.transition = 'background-color 0.2s ease';
+      
+      setTimeout(() => {
+        element.style.backgroundColor = originalStyle;
+        setTimeout(() => {
+          element.style.transition = '';
+        }, 200);
+      }, 500);
+    }).catch(() => {
+      console.warn('Failed to copy tool result content');
+    });
   }
 }
 
