@@ -3,7 +3,7 @@
   border: 1px solid var(--vscode-panel-border, var(--claude-border));
   border-radius: 6px;
   background: var(--vscode-editor-background, #1e1e1e);
-  margin: 12px 0;
+  margin: 6px 0;
   font-family: var(--vscode-editor-font-family, 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   transition: max-height 0.3s ease-in-out;
@@ -146,7 +146,7 @@
 }
 
 .editor-content-raw {
-  padding: 12px;
+  padding: 8px;
   white-space: pre-wrap;
   color: var(--vscode-editor-foreground, #d4d4d4);
   background: var(--vscode-editor-background, #1e1e1e);
@@ -194,7 +194,7 @@
 
 .result-text {
   margin: 0;
-  padding: 12px;
+  padding: 8px;
   color: var(--vscode-editor-foreground, #d4d4d4);
   font-family: var(--vscode-editor-font-family, 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace);
   font-size: var(--vscode-editor-font-size, 14px);

@@ -92,7 +92,7 @@ export class DirectModeService {
       // Spawn claude -p process for this specific message
       const claudeProcess = spawn('claude', args, {
         cwd: this._workspaceRoot || process.cwd(),
-        stdio: ['ignore', 'pipe', 'pipe'] // ignore stdin, capture stdout/stderr
+        stdio: ['pipe', 'pipe', 'pipe'] // capture stdin, stdout, stderr for permission handling
       });
 
       // Track the current process and set running state
@@ -371,10 +371,14 @@ export class DirectModeService {
    */
   private async _continueSessionWithPermission(_sessionId: string, _allowedTools: string[]): Promise<void> {
     // Send continuation message to process or restart with session
-    if (this._currentProcess && !this._currentProcess.killed) {
+    if (this._currentProcess && !this._currentProcess.killed && this._currentProcess.stdin) {
       // Send permission granted message via stdin
       const permissionMessage = "You are granted permission. Please continue\n";
-      this._currentProcess.stdin.write(permissionMessage);
+      try {
+        this._currentProcess.stdin.write(permissionMessage);
+      } catch (error) {
+        console.error('Failed to write permission to stdin:', error);
+      }
       
       if (this._responseCallback) {
         this._responseCallback({

@@ -62,7 +62,7 @@
 }
 
 .message p {
-  margin: 0 0 16px 0;
+  margin: 0 0 8px 0;
 }
 
 .message p:last-child {
@@ -71,10 +71,10 @@
 
 .message pre {
   background-color: var(--claude-input-bg);
-  padding: 16px;
+  padding: 12px;
   border-radius: 6px;
   overflow-x: auto;
-  margin: 16px 0;
+  margin: 8px 0;
   border: 1px solid var(--claude-border);
   font-family: var(--vscode-editor-font-family, 'Menlo', 'Monaco', 'Courier New', monospace);
 }
