@@ -265,15 +265,15 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
             return;
             
           case "stopDirectMode":
-            this._modeManager.stopDirectMode();
+            await this._modeManager.stopDirectMode();
             return;
             
           case "clearDirectMode":
-            this._modeManager.clearDirectMode();
+            await this._modeManager.clearDirectMode();
             return;
             
           case "pauseProcess":
-            this._modeManager.pauseProcess();
+            await this._modeManager.pauseProcess();
             return;
             
           case "permissionResponse":

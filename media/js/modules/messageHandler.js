@@ -23,6 +23,18 @@ let vscode = null;
 let toolExecutionGroups = new Map();
 let currentGroupId = null;
 
+// Track shown permission dialogs to prevent duplicates
+let shownPermissionDialogs = new Set();
+
+/**
+ * Clears a permission dialog from the tracking set
+ */
+function clearPermissionDialogTracking(sessionId, toolName) {
+  const permissionKey = `${sessionId}-${toolName}`;
+  shownPermissionDialogs.delete(permissionKey);
+  console.log(`Cleared permission dialog tracking for ${toolName} (session: ${sessionId})`);
+}
+
 /**
  * Initialize the message handler with VS Code API instance
  */
@@ -167,6 +179,18 @@ export function addDirectModeMessage(type, content, timestamp, subtype, metadata
       const sessionId = metadata?.sessionId || metadata?.session_id || 'unknown';
       const toolName = metadata?.toolName || permissionInfo?.toolName || 'unknown';
       
+      // Create unique key for this permission request
+      const permissionKey = `${sessionId}-${toolName}`;
+      
+      // Check if we've already shown this permission dialog
+      if (shownPermissionDialogs.has(permissionKey)) {
+        console.log(`Permission dialog for ${toolName} (session: ${sessionId}) already shown, skipping duplicate`);
+        return;
+      }
+      
+      // Mark this permission dialog as shown
+      shownPermissionDialogs.add(permissionKey);
+      
       // Show permission dialog instead of error message
       const permissionHTML = createPermissionDialog(toolName, sessionId);
       
@@ -210,6 +234,12 @@ export function addDirectModeMessage(type, content, timestamp, subtype, metadata
       handleSmartScroll(directModeMessages, wasAtBottom);
       return;
     }
+  }
+  
+  // Skip displaying silent messages (but still process their metadata)
+  if (metadata?.silent && !content) {
+    console.log(`Processing silent ${type} message with subtype: ${subtype}`);
+    return;
   }
   
   // Create message element
@@ -1762,6 +1792,9 @@ export function setupPermissionDialogHandlers() {
         btn.disabled = true;
         btn.style.opacity = '0.5';
       });
+      
+      // Clear the permission dialog tracking to allow future permission requests
+      clearPermissionDialogTracking(sessionId, toolName);
       
       // Send permission response to extension
       vscode.postMessage({

@@ -208,6 +208,7 @@ export interface DirectModeResponse {
     toolName?: string; // Tool name for permission requests
     isPermissionRequest?: boolean; // Flag to identify permission requests
     action?: string; // Permission action (approve, approve-all, reject)
+    silent?: boolean; // Flag to indicate this message should be processed silently
   };
   originalMessage?: ClaudeMessage; // Store the original parsed message
   isUpdate?: boolean; // Flag to indicate this is an update to an existing message

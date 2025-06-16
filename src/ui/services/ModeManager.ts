@@ -100,10 +100,10 @@ export class ModeManager {
   /**
    * Clears the Direct Mode conversation and resets session
    */
-  public clearDirectMode(): void {
+  public async clearDirectMode(): Promise<void> {
     try {
       if (this._directModeService) {
-        this._directModeService.clearConversation();
+        await this._directModeService.clearConversation();
         console.log('Direct Mode conversation cleared and session reset');
         
         // Show confirmation message to user
@@ -118,10 +118,10 @@ export class ModeManager {
   /**
    * Stops the Direct Mode service
    */
-  public stopDirectMode(): void {
+  public async stopDirectMode(): Promise<void> {
     try {
       if (this._directModeService) {
-        this._directModeService.stop();
+        await this._directModeService.stop();
         console.log('Direct Mode service stopped');
       }
     } catch (error) {
@@ -132,10 +132,10 @@ export class ModeManager {
   /**
    * Pauses the currently running Claude Code process
    */
-  public pauseProcess(): void {
+  public async pauseProcess(): Promise<void> {
     try {
       if (this._directModeService) {
-        const wasTerminated = this._directModeService.terminateCurrentProcess();
+        const wasTerminated = await this._directModeService.terminateCurrentProcess();
         if (wasTerminated) {
           console.log('Claude Code process terminated by user');
           this._callbacks.showInformationMessage('Claude Code process terminated');

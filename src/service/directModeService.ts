@@ -30,6 +30,7 @@ export class DirectModeService {
   private _responseCallback?: (response: DirectModeResponse) => void;
   private _isActive: boolean = false;
   private _currentSessionId?: string;
+  private _originalPrompt?: string; // Store the first prompt that started conversation
   private _lastMessage?: DirectModeResponse;
   private _currentProcess?: any; // Track the running Claude process
   private _isProcessRunning: boolean = false;
@@ -72,10 +73,16 @@ export class DirectModeService {
     }
 
     try {
+      // Store original prompt if this is the first message in session
+      if (!this._currentSessionId) {
+        this._originalPrompt = text;
+      }
+
       // Build claude -p command with streaming JSON
       const allowedTools = await this._getAllowedTools();
+      const promptToUse = this._currentSessionId ? this._originalPrompt! : text;
       const args = [
-        '-p', text,
+        '-p', promptToUse,
         '--output-format', 'stream-json',
         '--verbose',
         '--allowedTools', allowedTools.join(',')
@@ -84,7 +91,7 @@ export class DirectModeService {
       // Add --resume if we have a session ID from previous messages
       if (this._currentSessionId) {
         args.push('--resume', this._currentSessionId);
-        console.log('Resuming session with ID:', this._currentSessionId);
+        console.log('Resuming session with ID:', this._currentSessionId, 'using original prompt');
       } else {
         console.log('Starting new conversation (no session ID yet)');
       }
@@ -105,7 +112,7 @@ export class DirectModeService {
       let partialData = '';
 
       // Handle process output - capture streaming JSON
-      claudeProcess.stdout?.on('data', (data: Buffer) => {
+      claudeProcess.stdout?.on('data', async (data: Buffer) => {
         const output = data.toString();
         console.log('Claude CLI stdout received:', output);
         
@@ -124,7 +131,7 @@ export class DirectModeService {
               
               // Normalize and process the message using our comprehensive handler
               const claudeMessage = ClaudeMessageHandler.normalizeMessage(rawMessage);
-              this._processClaudeMessage(claudeMessage);
+              await this._processClaudeMessage(claudeMessage);
             } catch (error) {
               console.error('Failed to parse JSON response:', line, error);
             }
@@ -171,7 +178,9 @@ export class DirectModeService {
   /**
    * Terminates the currently running Claude process
    */
-  terminateCurrentProcess(): boolean {
+  async terminateCurrentProcess(): Promise<boolean> {
+    let terminatedAny = false;
+
     // Handle suspended processes
     if (this._pendingPermissionState?.process) {
       console.log('Terminating suspended Claude CLI process...');
@@ -181,35 +190,22 @@ export class DirectModeService {
         clearTimeout(this._pendingPermissionState.timeoutId);
       }
       
-      this._pendingPermissionState.process.kill('SIGTERM');
-      
-      // Force kill if process doesn't terminate within 3 seconds
-      setTimeout(() => {
-        if (this._pendingPermissionState?.process && !this._pendingPermissionState.process.killed) {
-          console.log('Force killing suspended Claude CLI process...');
-          this._pendingPermissionState.process.kill('SIGKILL');
-        }
-      }, 3000);
-      
+      await this._terminateProcessCleanly(this._pendingPermissionState.process);
       this._pendingPermissionState = undefined;
+      terminatedAny = true;
     }
     
     // Handle regular running processes
     if (this._currentProcess && this._isProcessRunning) {
       console.log('Terminating Claude CLI process...');
-      this._currentProcess.kill('SIGTERM');
-      
-      // Force kill if process doesn't terminate within 5 seconds
-      setTimeout(() => {
-        if (this._isProcessRunning && this._currentProcess) {
-          console.log('Force killing Claude CLI process...');
-          this._currentProcess.kill('SIGKILL');
-        }
-      }, 5000);
-      
-      return true;
+      await this._terminateProcessCleanly(this._currentProcess);
+      this._isProcessRunning = false;
+      this._currentProcess = undefined;
+      this._notifyProcessStateChanged();
+      terminatedAny = true;
     }
-    return false;
+    
+    return terminatedAny;
   }
 
   /**
@@ -244,9 +240,9 @@ export class DirectModeService {
   /**
    * Clears the current conversation and session ID without stopping the service
    */
-  clearConversation(): void {
+  async clearConversation(): Promise<void> {
     // Terminate any running process first
-    this.terminateCurrentProcess();
+    await this.terminateCurrentProcess();
     
     // Clear any pending permission state
     if (this._pendingPermissionState) {
@@ -260,8 +256,9 @@ export class DirectModeService {
       this._pendingPermissionState = undefined;
     }
     
-    // Clear session ID to start fresh conversation
+    // Clear session ID and original prompt to start fresh conversation
     this._currentSessionId = undefined;
+    this._originalPrompt = undefined;
     this._lastMessage = undefined;
     
     // Clear pending tool executions
@@ -273,9 +270,9 @@ export class DirectModeService {
   /**
    * Stops the current direct mode session
    */
-  stop(): void {
+  async stop(): Promise<void> {
     // Terminate any running process first
-    this.terminateCurrentProcess();
+    await this.terminateCurrentProcess();
     
     // Clear any pending permission state
     if (this._pendingPermissionState) {
@@ -291,6 +288,7 @@ export class DirectModeService {
     
     this._isActive = false;
     this._currentSessionId = undefined; // Clear session ID
+    this._originalPrompt = undefined; // Clear original prompt
     
     // Clear pending tool executions
     ClaudeMessageHandler.clearPendingTools();
@@ -332,23 +330,14 @@ export class DirectModeService {
     }
     
     if (action === 'reject') {
-      // Terminate the suspended process and clear state
-      console.log('Permission rejected - terminating suspended process');
+      // Process was already terminated when permission was requested
+      console.log('Permission rejected - process already terminated');
       
-      if (this._pendingPermissionState.process) {
-        this._pendingPermissionState.process.kill('SIGTERM');
-        
-        // Force kill if needed after 3 seconds
-        setTimeout(() => {
-          if (this._pendingPermissionState?.process && !this._pendingPermissionState.process.killed) {
-            this._pendingPermissionState.process.kill('SIGKILL');
-          }
-        }, 3000);
-      }
-      
+      // Clear pending permission state
       this._isProcessRunning = false;
       this._currentProcess = undefined;
       this._pendingPermissionState = undefined;
+      this._notifyProcessStateChanged();
       
       if (this._responseCallback) {
         this._responseCallback({
@@ -360,29 +349,26 @@ export class DirectModeService {
       return;
     }
     
-    // For approve and approve-all, resume the suspended process
+    // For approve and approve-all, start new process with continuation prompt
     try {
-      console.log(`Permission approved (${action}) - resuming suspended process`);
+      console.log(`Permission approved (${action}) - starting new process with continuation prompt`);
       
       // If approve-all, save to settings for future use
       if (action === 'approve-all') {
         await this._saveToolPermission(toolName);
       }
       
-      // Resume the suspended process
+      // Start new process with continuation prompt
       await this._resumeSuspendedProcess(action);
       
     } catch (error) {
       console.error('Error handling permission response:', error);
       
-      // If resumption fails, terminate the process
-      if (this._pendingPermissionState?.process) {
-        this._pendingPermissionState.process.kill('SIGTERM');
-      }
-      
+      // Process was already terminated, just clean up state
       this._isProcessRunning = false;
       this._currentProcess = undefined;
       this._pendingPermissionState = undefined;
+      this._notifyProcessStateChanged();
       
       if (this._responseCallback) {
         this._responseCallback({
@@ -470,54 +456,142 @@ export class DirectModeService {
   }
 
   /**
-   * Resumes a suspended process after permission is granted
+   * Resumes a suspended process after permission is granted using minimal continuation prompt
+   * 
+   * This approach mimics the official Claude Code terminal behavior:
+   * - Instead of restarting with the original prompt (which causes regeneration)
+   * - We use a minimal "you got permission" prompt with --resume to continue seamlessly
+   * - This prevents Claude from repeating previous work and maintains conversation flow
    */
   private async _resumeSuspendedProcess(action: 'approve' | 'approve-all'): Promise<void> {
     if (!this._pendingPermissionState) {
       throw new Error('No suspended process to resume');
     }
     
-    const { process, toolName } = this._pendingPermissionState;
+    const { process, toolName, sessionId } = this._pendingPermissionState;
     
     try {
-      // Resume stdin/stdout streams
-      if (process.stdin && !process.stdin.destroyed) {
-        process.stdin.resume();
-        
-        // Send permission granted signal to Claude Code process
-        // The exact format depends on how Claude Code handles permission responses
-        // We'll send a simple approval message
-        const permissionResponse = `Permission granted for ${toolName}\n`;
-        process.stdin.write(permissionResponse);
-        
-        console.log(`Sent permission approval to Claude process: ${permissionResponse.trim()}`);
+      // Get current allowed tools and add the newly approved tool
+      const allowedTools = await this._getAllowedTools();
+      if (!allowedTools.includes(toolName)) {
+        allowedTools.push(toolName);
       }
       
-      if (process.stdout && !process.stdout.destroyed) {
-        process.stdout.resume();
-      }
+      // Use minimal continuation prompt instead of restarting with original prompt
+      const continuationPrompt = `You have been granted permission to use ${toolName}. Please continue with your previous task.`;
       
-      // Clear pending permission state since process is now resumed
+      const args = [
+        '-p', continuationPrompt,
+        '--output-format', 'stream-json',
+        '--verbose',
+        '--allowedTools', allowedTools.join(','),
+        '--resume', sessionId
+      ];
+      
+      console.log('Continuing Claude process with minimal prompt after permission granted:', args);
+      console.log('Continuation prompt:', continuationPrompt);
+      
+      // Process was already terminated when permission was requested
+      console.log('Process was already terminated during permission request - starting new process');
+      
+      // Small delay to ensure clean process restart  
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Spawn new Claude process with minimal continuation prompt
+      const claudeProcess = spawn('claude', args, {
+        cwd: this._workspaceRoot || process.cwd(),
+        stdio: ['ignore', 'pipe', 'pipe']
+      });
+      
+      // Update tracking with new process
+      this._currentProcess = claudeProcess;
+      this._isProcessRunning = true;
+      this._notifyProcessStateChanged();
+      
+      let partialData = '';
+      
+      // Handle process output - same as in sendMessage
+      claudeProcess.stdout?.on('data', async (data: Buffer) => {
+        const output = data.toString();
+        console.log('Claude CLI stdout received (after permission grant):', output);
+        
+        partialData += output;
+        
+        // Process complete JSON lines
+        const lines = partialData.split('\n');
+        partialData = lines.pop() || '';
+        
+        for (const line of lines) {
+          if (line.trim()) {
+            console.log('Processing line (after permission grant):', line);
+            try {
+              const rawMessage = JSON.parse(line);
+              console.log('Parsed JSON (after permission grant):', rawMessage);
+              
+              const claudeMessage = ClaudeMessageHandler.normalizeMessage(rawMessage);
+              await this._processClaudeMessage(claudeMessage);
+            } catch (error) {
+              console.error('Failed to parse JSON response (after permission grant):', line, error);
+            }
+          }
+        }
+      });
+      
+      // Handle process errors
+      claudeProcess.stderr?.on('data', (data: Buffer) => {
+        console.error('Claude CLI stderr (after permission grant):', data.toString());
+        this._handleError(`CLI Error: ${data.toString()}`);
+      });
+      
+      // Handle process exit
+      claudeProcess.on('exit', (code: number | null) => {
+        console.log(`Claude CLI process exited with code ${code} (after permission grant)`);
+        this._isProcessRunning = false;
+        this._currentProcess = undefined;
+        this._notifyProcessStateChanged();
+        if (code !== 0) {
+          this._handleError(`Claude CLI exited with code ${code}`);
+        }
+      });
+      
+      // Handle process errors
+      claudeProcess.on('error', (error: Error) => {
+        console.error('Claude CLI process error (after permission grant):', error);
+        this._isProcessRunning = false;
+        this._currentProcess = undefined;
+        this._notifyProcessStateChanged();
+        this._handleError(`Failed to start Claude CLI: ${error.message}`);
+      });
+      
+      // Clear pending permission state since process is now restarted
       this._pendingPermissionState = undefined;
       
-      // Notify UI that process has resumed
+      // Notify UI about process state change (minimal message)
       if (this._responseCallback) {
         this._responseCallback({
           type: 'system',
           subtype: 'permission_granted',
-          content: `Permission granted for ${toolName}. Process resumed.`,
+          content: '', // Empty content to minimize UI clutter - feedback is shown in permission dialog
           metadata: { 
             processRunning: true,
             suspended: false,
-            action: action
+            action: action,
+            silent: true // Flag to indicate this should be processed silently
           }
         });
       }
       
-      console.log('Claude process successfully resumed after permission grant');
+      console.log(`Claude process successfully continued with ${toolName} permission granted using minimal prompt`);
       
     } catch (error) {
-      console.error('Failed to resume suspended process:', error);
+      console.error('Failed to continue process after permission grant:', error);
+      
+      // Ensure cleanup on failure
+      this._isProcessRunning = false;
+      this._currentProcess = undefined;
+      this._pendingPermissionState = undefined;
+      this._notifyProcessStateChanged();
+      
       throw error;
     }
   }
@@ -559,11 +633,11 @@ export class DirectModeService {
   }
 
   /**
-   * Suspends the current Claude process when a permission request is detected
+   * Terminates the current Claude process when a permission request is detected
    */
-  private _suspendProcessForPermission(toolName: string, sessionId: string): void {
+  private async _suspendProcessForPermission(toolName: string, sessionId: string): Promise<void> {
     if (this._currentProcess && this._isProcessRunning) {
-      console.log(`Suspending Claude process for ${toolName} permission request`);
+      console.log(`Terminating Claude process for ${toolName} permission request`);
       
       // Clear any existing timeout
       if (this._pendingPermissionState?.timeoutId) {
@@ -572,39 +646,39 @@ export class DirectModeService {
       
       // Set up timeout for permission request (5 minutes)
       const timeoutId = setTimeout(() => {
-        console.log('Permission request timed out - terminating process');
+        console.log('Permission request timed out');
         this._handlePermissionTimeout();
       }, 5 * 60 * 1000); // 5 minutes timeout
       
-      // Store pending permission state
+      // Store the current process reference before terminating
+      const processToStore = this._currentProcess;
+      
+      // Terminate the process cleanly instead of pausing
+      await this._terminateProcessCleanly(this._currentProcess);
+      this._isProcessRunning = false;
+      this._currentProcess = undefined;
+      this._notifyProcessStateChanged();
+      
+      // Store pending permission state (with already terminated process)
       this._pendingPermissionState = {
         sessionId,
         toolName,
-        process: this._currentProcess,
+        process: processToStore, // Store reference for cleanup only
         suspendedAt: new Date(),
         timeoutId
       };
       
-      // Suspend the process by pausing stdin/stdout handling
-      // The process will remain alive but won't receive new input
-      if (this._currentProcess.stdin) {
-        this._currentProcess.stdin.pause();
-      }
-      if (this._currentProcess.stdout) {
-        this._currentProcess.stdout.pause();
-      }
+      console.log('Claude process terminated cleanly, waiting for permission response (5 min timeout)');
       
-      console.log('Claude process suspended, waiting for permission response (5 min timeout)');
-      
-      // Notify UI about the suspended state
+      // Notify UI about the stopped state (not suspended)
       if (this._responseCallback) {
         this._responseCallback({
           type: 'system',
-          subtype: 'permission_suspended',
-          content: `Process suspended - waiting for ${toolName} permission`,
+          subtype: 'permission_requested',
+          content: `Process stopped - waiting for ${toolName} permission`,
           metadata: { 
             processRunning: false,
-            suspended: true,
+            suspended: false, // Changed from true - process is terminated, not suspended
             toolName,
             sessionId
           }
@@ -623,30 +697,20 @@ export class DirectModeService {
     
     console.log(`Permission request for ${this._pendingPermissionState.toolName} timed out`);
     
-    // Terminate the suspended process
-    if (this._pendingPermissionState.process) {
-      this._pendingPermissionState.process.kill('SIGTERM');
-      
-      // Force kill after 3 seconds if needed
-      setTimeout(() => {
-        if (this._pendingPermissionState?.process && !this._pendingPermissionState.process.killed) {
-          this._pendingPermissionState.process.kill('SIGKILL');
-        }
-      }, 3000);
-    }
-    
+    // Process was already terminated when permission was requested
     const toolName = this._pendingPermissionState.toolName;
     
     // Clear state
     this._isProcessRunning = false;
     this._currentProcess = undefined;
     this._pendingPermissionState = undefined;
+    this._notifyProcessStateChanged();
     
     // Notify UI about timeout
     if (this._responseCallback) {
       this._responseCallback({
         type: 'error',
-        content: `Permission request for ${toolName} timed out. Process terminated.`,
+        content: `Permission request for ${toolName} timed out. Process was already stopped.`,
         error: 'Permission request timeout',
         metadata: { 
           processRunning: false,
@@ -659,7 +723,7 @@ export class DirectModeService {
   /**
    * Processes a Claude message using the comprehensive message handler
    */
-  private _processClaudeMessage(claudeMessage: ClaudeMessage): void {
+  private async _processClaudeMessage(claudeMessage: ClaudeMessage): Promise<void> {
     try {
       // Extract and store session ID from all messages that have it
       const sessionId = ClaudeMessageHandler.extractSessionId(claudeMessage);
@@ -676,8 +740,8 @@ export class DirectModeService {
           if (permissionInfo) {
             console.log('Permission request detected:', permissionInfo);
             
-            // Suspend the current process and wait for user response
-            this._suspendProcessForPermission(
+            // Terminate the current process and wait for user response
+            await this._suspendProcessForPermission(
               permissionInfo.toolName, 
               sessionId || this._currentSessionId || 'unknown'
             );
@@ -850,6 +914,49 @@ export class DirectModeService {
       enhancedMessage: result.enhancedMessage,
       failedImages: result.failedImages
     };
+  }
+
+  /**
+   * Terminates a process cleanly with proper timing and error handling
+   */
+  private async _terminateProcessCleanly(process: any): Promise<void> {
+    if (!process || process.killed) {
+      return;
+    }
+
+    return new Promise<void>((resolve) => {
+      // Set up exit handler
+      const onExit = () => {
+        console.log('Process exited cleanly');
+        resolve();
+      };
+
+      // Listen for process exit
+      process.once('exit', onExit);
+
+      // Send SIGTERM first
+      console.log('Sending SIGTERM to process');
+      process.kill('SIGTERM');
+
+      // Set up timeout for force kill
+      const forceKillTimeout = setTimeout(() => {
+        if (!process.killed) {
+          console.log('Process did not exit gracefully, force killing with SIGKILL');
+          process.kill('SIGKILL');
+          
+          // Give it a moment for SIGKILL to take effect
+          setTimeout(() => {
+            process.removeListener('exit', onExit);
+            resolve();
+          }, 500);
+        }
+      }, 3000); // 3 second timeout for graceful exit
+
+      // Clean up timeout if process exits naturally
+      process.once('exit', () => {
+        clearTimeout(forceKillTimeout);
+      });
+    });
   }
 
   /**
