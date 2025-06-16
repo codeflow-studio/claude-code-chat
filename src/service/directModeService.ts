@@ -92,7 +92,7 @@ export class DirectModeService {
       // Spawn claude -p process for this specific message
       const claudeProcess = spawn('claude', args, {
         cwd: this._workspaceRoot || process.cwd(),
-        stdio: ['pipe', 'pipe', 'pipe'] // capture stdin, stdout, stderr for permission handling
+        stdio: ['ignore', 'pipe', 'pipe'] // ignore stdin since prompt is passed as arg
       });
 
       // Track the current process and set running state
