@@ -230,7 +230,29 @@ export function notifyClaudeResponseReceived(messageType) {
 }
 
 /**
+ * Ensures the loading indicator is positioned at the very bottom of the message container
+ * This is a helper function to guarantee correct positioning
+ */
+function ensureLoadingIndicatorAtBottom() {
+  if (!isDirectMode) return;
+  
+  const directModeMessages = document.getElementById('directModeMessages');
+  if (!directModeMessages) return;
+  
+  const existingIndicator = directModeMessages.querySelector('.loading-indicator');
+  if (!existingIndicator) return;
+  
+  // If indicator exists but is not the last child, move it to the end
+  const lastChild = directModeMessages.lastElementChild;
+  if (lastChild !== existingIndicator) {
+    console.log('Moving loading indicator to bottom - it was not the last child');
+    directModeMessages.appendChild(existingIndicator);
+  }
+}
+
+/**
  * Updates the loading indicator for Direct Mode
+ * Ensures the indicator is always positioned at the very bottom
  */
 function updateLoadingIndicator(show) {
   console.log('updateLoadingIndicator called:', { show, isDirectMode });
@@ -244,21 +266,26 @@ function updateLoadingIndicator(show) {
     return;
   }
   
-  // Remove existing loading indicator
-  const existingIndicator = directModeMessages.querySelector('.loading-indicator');
-  if (existingIndicator) {
-    existingIndicator.remove();
-  }
+  // Always remove ALL existing loading indicators to prevent duplicates
+  const existingIndicators = directModeMessages.querySelectorAll('.loading-indicator');
+  existingIndicators.forEach(indicator => indicator.remove());
   
   if (show) {
-    // Add loading indicator at the very bottom
+    // Add loading indicator at the very bottom (as the last child)
     const loadingIndicator = document.createElement('div');
     loadingIndicator.className = 'loading-indicator';
     loadingIndicator.innerHTML = `
       <div class="loading-spinner"></div>
       <span class="loading-text">Claude is processing...</span>
     `;
+    
+    // Ensure it's always the last element by appending at the end
     directModeMessages.appendChild(loadingIndicator);
+    
+    // Double-check positioning with a small delay to handle race conditions
+    setTimeout(() => {
+      ensureLoadingIndicatorAtBottom();
+    }, 0);
     
     // Auto-scroll to bottom to show loading indicator
     if (isUserNearBottom(directModeMessages)) {
@@ -282,6 +309,7 @@ function updatePauseButtonVisibility(processRunning) {
 
 /**
  * Adds a message to Direct Mode
+ * Ensures loading indicator is always positioned after the new message
  */
 export function addMessageToDirectMode(type, content, timestamp, subtype, metadata, displayName, isUpdate, toolExecutionContext) {
   if (!isDirectMode) return;
@@ -293,18 +321,11 @@ export function addMessageToDirectMode(type, content, timestamp, subtype, metada
     hasReceivedClaudeResponse = true;
   }
   
-  // Remove loading indicator before adding message to prevent it from being in the wrong position
-  const directModeMessages = document.getElementById('directModeMessages');
-  if (directModeMessages && isProcessRunning) {
-    const existingIndicator = directModeMessages.querySelector('.loading-indicator');
-    if (existingIndicator) {
-      existingIndicator.remove();
-    }
-  }
-  
+  // First, add the message without worrying about the loading indicator
   addDirectModeMessage(type, content, timestamp, subtype, metadata, displayName, isUpdate, isProcessRunning, toolExecutionContext);
   
-  // Show loading indicator at the bottom if process is running and we've received Claude responses
+  // After the message is added, ensure loading indicator is at the bottom if needed
+  // This ensures the indicator always appears after the last message
   if (isProcessRunning && hasReceivedClaudeResponse) {
     console.log('Calling updateLoadingIndicator(true) after adding message');
     updateLoadingIndicator(true);
