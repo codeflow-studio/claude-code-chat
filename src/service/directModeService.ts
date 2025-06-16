@@ -142,7 +142,10 @@ export class DirectModeService {
       // Handle process errors
       claudeProcess.stderr?.on('data', (data: Buffer) => {
         console.error('Claude CLI stderr:', data.toString());
-        this._handleError(`CLI Error: ${data.toString()}`);
+        // Don't show stderr errors if we have a pending permission request
+        if (!this._pendingPermissionState) {
+          this._handleError(`CLI Error: ${data.toString()}`);
+        }
       });
 
       // Handle process exit
@@ -151,7 +154,7 @@ export class DirectModeService {
         this._isProcessRunning = false;
         this._currentProcess = undefined;
         this._notifyProcessStateChanged();
-        if (code !== 0) {
+        if (code !== 0 && !this._pendingPermissionState) {
           this._handleError(`Claude CLI exited with code ${code}`);
         }
       });
@@ -162,7 +165,10 @@ export class DirectModeService {
         this._isProcessRunning = false;
         this._currentProcess = undefined;
         this._notifyProcessStateChanged();
-        this._handleError(`Failed to start Claude CLI: ${error.message}`);
+        // Don't show startup errors if we have a pending permission request
+        if (!this._pendingPermissionState) {
+          this._handleError(`Failed to start Claude CLI: ${error.message}`);
+        }
       });
 
       console.log('Message sent to Claude CLI (claude -p mode):');
@@ -659,31 +665,39 @@ export class DirectModeService {
       this._currentProcess = undefined;
       this._notifyProcessStateChanged();
       
-      // Store pending permission state (with already terminated process)
-      this._pendingPermissionState = {
-        sessionId,
-        toolName,
-        process: processToStore, // Store reference for cleanup only
-        suspendedAt: new Date(),
-        timeoutId
-      };
+      // Update existing pending permission state with timeout and process reference
+      if (this._pendingPermissionState) {
+        this._pendingPermissionState.process = processToStore;
+        this._pendingPermissionState.timeoutId = timeoutId;
+      } else {
+        // Fallback if state wasn't set earlier
+        this._pendingPermissionState = {
+          sessionId,
+          toolName,
+          process: processToStore,
+          suspendedAt: new Date(),
+          timeoutId
+        };
+      }
       
       console.log('Claude process terminated cleanly, waiting for permission response (5 min timeout)');
       
-      // Notify UI about the stopped state (not suspended)
-      if (this._responseCallback) {
-        this._responseCallback({
-          type: 'system',
-          subtype: 'permission_requested',
-          content: `Process stopped - waiting for ${toolName} permission`,
-          metadata: { 
-            processRunning: false,
-            suspended: false, // Changed from true - process is terminated, not suspended
-            toolName,
-            sessionId
-          }
-        });
-      }
+      // Show the system message after a small delay so the permission dialog appears first
+      setTimeout(() => {
+        if (this._responseCallback && this._pendingPermissionState) {
+          this._responseCallback({
+            type: 'system',
+            subtype: 'permission_requested',
+            content: `Process stopped - waiting for ${toolName} permission`,
+            metadata: { 
+              processRunning: false,
+              suspended: false, // Changed from true - process is terminated, not suspended
+              toolName,
+              sessionId
+            }
+          });
+        }
+      }, 100); // Small delay to ensure permission dialog renders first
     }
   }
 
@@ -740,33 +754,48 @@ export class DirectModeService {
           if (permissionInfo) {
             console.log('Permission request detected:', permissionInfo);
             
-            // Terminate the current process and wait for user response
-            await this._suspendProcessForPermission(
-              permissionInfo.toolName, 
-              sessionId || this._currentSessionId || 'unknown'
-            );
+            // Set up pending permission state early to enable error suppression
+            const permissionSessionId = sessionId || this._currentSessionId || 'unknown';
+            this._pendingPermissionState = {
+              sessionId: permissionSessionId,
+              toolName: permissionInfo.toolName,
+              process: this._currentProcess,
+              suspendedAt: new Date()
+            };
             
-            // Send permission request to UI
+            // Send permission request to UI FIRST (so it appears before system message)
             if (this._responseCallback) {
               this._responseCallback({
                 type: 'user',
                 subtype: 'permission_request',
                 content: content,
                 metadata: {
-                  sessionId: sessionId || this._currentSessionId,
+                  sessionId: permissionSessionId,
                   toolName: permissionInfo.toolName,
                   isPermissionRequest: true
                 }
               });
             }
             
+            // Then terminate the current process and show status message
+            await this._suspendProcessForPermission(
+              permissionInfo.toolName, 
+              permissionSessionId
+            );
+            
             return; // Don't process as normal message
           }
         }
       }
 
-      // Check for errors
+      // Check for errors - but suppress errors during permission requests
       if (ClaudeMessageHandler.isError(claudeMessage)) {
+        // Don't show errors if we have a pending permission request
+        if (this._pendingPermissionState) {
+          console.log('Suppressing error message during permission request:', claudeMessage);
+          return;
+        }
+        
         const errorContent = ClaudeMessageHandler.extractContent(claudeMessage);
         this._handleError(`Claude Error: ${errorContent}`);
         return;
