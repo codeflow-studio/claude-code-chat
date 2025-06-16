@@ -105,14 +105,13 @@ export function addDirectModeMessage(type, content, timestamp, subtype, metadata
 
 // Re-export functions from other modules for backward compatibility
 export { createMessage, formatAssistantContent, updateMessageToResult } from './messageFormatter.js';
-export { formatToolUse, formatToolResult } from './toolFormatter.js';
+export { formatToolUse, formatToolResult, generateResultSummary } from './toolFormatter.js';
 export { 
   createOrUpdateToolExecutionGroup,
   updateToolExecutionGroupWithResults,
   formatToolExecutionList,
   formatSingleToolExecution,
-  updateToolExecutionElement,
-  generateResultSummary
+  updateToolExecutionElement
 } from './toolExecutionHandler.js';
 export { 
   createOrUpdateTaskWorkflowGroup,

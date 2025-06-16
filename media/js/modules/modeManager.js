@@ -23,10 +23,27 @@ let clearResponsesBtn = null;
 let pauseProcessBtn = null;
 let vscode = null;
 
+// Event listener tracking for cleanup
+let eventListeners = [];
+let isInitialized = false;
+
 /**
  * Initialize the mode manager module
  */
 export function initializeModeManager(elements, vscodeApi) {
+  console.log('Initializing mode manager...');
+  
+  // Clean up existing event listeners if already initialized
+  if (isInitialized) {
+    cleanup();
+  }
+  
+  // Validate required elements
+  if (!elements || !vscodeApi) {
+    console.error('Mode manager initialization failed: missing elements or vscode API');
+    return;
+  }
+  
   mainModeToggleElement = elements.mainModeToggle;
   directModeContainer = elements.directModeContainer;
   modeToggleButtonElement = elements.modeToggleButton;
@@ -38,49 +55,78 @@ export function initializeModeManager(elements, vscodeApi) {
   pauseProcessBtn = elements.pauseProcessBtn;
   vscode = vscodeApi;
   
+  // Validate critical elements
+  if (!mainModeToggleElement) {
+    console.error('Mode manager: mainModeToggle element not found');
+  }
+  
   setupEventListeners();
+  isInitialized = true;
+  console.log('Mode manager initialized successfully');
 }
 
 /**
  * Sets up mode-related event listeners
  */
 function setupEventListeners() {
+  console.log('Setting up mode manager event listeners...');
+  
+  // Helper function to add tracked event listeners
+  function addTrackedEventListener(element, event, handler, elementName) {
+    if (element) {
+      console.log(`Adding ${event} listener to ${elementName}`);
+      element.addEventListener(event, handler);
+      eventListeners.push({ element, event, handler });
+    } else {
+      console.warn(`${elementName} element not found when setting up event listener`);
+    }
+  }
+
   // Event listener for main mode toggle switch
-  if (mainModeToggleElement) {
-    mainModeToggleElement.addEventListener('change', () => {
-      isDirectMode = mainModeToggleElement.checked;
-      updateModeUI();
+  const toggleHandler = () => {
+    console.log('🔄 Mode toggle clicked! Current checked state:', mainModeToggleElement.checked);
+    console.log('🔄 Previous isDirectMode:', isDirectMode);
+    isDirectMode = mainModeToggleElement.checked;
+    console.log('🔄 New isDirectMode:', isDirectMode);
+    console.log('🔄 About to call updateModeUI...');
+    updateModeUI();
+    console.log('🔄 updateModeUI completed');
+    
+    if (vscode) {
       vscode.postMessage({
         command: 'toggleMainMode',
         isDirectMode: isDirectMode
       });
-    });
-  }
+      console.log('🔄 Sent toggleMainMode message to backend');
+    } else {
+      console.error('vscode API not available for mode toggle');
+    }
+  };
+  addTrackedEventListener(mainModeToggleElement, 'change', toggleHandler, 'mainModeToggle');
 
   // Event listener for clear responses button
-  if (clearResponsesBtn) {
-    clearResponsesBtn.addEventListener('click', () => {
-      clearDirectModeConversation();
-    });
-  }
+  const clearHandler = () => {
+    clearDirectModeConversation();
+  };
+  addTrackedEventListener(clearResponsesBtn, 'click', clearHandler, 'clearResponsesBtn');
 
   // Event listener for pause process button
-  if (pauseProcessBtn) {
-    pauseProcessBtn.addEventListener('click', () => {
-      pauseCurrentProcess();
-    });
-  }
+  const pauseHandler = () => {
+    pauseCurrentProcess();
+  };
+  addTrackedEventListener(pauseProcessBtn, 'click', pauseHandler, 'pauseProcessBtn');
 
   // Listen for custom events
-  document.addEventListener('updateLoadingIndicator', (e) => {
+  const loadingIndicatorHandler = (e) => {
     updateLoadingIndicator(e.detail.isRunning);
-  });
+  };
+  addTrackedEventListener(document, 'updateLoadingIndicator', loadingIndicatorHandler, 'document (updateLoadingIndicator)');
 
   // Add scroll listener for Direct Mode messages container
   const directModeMessages = document.getElementById('directModeMessages');
   if (directModeMessages) {
     let scrollTimeout;
-    directModeMessages.addEventListener('scroll', () => {
+    const scrollHandler = () => {
       // Debounce scroll events to avoid conflicts with auto-scroll
       clearTimeout(scrollTimeout);
       scrollTimeout = setTimeout(() => {
@@ -90,32 +136,78 @@ function setupEventListeners() {
           hideNewMessageIndicator();
         }
       }, 100);
-    });
+    };
+    addTrackedEventListener(directModeMessages, 'scroll', scrollHandler, 'directModeMessages (scroll)');
   }
+  
+  console.log(`Set up ${eventListeners.length} event listeners for mode manager`);
+}
+
+/**
+ * Cleanup function to remove all event listeners
+ */
+function cleanup() {
+  console.log('Cleaning up mode manager event listeners...');
+  
+  eventListeners.forEach(({ element, event, handler }, index) => {
+    try {
+      element.removeEventListener(event, handler);
+      console.log(`Removed event listener ${index + 1}`);
+    } catch (error) {
+      console.warn(`Failed to remove event listener ${index + 1}:`, error);
+    }
+  });
+  
+  eventListeners = [];
+  isInitialized = false;
+  console.log('Mode manager cleanup completed');
+}
+
+/**
+ * Export cleanup function for external use
+ */
+export function cleanupModeManager() {
+  cleanup();
 }
 
 /**
  * Updates the UI based on current mode state
  */
 export function updateModeUI() {
+  console.log('🎨 updateModeUI called, isDirectMode:', isDirectMode);
+  
   // Update mode toggle labels - set active state based on isDirectMode
   const terminalLabel = document.querySelector('.mode-label[data-mode="terminal"]');
   const directLabel = document.querySelector('.mode-label[data-mode="direct"]');
+  
+  console.log('🎨 Found labels:', { terminalLabel: !!terminalLabel, directLabel: !!directLabel });
   
   if (terminalLabel && directLabel) {
     if (isDirectMode) {
       terminalLabel.classList.remove('active');
       directLabel.classList.add('active');
+      console.log('🎨 Applied active state to direct label');
     } else {
       terminalLabel.classList.add('active');
       directLabel.classList.remove('active');
+      console.log('🎨 Applied active state to terminal label');
     }
   }
 
+  console.log('🎨 Found elements:', { 
+    directModeContainer: !!directModeContainer,
+    terminalStatusBanner: !!terminalStatusBanner,
+    utilityRow: !!utilityRow
+  });
+
   if (isDirectMode) {
     // Direct Mode: Show chat interface, hide terminal elements
+    console.log('🎨 Switching to Direct Mode UI...');
     if (directModeContainer) {
       directModeContainer.classList.remove('hidden');
+      console.log('🎨 Removed hidden class from directModeContainer');
+    } else {
+      console.error('🎨 directModeContainer not found!');
     }
     
     // Hide terminal-specific elements in Direct Mode
@@ -130,11 +222,14 @@ export function updateModeUI() {
     }
     if (utilityRow) {
       utilityRow.style.display = 'none';
+      console.log('🎨 Hidden utility row');
     }
   } else {
     // Terminal Mode: Hide chat interface, show terminal elements
+    console.log('🎨 Switching to Terminal Mode UI...');
     if (directModeContainer) {
       directModeContainer.classList.add('hidden');
+      console.log('🎨 Added hidden class to directModeContainer');
     }
     
     // Show terminal-specific elements in Terminal Mode
@@ -149,6 +244,7 @@ export function updateModeUI() {
     }
     if (utilityRow) {
       utilityRow.style.display = 'flex';
+      console.log('🎨 Showed utility row');
     }
   }
   
@@ -156,20 +252,29 @@ export function updateModeUI() {
   if (inputBottomActions) {
     inputBottomActions.style.display = 'flex';
   }
+  
+  console.log('🎨 updateModeUI complete');
 }
 
 /**
  * Sets the current mode
  */
 export function setDirectMode(enabled) {
+  console.log(`setDirectMode called with enabled: ${enabled}, current isDirectMode: ${isDirectMode}`);
+  
   isDirectMode = enabled;
   
   // Update toggle switch state
   if (mainModeToggleElement) {
+    console.log(`Updating toggle switch to checked: ${isDirectMode}`);
     mainModeToggleElement.checked = isDirectMode;
+  } else {
+    console.error('mainModeToggleElement not found when setting direct mode');
   }
   
+  console.log('Calling updateModeUI...');
   updateModeUI();
+  console.log(`setDirectMode completed, isDirectMode is now: ${isDirectMode}`);
 }
 
 /**

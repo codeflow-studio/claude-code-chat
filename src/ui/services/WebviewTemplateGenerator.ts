@@ -72,6 +72,11 @@ export class WebviewTemplateGenerator {
       </head>
       <body>
         ${this._getBodyContent(resources)}
+        <script nonce="${nonce}">
+          // Inject environment variables for hot reload detection
+          window.HOT_RELOAD_ENABLED = ${process.env.NODE_ENV === 'development'};
+          window.NODE_ENV = "${process.env.NODE_ENV || 'production'}";
+        </script>
         <script type="module" nonce="${nonce}" src="${resources.scriptUri}"></script>
       </body>
       </html>
@@ -656,12 +661,12 @@ export class WebviewTemplateGenerator {
               <span>Claude Terminal Input</span>
             </div>
             <div class="mode-toggle-switch">
-              <span class="mode-label">Terminal</span>
+              <span class="mode-label" data-mode="terminal">Terminal</span>
               <label class="toggle-switch">
                 <input type="checkbox" id="mainModeToggle">
                 <span class="slider"></span>
               </label>
-              <span class="mode-label">Direct</span>
+              <span class="mode-label" data-mode="direct">Direct</span>
             </div>
           </div>
           

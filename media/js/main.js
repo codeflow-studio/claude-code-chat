@@ -3,6 +3,11 @@
  * Coordinates all modules and handles VSCode API communication
  */
 
+// Main entry point initialized
+
+// Import hot reload system first (now safe with error handling)
+import hotReloadManager from './modules/hotReload.js';
+
 // Import all modules
 import { 
   extractFilePathsFromText,
@@ -11,7 +16,7 @@ import {
   BASE_CONTEXT_ITEMS
 } from './modules/utils.js';
 
-import { addDirectModeMessage, setupPermissionDialogHandlers, initializeMessageHandler } from './modules/messageHandler.js';
+import { addDirectModeMessage, initializeMessageHandler } from './modules/messageHandler.js';
 
 import { 
   initializeContextMenu,
@@ -77,6 +82,8 @@ import {
   setCursorPosition
 } from './modules/uiManager.js';
 
+import { setupPermissionDialogHandlers } from './modules/permissionDialog.js';
+
 // Main application class
 class ClaudeCodeUI {
   constructor() {
@@ -94,6 +101,9 @@ class ClaudeCodeUI {
     
     // Initialize modules
     this.initializeModules();
+    
+    // Setup hot reload
+    this.setupHotReload();
     
     // Setup main event listeners
     this.setupEventListeners();
@@ -270,6 +280,11 @@ class ClaudeCodeUI {
           
         case 'showProblems':
           this.showProblemSelector(message.problems);
+          break;
+          
+        case 'setDirectMode':
+          console.log('Received setDirectMode message:', message.isDirectMode);
+          setDirectMode(message.isDirectMode);
           break;
           
         default:
@@ -473,11 +488,65 @@ class ClaudeCodeUI {
       command: 'getProblems'
     });
   }
+
+  /**
+   * Setup hot reload integration
+   */
+  setupHotReload() {
+    if (hotReloadManager.isEnabled) {
+      // Listen for module updates
+      hotReloadManager.addUpdateListener((modulePath, updatedModule) => {
+        console.log(`📦 Module updated: ${modulePath}`);
+        
+        // Reinitialize affected components
+        this.handleModuleReload(modulePath, updatedModule);
+      });
+
+      // Handle extension messages for file updates would be handled in setupMessageHandlers
+    }
+  }
+
+  /**
+   * Handle module reload
+   */
+  handleModuleReload(modulePath, updatedModule) {
+    try {
+      // Reinitialize specific modules based on path
+      if (modulePath.includes('messageHandler')) {
+        setupPermissionDialogHandlers();
+        initializeMessageHandler(this.vscode);
+      } else if (modulePath.includes('contextMenu')) {
+        initializeContextMenu(this.elements, this.vscode);
+      } else if (modulePath.includes('slashCommands')) {
+        initializeSlashCommands(this.elements, this.vscode);
+      } else if (modulePath.includes('dragAndDrop')) {
+        initializeDragAndDrop(
+          this.elements.messageInput,
+          this.elements.imagePreviewContainer,
+          this.vscode
+        );
+      } else if (modulePath.includes('modeManager')) {
+        initializeModeManager(this.elements, this.vscode);
+        updateModeUI();
+      } else if (modulePath.includes('uiManager')) {
+        initializeUIManager(this.elements);
+        updateHighlights();
+      }
+
+      console.log(`🔄 Reinitialized components for: ${modulePath}`);
+    } catch (error) {
+      console.error(`Failed to reinitialize after reload: ${modulePath}`, error);
+    }
+  }
 }
 
 // Initialize the application when DOM is ready
 function init() {
-  new ClaudeCodeUI();
+  try {
+    window.claudeCodeUI = new ClaudeCodeUI();
+  } catch (error) {
+    console.error('Failed to initialize Claude Code UI:', error);
+  }
 }
 
 // Run initialization when DOM is ready

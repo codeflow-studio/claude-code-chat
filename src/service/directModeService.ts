@@ -1,7 +1,7 @@
 import { ClaudeMessageHandler } from '../utils/claude-message-handler';
 import { ClaudeMessage, DirectModeResponse } from '../types/claude-message-types';
 import { processImagesForMessage, type ImageContext } from '../utils/messageUtils';
-import { PermissionService, PendingPermissionState } from './permissionService';
+import { PermissionService } from './permissionService';
 import { ProcessManager } from './processManager';
 import { MessageProcessor } from './messageProcessor';
 

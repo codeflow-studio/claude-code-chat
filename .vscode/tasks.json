@@ -15,6 +15,56 @@
       }
     },
     {
+      "label": "Hot Reload Development",
+      "type": "npm",
+      "script": "dev",
+      "problemMatcher": {
+        "base": "$tsc-watch",
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "^\\s*\\d{1,2}:\\d{2}:\\d{2}(?: AM| PM)? - File change detected\\. Starting incremental compilation\\.\\.\\.",
+          "endsPattern": "^\\s*\\d{1,2}:\\d{2}:\\d{2}(?: AM| PM)? - (Compilation complete\\.|Found \\d+ errors?\\. Watching for file changes\\.)"
+        }
+      },
+      "isBackground": true,
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false,
+        "group": "hotReload"
+      },
+      "group": {
+        "kind": "build",
+        "isDefault": false
+      },
+      "options": {
+        "statusbar": {
+          "label": "🔥 Hot Reload",
+          "tooltip": "Development build with hot reload enabled"
+        }
+      }
+    },
+    {
+      "label": "Frontend Hot Reload Server",
+      "type": "npm", 
+      "script": "dev:hot",
+      "problemMatcher": [],
+      "isBackground": true,
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared",
+        "showReuseMessage": true,
+        "clear": false,
+        "group": "hotReload"
+      },
+      "dependsOn": "Hot Reload Development"
+    },
+    {
       "type": "npm",
       "script": "test",
       "group": "test",
@@ -30,6 +80,67 @@
       "label": "Run Extension",
       "type": "shell",
       "command": "code --extensionDevelopmentPath=${workspaceFolder} ${workspaceFolder}",
+      "problemMatcher": []
+    },
+    {
+      "label": "Run Extension with Hot Reload",
+      "type": "shell",
+      "command": "code --extensionDevelopmentPath=${workspaceFolder} ${workspaceFolder}",
+      "dependsOn": "Hot Reload Development",
+      "problemMatcher": [],
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": true,
+        "panel": "new"
+      },
+      "group": {
+        "kind": "build",
+        "isDefault": false
+      }
+    },
+    {
+      "label": "Stop Hot Reload",
+      "type": "shell",
+      "command": "echo",
+      "args": ["Stopping hot reload tasks..."],
+      "problemMatcher": [],
+      "dependsOrder": "sequence",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      }
+    },
+    {
+      "label": "Clean Build",
+      "type": "shell",
+      "command": "rm",
+      "args": ["-rf", "dist", "out"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "group": "build",
+      "presentation": {
+        "echo": true,
+        "reveal": "always",
+        "focus": false,
+        "panel": "shared"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Full Rebuild with Hot Reload",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Clean Build",
+        "Hot Reload Development"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": false
+      },
       "problemMatcher": []
     }
   ]
