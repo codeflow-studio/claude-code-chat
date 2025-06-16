@@ -206,6 +206,7 @@ export interface DirectModeResponse {
     processRunning?: boolean; // Track Claude process state
     suspended?: boolean; // Track if process is suspended for permission
     toolName?: string; // Tool name for permission requests
+    commandContext?: string; // Command context for permission requests (e.g., "git commit")
     isPermissionRequest?: boolean; // Flag to identify permission requests
     action?: string; // Permission action (approve, approve-all, reject)
     silent?: boolean; // Flag to indicate this message should be processed silently

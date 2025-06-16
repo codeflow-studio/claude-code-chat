@@ -253,16 +253,6 @@ export function isUserNearBottom(container, threshold = 150) {
   const clientHeight = container.clientHeight;
   const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
   
-  // Debug logging (remove in production)
-  console.log('Scroll check:', {
-    scrollTop,
-    scrollHeight,
-    clientHeight,
-    distanceFromBottom,
-    threshold,
-    isNearBottom: distanceFromBottom <= threshold
-  });
-  
   return distanceFromBottom <= threshold;
 }
 
@@ -273,20 +263,15 @@ export function isUserNearBottom(container, threshold = 150) {
 export function handleSmartScroll(container, wasAtBottom) {
   if (!container) return;
   
-  console.log('handleSmartScroll:', { wasAtBottom });
-  
   if (wasAtBottom) {
     // User was at bottom, auto-scroll to new content
     // Use requestAnimationFrame to ensure DOM is updated first
     requestAnimationFrame(() => {
       container.scrollTop = container.scrollHeight;
-      console.log('Auto-scrolled to bottom');
     });
     // Hide new message indicator since we're scrolling
     hideNewMessageIndicator();
   } else {
-    // User was scrolled up, show new message indicator
-    console.log('User was scrolled up, showing indicator');
     showNewMessageIndicator(container);
   }
 }

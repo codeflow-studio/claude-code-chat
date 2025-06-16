@@ -37,6 +37,15 @@
   font-weight: 600;
 }
 
+.permission-dialog-command {
+  font-family: var(--vscode-editor-font-family);
+  background: var(--vscode-terminal-background, var(--vscode-textBlockQuote-background));
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-weight: 600;
+  color: var(--vscode-terminal-foreground, var(--vscode-foreground));
+}
+
 .permission-dialog-actions {
   display: flex;
   gap: 8px;
