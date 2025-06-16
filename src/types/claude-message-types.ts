@@ -204,6 +204,10 @@ export interface DirectModeResponse {
     model?: string;
     mcpServers?: MCPServerInfo[];
     processRunning?: boolean; // Track Claude process state
+    suspended?: boolean; // Track if process is suspended for permission
+    toolName?: string; // Tool name for permission requests
+    isPermissionRequest?: boolean; // Flag to identify permission requests
+    action?: string; // Permission action (approve, approve-all, reject)
   };
   originalMessage?: ClaudeMessage; // Store the original parsed message
   isUpdate?: boolean; // Flag to indicate this is an update to an existing message

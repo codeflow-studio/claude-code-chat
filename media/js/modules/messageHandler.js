@@ -158,13 +158,17 @@ export function addDirectModeMessage(type, content, timestamp, subtype, metadata
   
   // Check for permission requests in user messages
   if (type === 'user' && content) {
+    // Check both content-based detection and metadata flag
     const permissionInfo = isPermissionRequest(content);
-    if (permissionInfo) {
-      // Extract session ID from metadata or current state
+    const isPermissionFromMetadata = metadata?.isPermissionRequest && metadata?.toolName;
+    
+    if (permissionInfo || isPermissionFromMetadata) {
+      // Extract session ID and tool name from metadata or content
       const sessionId = metadata?.sessionId || metadata?.session_id || 'unknown';
+      const toolName = metadata?.toolName || permissionInfo?.toolName || 'unknown';
       
       // Show permission dialog instead of error message
-      const permissionHTML = createPermissionDialog(permissionInfo.toolName, sessionId);
+      const permissionHTML = createPermissionDialog(toolName, sessionId);
       
       const messageElement = document.createElement('div');
       messageElement.className = 'direct-mode-message permission-request-message';
