@@ -9,7 +9,7 @@ import {
   formatTime
 } from './utils.js';
 import { formatToolResult } from './toolFormatter.js';
-import { formatSingleToolExecution, updateToolExecutionElement } from './toolExecutionHandler.js';
+import { formatSingleToolExecution, updateToolExecutionElement } from './toolUtils.js';
 
 /**
  * Create or update a Task workflow group display

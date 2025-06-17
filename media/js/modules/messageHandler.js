@@ -109,10 +109,12 @@ export { formatToolUse, formatToolResult, generateResultSummary } from './toolFo
 export { 
   createOrUpdateToolExecutionGroup,
   updateToolExecutionGroupWithResults,
-  formatToolExecutionList,
+  formatToolExecutionList
+} from './toolExecutionHandler.js';
+export { 
   formatSingleToolExecution,
   updateToolExecutionElement
-} from './toolExecutionHandler.js';
+} from './toolUtils.js';
 export { 
   createOrUpdateTaskWorkflowGroup,
   updateTaskWorkflowGroupWithResults,
