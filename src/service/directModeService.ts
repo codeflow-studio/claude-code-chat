@@ -29,7 +29,6 @@ export interface MessageContext {
 export class DirectModeService {
   private _responseCallback?: (response: DirectModeResponse) => void;
   private _isActive: boolean = false;
-  private _originalPrompt?: string; // Store the first prompt that started conversation
   
   // Service instances
   private _permissionService: PermissionService;
@@ -76,26 +75,20 @@ export class DirectModeService {
     }
 
     try {
-      // Store original prompt if this is the first message in session
-      const currentSessionId = this._messageProcessor.getCurrentSessionId();
-      if (!currentSessionId) {
-        this._originalPrompt = text;
-      }
-
       // Build claude -p command with streaming JSON
       const allowedTools = await this._permissionService.getAllowedTools();
-      const promptToUse = currentSessionId ? this._originalPrompt! : text;
       const args = [
-        '-p', promptToUse,
+        '-p', text,  // Always use the current message text
         '--output-format', 'stream-json',
         '--verbose',
         '--allowedTools', allowedTools.join(',')
       ];
 
       // Add --resume if we have a session ID from previous messages
+      const currentSessionId = this._messageProcessor.getCurrentSessionId();
       if (currentSessionId) {
         args.push('--resume', currentSessionId);
-        console.log('Resuming session with ID:', currentSessionId, 'using original prompt');
+        console.log('Resuming session with ID:', currentSessionId, 'with new message');
       } else {
         console.log('Starting new conversation (no session ID yet)');
       }
@@ -224,9 +217,6 @@ export class DirectModeService {
     // Clear message processor state
     this._messageProcessor.clearConversation();
     
-    // Clear original prompt to start fresh conversation
-    this._originalPrompt = undefined;
-    
     // Clear pending tool executions
     ClaudeMessageHandler.clearPendingTools();
     
@@ -247,7 +237,6 @@ export class DirectModeService {
     this._messageProcessor.clearConversation();
     
     this._isActive = false;
-    this._originalPrompt = undefined; // Clear original prompt
     
     // Clear pending tool executions
     ClaudeMessageHandler.clearPendingTools();
