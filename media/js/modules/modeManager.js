@@ -291,18 +291,15 @@ export function setProcessRunning(running) {
   console.log('setProcessRunning called:', { running, hasReceivedClaudeResponse, isDirectMode });
   isProcessRunning = running;
   
-  // Only show loading indicator if we've received at least one Claude response
-  // This prevents the indicator from appearing right after user input
-  if (running && hasReceivedClaudeResponse) {
-    console.log('Showing loading indicator: process running and has Claude response');
+  // Show loading indicator immediately when process starts running
+  if (running) {
+    console.log('Showing loading indicator: process is running');
     updateLoadingIndicator(true);
-  } else if (!running) {
+  } else {
     console.log('Hiding loading indicator: process not running');
     updateLoadingIndicator(false);
     // Reset for next conversation
     hasReceivedClaudeResponse = false;
-  } else {
-    console.log('Not showing loading indicator: waiting for first Claude response');
   }
   
   updatePauseButtonVisibility(running);
@@ -431,7 +428,7 @@ export function addMessageToDirectMode(type, content, timestamp, subtype, metada
   
   // After the message is added, ensure loading indicator is at the bottom if needed
   // This ensures the indicator always appears after the last message
-  if (isProcessRunning && hasReceivedClaudeResponse) {
+  if (isProcessRunning) {
     console.log('Calling updateLoadingIndicator(true) after adding message');
     updateLoadingIndicator(true);
   }
