@@ -29,6 +29,7 @@ export interface MessageContext {
 export class DirectModeService {
   private _responseCallback?: (response: DirectModeResponse) => void;
   private _isActive: boolean = false;
+  private _useStreamingMode: boolean = false;
   
   // Service instances
   private _permissionService: PermissionService;
@@ -61,19 +62,37 @@ export class DirectModeService {
   }
 
   /**
-   * Prepares Direct Mode service for message sending
-   * Note: We use claude -p for each message instead of persistent session
+   * Enables streaming mode for persistent Claude process
    */
-  async startSession(_options?: { resume?: string }): Promise<void> {
-    // For Direct Mode, we spawn claude -p for each message
-    // This is more reliable than trying to maintain a persistent interactive session
-    this._isActive = true;
-    console.log('Direct Mode service ready (per-message claude -p mode)');
+  enableStreamingMode(enabled: boolean = true): void {
+    this._useStreamingMode = enabled;
+    console.log('Streaming mode:', enabled ? 'enabled' : 'disabled');
   }
 
   /**
-   * Sends a message to Claude using claude -p with streaming JSON output
-   * Each message spawns a separate claude -p process
+   * Prepares Direct Mode service for message sending
+   * Supports both streaming and per-message modes
+   */
+  async startSession(_options?: { resume?: string }): Promise<void> {
+    this._isActive = true;
+    
+    if (this._useStreamingMode) {
+      // Start persistent streaming process
+      const allowedTools = await this._permissionService.getAllowedTools();
+      const claudeProcess = this._processManager.startStreamingProcess(allowedTools);
+      
+      // Set up streaming handlers
+      this._setupStreamingHandlers(claudeProcess);
+      
+      console.log('Direct Mode service ready (streaming mode)');
+    } else {
+      // Use per-message claude -p mode (existing behavior)
+      console.log('Direct Mode service ready (per-message claude -p mode)');
+    }
+  }
+
+  /**
+   * Sends a message to Claude using either streaming or per-message mode
    */
   async sendMessage(text: string): Promise<void> {
     // Start session if not active
@@ -81,6 +100,48 @@ export class DirectModeService {
       await this.startSession();
     }
 
+    if (this._useStreamingMode) {
+      await this._sendStreamingMessage(text);
+    } else {
+      await this._sendOneSheetMessage(text);
+    }
+  }
+
+  /**
+   * Sends a message via streaming JSON input to persistent Claude process
+   */
+  private async _sendStreamingMessage(text: string): Promise<void> {
+    try {
+      const currentSessionId = this._messageProcessor.getCurrentSessionId();
+      
+      const message = {
+        role: 'user',
+        content: text,
+        ...(currentSessionId && { sessionId: currentSessionId })
+      };
+
+      const success = this._processManager.sendStreamingMessage(message);
+      
+      if (!success) {
+        // Fall back to starting new streaming process if current one failed
+        console.log('Streaming process failed, restarting...');
+        await this.startSession();
+        this._processManager.sendStreamingMessage(message);
+      }
+
+      console.log('Message sent to Claude CLI (streaming mode):', text);
+
+    } catch (error) {
+      console.error('Error sending streaming message:', error);
+      this._handleError(`Failed to send streaming message: ${error}`);
+    }
+  }
+
+  /**
+   * Sends a message using claude -p with streaming JSON output
+   * Each message spawns a separate claude -p process
+   */
+  private async _sendOneSheetMessage(text: string): Promise<void> {
     try {
       // Build claude -p command with streaming JSON
       const allowedTools = await this._permissionService.getAllowedTools();
@@ -106,61 +167,8 @@ export class DirectModeService {
       // Spawn claude -p process for this specific message
       const claudeProcess = this._processManager.spawnClaudeProcess(args);
 
-      let partialData = '';
-
-      // Set up process handlers
-      this._processManager.setupProcessHandlers(
-        claudeProcess,
-        // onStdout
-        async (data: Buffer) => {
-          const output = data.toString();
-          console.log('Claude CLI stdout received:', output);
-          
-          partialData += output;
-
-          // Process complete JSON lines
-          const lines = partialData.split('\n');
-          partialData = lines.pop() || ''; // Keep incomplete line for next chunk
-
-          for (const line of lines) {
-            if (line.trim()) {
-              console.log('Processing line:', line);
-              try {
-                const rawMessage = JSON.parse(line);
-                console.log('Parsed JSON:', rawMessage);
-                
-                // Normalize and process the message using our comprehensive handler
-                const claudeMessage = ClaudeMessageHandler.normalizeMessage(rawMessage);
-                await this._processClaudeMessage(claudeMessage);
-              } catch (error) {
-                console.error('Failed to parse JSON response:', line, error);
-              }
-            }
-          }
-        },
-        // onStderr
-        (data: Buffer) => {
-          // Don't show stderr errors if we have a pending permission request
-          if (!this._permissionService.hasPendingPermission()) {
-            this._handleError(`CLI Error: ${data.toString()}`);
-          }
-        },
-        // onExit
-        (code: number | null) => {
-          if (!this._permissionService.hasPendingPermission()) {
-            this._handleError(`Claude CLI exited with code ${code}`);
-          }
-        },
-        // onError
-        (error: Error) => {
-          // Don't show startup errors if we have a pending permission request
-          if (!this._permissionService.hasPendingPermission()) {
-            this._handleError(`Failed to start Claude CLI: ${error.message}`);
-          }
-        },
-        // suppressErrors
-        this._permissionService.hasPendingPermission()
-      );
+      // Set up one-shot handlers
+      this._setupOneShotHandlers(claudeProcess);
 
       console.log('Message sent to Claude CLI (claude -p mode):');
       console.log('Enhanced message:', text);
@@ -598,6 +606,30 @@ export class DirectModeService {
         }
       }
 
+      // Handle result message type specially for streaming mode
+      if (claudeMessage.type === 'result' && this._processManager.isStreamingMode()) {
+        console.log('Received result message in streaming mode - turn is complete');
+        
+        // Process the result message
+        const result = await this._messageProcessor.processClaudeMessage(claudeMessage);
+        
+        if (result.directModeResponse && this._responseCallback) {
+          // Send the result message with metadata to hide loading indicator
+          this._responseCallback({
+            ...result.directModeResponse,
+            metadata: {
+              ...result.directModeResponse.metadata,
+              processRunning: false,  // Hide loading indicator
+              turnComplete: true      // Indicate turn is complete
+            }
+          });
+        }
+        
+        // For streaming mode, the process continues running
+        console.log('Streaming mode: Process continues after turn completion');
+        return;
+      }
+      
       // Process the message through MessageProcessor
       const result = await this._messageProcessor.processClaudeMessage(claudeMessage);
       
@@ -678,6 +710,130 @@ export class DirectModeService {
   }
 
   // Process termination is now handled by ProcessManager
+
+  /**
+   * Sets up handlers for streaming Claude process
+   */
+  private _setupStreamingHandlers(claudeProcess: any): void {
+    let partialData = '';
+
+    this._processManager.setupProcessHandlers(
+      claudeProcess,
+      // onStdout
+      async (data: Buffer) => {
+        const output = data.toString();
+        console.log('Claude CLI stdout received (streaming):', output);
+        
+        partialData += output;
+
+        // Process complete JSON lines
+        const lines = partialData.split('\n');
+        partialData = lines.pop() || ''; // Keep incomplete line for next chunk
+
+        for (const line of lines) {
+          if (line.trim()) {
+            console.log('Processing streaming line:', line);
+            try {
+              const rawMessage = JSON.parse(line);
+              console.log('Parsed streaming JSON:', rawMessage);
+              
+              // Normalize and process the message using our comprehensive handler
+              const claudeMessage = ClaudeMessageHandler.normalizeMessage(rawMessage);
+              await this._processClaudeMessage(claudeMessage);
+            } catch (error) {
+              console.error('Failed to parse streaming JSON response:', line, error);
+            }
+          }
+        }
+      },
+      // onStderr
+      (data: Buffer) => {
+        // Don't show stderr errors if we have a pending permission request
+        if (!this._permissionService.hasPendingPermission()) {
+          this._handleError(`CLI Error: ${data.toString()}`);
+        }
+      },
+      // onExit
+      (code: number | null) => {
+        if (!this._permissionService.hasPendingPermission()) {
+          console.log('Streaming Claude process exited with code:', code);
+          // For streaming mode, process exit might be normal or indicate a problem
+          if (code !== 0) {
+            this._handleError(`Claude CLI streaming process exited with code ${code}`);
+          }
+        }
+      },
+      // onError
+      (error: Error) => {
+        // Don't show startup errors if we have a pending permission request
+        if (!this._permissionService.hasPendingPermission()) {
+          this._handleError(`Failed to start Claude CLI streaming process: ${error.message}`);
+        }
+      },
+      // suppressErrors
+      this._permissionService.hasPendingPermission()
+    );
+  }
+
+  /**
+   * Sets up handlers for one-shot Claude process
+   */
+  private _setupOneShotHandlers(claudeProcess: any): void {
+    let partialData = '';
+
+    this._processManager.setupProcessHandlers(
+      claudeProcess,
+      // onStdout
+      async (data: Buffer) => {
+        const output = data.toString();
+        console.log('Claude CLI stdout received:', output);
+        
+        partialData += output;
+
+        // Process complete JSON lines
+        const lines = partialData.split('\n');
+        partialData = lines.pop() || ''; // Keep incomplete line for next chunk
+
+        for (const line of lines) {
+          if (line.trim()) {
+            console.log('Processing line:', line);
+            try {
+              const rawMessage = JSON.parse(line);
+              console.log('Parsed JSON:', rawMessage);
+              
+              // Normalize and process the message using our comprehensive handler
+              const claudeMessage = ClaudeMessageHandler.normalizeMessage(rawMessage);
+              await this._processClaudeMessage(claudeMessage);
+            } catch (error) {
+              console.error('Failed to parse JSON response:', line, error);
+            }
+          }
+        }
+      },
+      // onStderr
+      (data: Buffer) => {
+        // Don't show stderr errors if we have a pending permission request
+        if (!this._permissionService.hasPendingPermission()) {
+          this._handleError(`CLI Error: ${data.toString()}`);
+        }
+      },
+      // onExit
+      (code: number | null) => {
+        if (!this._permissionService.hasPendingPermission()) {
+          this._handleError(`Claude CLI exited with code ${code}`);
+        }
+      },
+      // onError
+      (error: Error) => {
+        // Don't show startup errors if we have a pending permission request
+        if (!this._permissionService.hasPendingPermission()) {
+          this._handleError(`Failed to start Claude CLI: ${error.message}`);
+        }
+      },
+      // suppressErrors
+      this._permissionService.hasPendingPermission()
+    );
+  }
 
   /**
    * Handles errors and notifies via callback

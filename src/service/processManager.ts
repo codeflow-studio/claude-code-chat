@@ -1,6 +1,7 @@
 /**
  * Process Manager Service
  * Handles Claude CLI process lifecycle, spawning, and termination
+ * Supports both streaming JSON input and one-shot processes
  */
 
 import { spawn } from 'child_process';
@@ -15,6 +16,8 @@ export class ProcessManager {
   private _isProcessRunning: boolean = false;
   private _currentProcess?: any;
   private _processStateCallback?: (state: ProcessState) => void;
+  private _streamingMode: boolean = false;
+  private _partialData: string = '';
 
   constructor(private _workspaceRoot?: string) {}
 
@@ -29,11 +32,11 @@ export class ProcessManager {
    * Spawns a new Claude CLI process with the given arguments
    */
   spawnClaudeProcess(args: string[]): any {
-    console.log('Spawning claude -p with args:', args);
+    console.log('Spawning claude process with args:', args);
 
     const claudeProcess = spawn('claude', args, {
       cwd: this._workspaceRoot || process.cwd(),
-      stdio: ['ignore', 'pipe', 'pipe'] // ignore stdin since prompt is passed as arg
+      stdio: this._streamingMode ? ['pipe', 'pipe', 'pipe'] : ['ignore', 'pipe', 'pipe']
     });
 
     // Track the current process and set running state
@@ -45,6 +48,79 @@ export class ProcessManager {
   }
 
   /**
+   * Starts a persistent Claude process for streaming JSON input
+   */
+  startStreamingProcess(allowedTools: string[]): any {
+    console.log('Starting streaming Claude process...');
+    
+    this._streamingMode = true;
+    this._partialData = '';
+    
+    const args = [
+      '--input-format', 'stream-json',
+      '--output-format', 'stream-json',
+      '--verbose'
+    ];
+    
+    if (allowedTools.length > 0) {
+      args.push('--allowedTools', allowedTools.join(','));
+    }
+
+    const claudeProcess = this.spawnClaudeProcess(args);
+    
+    console.log('Streaming Claude process started with PID:', claudeProcess.pid);
+    return claudeProcess;
+  }
+
+  /**
+   * Sends a message to the streaming Claude process via stdin
+   */
+  sendStreamingMessage(message: { role: string; content: string; sessionId?: string }): boolean {
+    if (!this._streamingMode || !this._currentProcess || !this._isProcessRunning) {
+      console.error('Cannot send streaming message: no active streaming process');
+      return false;
+    }
+
+    try {
+      // Format message according to Claude Code streaming spec
+      // Ensure we're sending the correct type for user messages
+      if (message.role !== 'user') {
+        console.warn('Streaming input currently only supports user messages, got:', message.role);
+      }
+      
+      const formattedMessage = {
+        type: "user",  // Always "user" for streaming input
+        message: {
+          role: "user",  // Always "user" for streaming input
+          content: [
+            {
+              type: "text",
+              text: message.content
+            }
+          ]
+        },
+        ...(message.sessionId && { sessionId: message.sessionId })
+      };
+      
+      const jsonMessage = JSON.stringify(formattedMessage) + '\n';
+      console.log('Sending streaming message (formatted):', jsonMessage.trim());
+      
+      this._currentProcess.stdin.write(jsonMessage);
+      return true;
+    } catch (error) {
+      console.error('Error sending streaming message:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Checks if currently in streaming mode
+   */
+  isStreamingMode(): boolean {
+    return this._streamingMode;
+  }
+
+  /**
    * Terminates the currently running Claude process
    */
   async terminateCurrentProcess(): Promise<boolean> {
@@ -53,6 +129,8 @@ export class ProcessManager {
       await this._terminateProcessCleanly(this._currentProcess);
       this._isProcessRunning = false;
       this._currentProcess = undefined;
+      this._streamingMode = false;
+      this._partialData = '';
       this._notifyProcessStateChanged();
       return true;
     }
@@ -80,6 +158,8 @@ export class ProcessManager {
   markProcessCompleted(): void {
     this._isProcessRunning = false;
     this._currentProcess = undefined;
+    this._streamingMode = false;
+    this._partialData = '';
     this._notifyProcessStateChanged();
   }
 
@@ -95,7 +175,15 @@ export class ProcessManager {
     suppressErrors: boolean = false
   ): void {
     // Handle process output
-    process.stdout?.on('data', onStdout);
+    if (this._streamingMode) {
+      // For streaming mode, buffer partial data
+      process.stdout?.on('data', (data: Buffer) => {
+        this._partialData += data.toString();
+        onStdout(data);
+      });
+    } else {
+      process.stdout?.on('data', onStdout);
+    }
 
     // Handle process errors
     process.stderr?.on('data', (data: Buffer) => {

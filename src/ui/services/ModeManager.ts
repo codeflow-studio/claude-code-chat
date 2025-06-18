@@ -69,6 +69,16 @@ export class ModeManager {
   }
 
   /**
+   * Enables or disables streaming mode for Direct Mode service
+   */
+  public enableStreamingMode(enabled: boolean = true): void {
+    if (this._directModeService) {
+      this._directModeService.enableStreamingMode(enabled);
+      console.log(`Direct Mode streaming: ${enabled ? 'enabled' : 'disabled'}`);
+    }
+  }
+
+  /**
    * Sends a message through Direct Mode
    */
   public async sendToDirectMode(formattedMessage: string, messageContext: MessageContext): Promise<void> {

@@ -81,6 +81,10 @@
       {
         "command": "claude-code-extension.toggleMainMode",
         "title": "Claude Code: Toggle Terminal/Direct Mode"
+      },
+      {
+        "command": "claude-code-extension.enableStreamingMode",
+        "title": "Claude Code: Enable Streaming Mode"
       }
     ],
     "viewsContainers": {

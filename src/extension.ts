@@ -173,6 +173,9 @@ export async function activate(context: vscode.ExtensionContext) {
   // Register Terminal Input Provider first so we can use it to send commands
   claudeTerminalInputProvider = new ClaudeTerminalInputProvider(context.extensionUri, terminal, context);
   
+  // Enable streaming mode for better performance
+  claudeTerminalInputProvider.enableStreamingMode(true);
+  
   // Update with existing terminal status and auto-start state (only if terminal exists)
   if (terminal) {
     claudeTerminalInputProvider.updateTerminal(terminal, isExistingTerminal);
@@ -455,6 +458,19 @@ export async function activate(context: vscode.ExtensionContext) {
   });
 
   context.subscriptions.push(toggleMainModeCommand);
+
+  // Register command to enable streaming mode
+  const enableStreamingModeCommand = vscode.commands.registerCommand('claude-code-extension.enableStreamingMode', () => {
+    if (!claudeTerminalInputProvider) {
+      vscode.window.showErrorMessage('Claude terminal input provider not initialized');
+      return;
+    }
+    
+    claudeTerminalInputProvider.enableStreamingMode(true);
+    vscode.window.showInformationMessage('Claude streaming mode enabled for better performance');
+  });
+
+  context.subscriptions.push(enableStreamingModeCommand);
 
   // Register command to focus Claude Code input
   const focusInputCommand = vscode.commands.registerCommand('claude-code-extension.focusInput', async () => {

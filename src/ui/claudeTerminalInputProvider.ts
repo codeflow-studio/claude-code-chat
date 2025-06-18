@@ -77,6 +77,13 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
     }
   }
   
+  /**
+   * Enables streaming mode for Direct Mode conversations
+   */
+  public enableStreamingMode(enabled: boolean = true): void {
+    this._modeManager.enableStreamingMode(enabled);
+  }
+
   public notifyTerminalClosed() {
     this._terminalManager.notifyTerminalClosed();
     

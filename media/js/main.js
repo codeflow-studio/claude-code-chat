@@ -245,6 +245,17 @@ class ClaudeCodeUI {
           // Notify that we received a Claude response for loading indicator logic
           notifyClaudeResponseReceived(message.response.type);
           
+          // Check for turnComplete flag in streaming mode
+          if (message.response.metadata && message.response.metadata.turnComplete) {
+            console.log('Turn complete in streaming mode - hiding loading indicator');
+            setProcessRunning(false);
+          }
+          
+          // Check for processRunning flag in metadata
+          if (message.response.metadata && typeof message.response.metadata.processRunning === 'boolean') {
+            setProcessRunning(message.response.metadata.processRunning);
+          }
+          
           handleDirectModeResponse(
             message.response.type, 
             message.response.content, 

@@ -210,6 +210,7 @@ export interface DirectModeResponse {
     isPermissionRequest?: boolean; // Flag to identify permission requests
     action?: string; // Permission action (approve, approve-all, reject)
     silent?: boolean; // Flag to indicate this message should be processed silently
+    turnComplete?: boolean; // Flag to indicate a turn is complete (for streaming mode)
   };
   originalMessage?: ClaudeMessage; // Store the original parsed message
   isUpdate?: boolean; // Flag to indicate this is an update to an existing message
