@@ -54,6 +54,13 @@ export class DirectModeService {
   }
 
   /**
+   * Gets the permission service instance
+   */
+  getPermissionService(): PermissionService {
+    return this._permissionService;
+  }
+
+  /**
    * Prepares Direct Mode service for message sending
    * Note: We use claude -p for each message instead of persistent session
    */
@@ -77,11 +84,14 @@ export class DirectModeService {
     try {
       // Build claude -p command with streaming JSON
       const allowedTools = await this._permissionService.getAllowedTools();
+      const permissionModeArgs = this._permissionService.getPermissionModeArgs();
+      
       const args = [
         '-p', text,  // Always use the current message text
         '--output-format', 'stream-json',
         '--verbose',
-        '--allowedTools', allowedTools.join(',')
+        '--allowedTools', allowedTools.join(','),
+        ...permissionModeArgs  // Add permission mode arguments
       ];
 
       // Add --resume if we have a session ID from previous messages

@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { DirectModeService } from "../../service/directModeService";
 import { DirectModeResponse } from "../../types/claude-message-types";
 import { MessageContext } from "./MessageHandler";
+import { PermissionMode } from "../../service/permissionService";
 
 /**
  * Interface for mode manager callbacks
@@ -32,6 +33,9 @@ export class ModeManager {
     // Initialize Direct Mode service
     this._directModeService = new DirectModeService(workspaceRoot);
     this._directModeService.setResponseCallback(this._handleDirectModeResponse.bind(this));
+    
+    // Load and restore permission mode
+    this._loadPermissionMode();
   }
 
   /**
@@ -209,6 +213,101 @@ export class ModeManager {
     } catch (error) {
       console.error('Error handling Direct Mode response:', error);
     }
+  }
+
+  /**
+   * Sets the permission mode
+   */
+  public async setPermissionMode(mode: PermissionMode): Promise<void> {
+    if (this._directModeService) {
+      const permissionService = this._directModeService.getPermissionService();
+      permissionService.setPermissionMode(mode);
+      
+      // Save permission mode to global state for quick restoration
+      this._context.globalState.update('claudeCode.permissionMode', mode);
+      
+      // Also save to permission service settings for persistence across workspaces
+      try {
+        const currentSettings = await permissionService.loadPermissionSettings();
+        await permissionService.savePermissionSettings({
+          permissionMode: mode,
+          allowedTools: currentSettings.allowedTools
+        });
+      } catch (error) {
+        console.error('Error saving permission mode to settings:', error);
+      }
+      
+      console.log(`Permission mode set to: ${mode}`);
+      
+      // Notify UI of permission mode change
+      this._callbacks.postMessage({
+        command: "setPermissionMode",
+        permissionMode: mode
+      });
+    }
+  }
+
+  /**
+   * Gets the current permission mode
+   */
+  public getPermissionMode(): PermissionMode {
+    if (this._directModeService) {
+      return this._directModeService.getPermissionService().getPermissionMode();
+    }
+    return 'default';
+  }
+
+  /**
+   * Loads permission mode from saved state
+   */
+  private async _loadPermissionMode(): Promise<void> {
+    try {
+      // First try to load from global state
+      const savedMode = this._context.globalState.get<PermissionMode>('claudeCode.permissionMode');
+      
+      if (savedMode && this._directModeService) {
+        this._directModeService.getPermissionService().setPermissionMode(savedMode);
+        console.log(`Restored permission mode: ${savedMode}`);
+        
+        // Notify UI of current permission mode
+        this._callbacks.postMessage({
+          command: "setPermissionMode",
+          permissionMode: savedMode
+        });
+      } else if (this._directModeService) {
+        // Try to load from permission service settings
+        const settings = await this._directModeService.getPermissionService().loadPermissionSettings();
+        this._directModeService.getPermissionService().setPermissionMode(settings.permissionMode);
+        
+        // Save to global state for future loads
+        this._context.globalState.update('claudeCode.permissionMode', settings.permissionMode);
+        
+        console.log(`Loaded permission mode from settings: ${settings.permissionMode}`);
+        
+        // Notify UI of current permission mode
+        this._callbacks.postMessage({
+          command: "setPermissionMode",
+          permissionMode: settings.permissionMode
+        });
+      }
+    } catch (error) {
+      console.error('Error loading permission mode:', error);
+      // Default to 'default' mode on error
+      if (this._directModeService) {
+        this._directModeService.getPermissionService().setPermissionMode('default');
+      }
+    }
+  }
+
+  /**
+   * Sends initial permission mode state to webview
+   */
+  public sendInitialPermissionModeState(): void {
+    const currentMode = this.getPermissionMode();
+    this._callbacks.postMessage({
+      command: "setPermissionMode",
+      permissionMode: currentMode
+    });
   }
 
   /**

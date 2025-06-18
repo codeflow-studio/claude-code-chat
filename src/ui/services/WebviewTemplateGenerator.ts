@@ -645,6 +645,112 @@ export class WebviewTemplateGenerator {
               display: none; /* Hide on mobile to save space */
             }
           }
+
+          /* Permission Mode Selector Styles */
+          .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+          }
+
+          .permission-mode-selector {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+          }
+
+          .permission-label {
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--vscode-foreground);
+            white-space: nowrap;
+          }
+
+          .permission-select {
+            background: var(--vscode-dropdown-background);
+            color: var(--vscode-dropdown-foreground);
+            border: 1px solid var(--vscode-dropdown-border, var(--vscode-panel-border));
+            border-radius: 4px;
+            padding: 4px 8px;
+            font-size: 12px;
+            font-family: var(--vscode-font-family);
+            cursor: pointer;
+            outline: none;
+            transition: all 0.2s ease;
+            min-width: 140px;
+          }
+
+          .permission-select:hover {
+            background: var(--vscode-dropdown-background);
+            border-color: var(--vscode-focusBorder);
+          }
+
+          .permission-select:focus {
+            border-color: var(--vscode-focusBorder);
+            box-shadow: 0 0 0 1px var(--vscode-focusBorder);
+          }
+
+          .permission-select option {
+            background: var(--vscode-dropdown-background);
+            color: var(--vscode-dropdown-foreground);
+            padding: 4px 8px;
+          }
+
+          /* Permission mode visual indicators */
+          .permission-select.permission-default {
+            border-color: var(--vscode-charts-blue);
+          }
+
+          .permission-select.permission-plan {
+            border-color: var(--vscode-charts-purple);
+          }
+
+          .permission-select.permission-accept-edits {
+            border-color: var(--vscode-charts-yellow);
+          }
+
+          .permission-select.permission-bypass {
+            border-color: var(--vscode-charts-red);
+            background: rgba(255, 0, 0, 0.05);
+          }
+
+          .permission-select.permission-bypass:focus {
+            border-color: var(--vscode-charts-red);
+            box-shadow: 0 0 0 1px var(--vscode-charts-red);
+          }
+
+          /* Responsive adjustments for permission selector */
+          @media (max-width: 500px) {
+            .header-controls {
+              flex-direction: column;
+              align-items: stretch;
+              gap: 8px;
+            }
+            
+            .permission-mode-selector {
+              justify-content: space-between;
+            }
+            
+            .permission-select {
+              min-width: auto;
+              flex: 1;
+            }
+            
+            .mode-toggle-switch {
+              justify-content: center;
+            }
+          }
+
+          @media (max-width: 400px) {
+            .permission-label {
+              font-size: 11px;
+            }
+            
+            .permission-select {
+              font-size: 11px;
+              padding: 3px 6px;
+            }
+          }
     `;
   }
 
@@ -660,13 +766,27 @@ export class WebviewTemplateGenerator {
               <img class="claude-icon" src="${resources.claudeIconPath}" width="20" height="20" alt="Claude Icon" />
               <span>Claude Terminal Input</span>
             </div>
-            <div class="mode-toggle-switch">
-              <span class="mode-label" data-mode="terminal">Terminal</span>
-              <label class="toggle-switch">
-                <input type="checkbox" id="mainModeToggle">
-                <span class="slider"></span>
-              </label>
-              <span class="mode-label" data-mode="direct">Direct</span>
+            <div class="header-controls">
+              <!-- Permission Mode Selector -->
+              <div class="permission-mode-selector">
+                <label for="permissionModeSelect" class="permission-label">Permissions:</label>
+                <select id="permissionModeSelect" class="permission-select" title="Control how Claude handles tool permissions">
+                  <option value="default">Ask Each Time</option>
+                  <option value="plan">Plan Only</option>
+                  <option value="acceptEdits">Auto-Accept Edits</option>
+                  <option value="bypassPermissions">Bypass All (Dangerous)</option>
+                </select>
+              </div>
+              
+              <!-- Mode Toggle -->
+              <div class="mode-toggle-switch">
+                <span class="mode-label" data-mode="terminal">Terminal</span>
+                <label class="toggle-switch">
+                  <input type="checkbox" id="mainModeToggle">
+                  <span class="slider"></span>
+                </label>
+                <span class="mode-label" data-mode="direct">Direct</span>
+              </div>
             </div>
           </div>
           

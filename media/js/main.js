@@ -84,6 +84,14 @@ import {
 
 import { setupPermissionDialogHandlers } from './modules/permissionDialog.js';
 
+import { 
+  initializePermissionModeManager,
+  setPermissionMode,
+  updatePermissionModeUI,
+  handlePermissionModeUpdate,
+  getPermissionMode
+} from './modules/permissionModeManager.js';
+
 // Main application class
 class ClaudeCodeUI {
   constructor() {
@@ -169,6 +177,9 @@ class ClaudeCodeUI {
     
     // Initialize permission dialog handlers
     setupPermissionDialogHandlers();
+    
+    // Initialize permission mode manager
+    initializePermissionModeManager(this.vscode);
   }
 
   /**
@@ -285,6 +296,11 @@ class ClaudeCodeUI {
         case 'setDirectMode':
           console.log('Received setDirectMode message:', message.isDirectMode);
           setDirectMode(message.isDirectMode);
+          break;
+          
+        case 'setPermissionMode':
+          console.log('Received setPermissionMode message:', message.permissionMode);
+          handlePermissionModeUpdate(message.permissionMode);
           break;
           
         default:

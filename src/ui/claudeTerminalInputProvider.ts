@@ -177,6 +177,9 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
     // Send initial Direct Mode state using ModeManager
     this._modeManager.sendInitialModeState();
     
+    // Send initial permission mode state
+    this._modeManager.sendInitialPermissionModeState();
+    
     // Show launch options only if no terminal exists AND should show (prevents race condition)
     if (this._shouldShowLaunchOptions && !this._terminal) {
       console.log('Showing launch options during webview initialization');
@@ -278,6 +281,10 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
             
           case "permissionResponse":
             await this._handlePermissionResponse(message);
+            return;
+            
+          case "setPermissionMode":
+            await this._modeManager.setPermissionMode(message.permissionMode);
             return;
         }
       },

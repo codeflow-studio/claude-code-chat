@@ -16,8 +16,16 @@ export interface PendingPermissionState {
   timeoutId?: NodeJS.Timeout;
 }
 
+export type PermissionMode = 'default' | 'acceptEdits' | 'bypassPermissions' | 'plan';
+
+export interface PermissionSettings {
+  permissionMode: PermissionMode;
+  allowedTools: string[];
+}
+
 export class PermissionService {
   private _pendingPermissionState?: PendingPermissionState;
+  private _currentPermissionMode: PermissionMode = 'default';
 
   constructor(private _workspaceRoot?: string) {}
 
@@ -25,7 +33,7 @@ export class PermissionService {
    * Gets allowed tools from default + saved permissions
    */
   async getAllowedTools(): Promise<string[]> {
-    const defaultTools = ['Write', 'Edit', 'MultiEdit'];
+    const defaultTools: string[] = [];
     
     try {
       const savedPermissions = await this._loadSavedPermissions();
@@ -33,6 +41,128 @@ export class PermissionService {
     } catch (error) {
       console.log('No saved permissions found, using default tools');
       return defaultTools;
+    }
+  }
+
+  /**
+   * Sets the current permission mode
+   */
+  setPermissionMode(mode: PermissionMode): void {
+    this._currentPermissionMode = mode;
+    console.log(`Permission mode set to: ${mode}`);
+  }
+
+  /**
+   * Gets the current permission mode
+   */
+  getPermissionMode(): PermissionMode {
+    return this._currentPermissionMode;
+  }
+
+  /**
+   * Checks if a tool should be automatically approved based on permission mode
+   */
+  shouldAutoApprove(toolName: string): boolean {
+    switch (this._currentPermissionMode) {
+      case 'bypassPermissions':
+        return true;
+      case 'acceptEdits': {
+        // Auto-approve common file editing tools
+        const editingTools = ['Edit', 'Write', 'Read', 'MultiEdit'];
+        return editingTools.includes(toolName);
+      }
+      case 'plan':
+      case 'default':
+      default:
+        return false;
+    }
+  }
+
+  /**
+   * Gets the Claude CLI arguments for the current permission mode
+   */
+  getPermissionModeArgs(): string[] {
+    switch (this._currentPermissionMode) {
+      case 'bypassPermissions':
+        return ['--permission-mode', 'bypassPermissions'];
+      case 'acceptEdits':
+        return ['--permission-mode', 'acceptEdits'];
+      case 'plan':
+        return ['--permission-mode', 'plan'];
+      case 'default':
+      default:
+        return [];
+    }
+  }
+
+  /**
+   * Loads permission settings including mode from saved settings
+   */
+  async loadPermissionSettings(): Promise<PermissionSettings> {
+    try {
+      const claudeDir = path.join(this._workspaceRoot || process.cwd(), '.claude');
+      const settingsFile = path.join(claudeDir, 'settings.local.json');
+      
+      const settingsContent = await fs.readFile(settingsFile, 'utf8');
+      const settings = JSON.parse(settingsContent);
+      
+      const permissionSettings: PermissionSettings = {
+        permissionMode: settings.permissionMode || 'default',
+        allowedTools: settings.allowedTools || []
+      };
+      
+      // Update current permission mode
+      this._currentPermissionMode = permissionSettings.permissionMode;
+      
+      return permissionSettings;
+    } catch (error) {
+      // File doesn't exist or invalid JSON, return defaults
+      return {
+        permissionMode: 'default',
+        allowedTools: []
+      };
+    }
+  }
+
+  /**
+   * Saves permission settings including mode
+   */
+  async savePermissionSettings(settings: PermissionSettings): Promise<void> {
+    try {
+      const claudeDir = path.join(this._workspaceRoot || process.cwd(), '.claude');
+      const settingsFile = path.join(claudeDir, 'settings.local.json');
+      
+      // Ensure .claude directory exists
+      try {
+        await fs.access(claudeDir);
+      } catch {
+        await fs.mkdir(claudeDir, { recursive: true });
+      }
+      
+      // Load existing settings
+      let existingSettings: any = {};
+      try {
+        const settingsContent = await fs.readFile(settingsFile, 'utf8');
+        existingSettings = JSON.parse(settingsContent);
+      } catch {
+        // File doesn't exist or invalid JSON, start fresh
+      }
+      
+      // Update settings
+      existingSettings.permissionMode = settings.permissionMode;
+      existingSettings.allowedTools = settings.allowedTools;
+      
+      // Save settings
+      await fs.writeFile(settingsFile, JSON.stringify(existingSettings, null, 2));
+      
+      // Update current permission mode
+      this._currentPermissionMode = settings.permissionMode;
+      
+      console.log(`Saved permission settings: mode=${settings.permissionMode}, tools=${settings.allowedTools.length}`);
+      
+    } catch (error) {
+      console.error('Error saving permission settings:', error);
+      throw error;
     }
   }
 
