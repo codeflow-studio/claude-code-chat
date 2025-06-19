@@ -14,6 +14,7 @@ import { formatToolResult, generateResultSummary } from './toolFormatter.js';
 import { formatAssistantContent } from './messageFormatter.js';
 import { formatSingleToolExecution, updateToolExecutionElement } from './toolUtils.js';
 import { createOrUpdateTaskWorkflowGroup, updateTaskWorkflowGroupWithResults } from './taskWorkflowHandler.js';
+import { attachToolExecutionEventListeners } from './eventHandlers.js';
 
 /**
  * Handle tool execution context for enhanced parallel tool display
@@ -96,11 +97,17 @@ export function createOrUpdateToolExecutionGroup(directModeMessages, executionGr
     
     groupElement.innerHTML = groupHeader + groupContent;
     directModeMessages.appendChild(groupElement);
+    
+    // Attach event listeners to the tool execution items
+    attachToolExecutionEventListeners(groupElement);
   } else {
     // Update existing group
     const container = groupElement.querySelector('.tool-execution-container');
     if (container) {
       container.innerHTML = formatToolExecutionList(executionGroup.executions);
+      
+      // Re-attach event listeners to the updated tool execution items
+      attachToolExecutionEventListeners(groupElement);
     }
     
     // Update status
@@ -127,6 +134,9 @@ export function updateToolExecutionGroupWithResults(directModeMessages, toolExec
         if (toolElement) {
           // Update the tool element with result
           updateToolExecutionElement(toolElement, execution);
+          
+          // Re-attach event listeners after updating element
+          attachToolExecutionEventListeners(groupElement);
           
           // Update group status
           const statusElement = groupElement.querySelector('.tool-execution-status');

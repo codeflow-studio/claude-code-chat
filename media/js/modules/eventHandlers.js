@@ -49,6 +49,7 @@ export function attachThinkingBlockEventListeners(messageElement) {
 export function attachToolExecutionEventListeners(messageElement) {
   // Tool execution header toggles
   const toolHeaders = messageElement.querySelectorAll('[data-toggle-tool]');
+  console.log(`Attaching tool execution listeners to ${toolHeaders.length} tool headers`);
   toolHeaders.forEach(header => {
     header.removeEventListener('click', handleToolToggle);
     header.addEventListener('click', handleToolToggle);
@@ -130,6 +131,8 @@ function handleToolToggle(event) {
   
   const toolId = event.currentTarget.getAttribute('data-toggle-tool');
   const toolElement = document.querySelector(`[data-tool-id="${toolId}"]`);
+  
+  console.log(`Tool toggle clicked for ID: ${toolId}, element found:`, !!toolElement);
   
   if (toolElement) {
     const isExpanded = toolElement.classList.contains('expanded');

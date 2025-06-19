@@ -10,6 +10,7 @@ import {
 } from './utils.js';
 import { formatToolResult } from './toolFormatter.js';
 import { formatSingleToolExecution, updateToolExecutionElement } from './toolUtils.js';
+import { attachTaskWorkflowEventListeners } from './eventHandlers.js';
 
 /**
  * Create or update a Task workflow group display
@@ -71,11 +72,17 @@ export function createOrUpdateTaskWorkflowGroup(directModeMessages, executionGro
     
     groupElement.innerHTML = groupHeader + groupContent;
     directModeMessages.appendChild(groupElement);
+    
+    // Attach event listeners for task workflow interactions
+    attachTaskWorkflowEventListeners(groupElement);
   } else {
     // Update existing Task workflow group
     const container = groupElement.querySelector('.task-sub-tools-container');
     if (container) {
       container.innerHTML = formatTaskSubTools(executionGroup.executions, taskExecution);
+      
+      // Re-attach event listeners after updating content
+      attachTaskWorkflowEventListeners(groupElement);
     }
     
     // Update task status and sub-tool count
@@ -105,6 +112,9 @@ export function updateTaskWorkflowGroupWithResults(directModeMessages, toolExecu
       });
       
       if (updated) {
+        // Re-attach event listeners after updating tool elements
+        attachTaskWorkflowEventListeners(groupElement);
+        
         // Update Task workflow status
         const groupId = groupElement.getAttribute('data-execution-group-id');
         const mockExecutionGroup = {
