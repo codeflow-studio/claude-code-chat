@@ -189,15 +189,10 @@ export function formatFileContentResult(content, toolName, resultIcon, fileName,
         if (parts.length === 2) {
           const lineNum = parts[0].trim();
           const codeContent = parts[1] || '';
-          return `<div class="editor-line" data-line="${lineNum}">
-            <span class="line-number">${lineNum}</span>
-            <span class="line-content">${escapeHtml(codeContent)}</span>
-          </div>`;
+          return `<div class="editor-line" data-line="${lineNum}"><span class="line-number">${lineNum}</span><span class="line-content">${escapeHtml(codeContent)}</span></div>`;
         }
       }
-      return `<div class="editor-line">
-        <span class="line-content">${escapeHtml(line)}</span>
-      </div>`;
+      return `<div class="editor-line"><span class="line-content">${escapeHtml(line)}</span></div>`;
     }).join('');
     
     processedContent = formattedLines;
@@ -207,26 +202,14 @@ export function formatFileContentResult(content, toolName, resultIcon, fileName,
   }
   
   // Create clean content-only UI
-  return `
-    <div class="tool-result-editor">
-      <div class="tool-result-editor-content" data-language="${language}">
-        ${processedContent}
-      </div>
-    </div>
-  `;
+  return `<div class="tool-result-editor"><div class="tool-result-editor-content" data-language="${language}">${processedContent}</div></div>`;
 }
 
 /**
  * Formats generic tool results (non-file content)
  */
 export function formatGenericToolResult(content, toolName, resultIcon, toolUseId) {
-  return `
-    <div class="tool-result-generic">
-      <div class="tool-result-content">
-        <pre class="result-text">${escapeHtml(content)}</pre>
-      </div>
-    </div>
-  `;
+  return `<div class="tool-result-generic"><div class="tool-result-content"><pre class="result-text">${escapeHtml(content)}</pre></div></div>`;
 }
 
 /**

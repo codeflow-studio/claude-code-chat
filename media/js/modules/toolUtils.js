@@ -47,41 +47,14 @@ export function formatSingleToolExecution(execution) {
   let resultContent = '';
   if (execution.status === 'completed') {
     if (execution.result) {
-      resultContent = `
-        <div class="tool-result-content">
-          ${formatToolResult(execution.result)}
-        </div>
-      `;
+      resultContent = `<div class="tool-result-content">${formatToolResult(execution.result)}</div>`;
     } else {
       // Show placeholder content for completed tools without explicit results
-      resultContent = `
-        <div class="tool-result-content">
-          <div class="result-text">Tool completed successfully</div>
-        </div>
-      `;
+      resultContent = `<div class="tool-result-content"><div class="result-text">Tool completed successfully</div></div>`;
     }
   }
   
-  return `
-    <div class="tool-execution-item ${statusClass}" data-tool-id="${execution.id}" data-tool-type="${execution.name}">
-      <div class="tool-execution-header" data-toggle-tool="${execution.id}">
-        <div class="tool-info">
-          <span class="tool-icon">${toolIcon}</span>
-          <span class="tool-name">${execution.name}</span>
-          ${inputDescription ? `<span class="tool-input-desc">${escapeHtml(inputDescription)}</span>` : ''}
-          ${resultSummary ? `<span class="tool-result-preview">${escapeHtml(resultSummary)}</span>` : ''}
-        </div>
-        <div class="tool-status">
-          <span class="status-icon">${statusIcon}</span>
-          <div class="tool-actions">
-            ${execution.status === 'completed' ? `<button class="tool-action-btn" data-copy-tool="${execution.id}" title="Copy">📋</button>` : ''}
-            ${(execution.result || execution.status === 'completed') ? `<span class="expand-indicator">▶</span>` : ''}
-          </div>
-        </div>
-      </div>
-      ${resultContent}
-    </div>
-  `;
+  return `<div class="tool-execution-item ${statusClass}" data-tool-id="${execution.id}" data-tool-type="${execution.name}"><div class="tool-execution-header" data-toggle-tool="${execution.id}"><div class="tool-info"><span class="tool-icon">${toolIcon}</span><span class="tool-name">${execution.name}</span>${inputDescription ? `<span class="tool-input-desc">${escapeHtml(inputDescription)}</span>` : ''}${resultSummary ? `<span class="tool-result-preview">${escapeHtml(resultSummary)}</span>` : ''}</div><div class="tool-status"><span class="status-icon">${statusIcon}</span><div class="tool-actions">${execution.status === 'completed' ? `<button class="tool-action-btn" data-copy-tool="${execution.id}" title="Copy">📋</button>` : ''}${(execution.result || execution.status === 'completed') ? `<span class="expand-indicator">▶</span>` : ''}</div></div></div>${resultContent}</div>`;
 }
 
 /**

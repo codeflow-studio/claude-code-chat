@@ -85,13 +85,11 @@ export function createOrUpdateToolExecutionGroup(directModeMessages, executionGr
       </div>
     `;
     
-    // Create content area with text content and tool execution area
+    // Create flatter content structure - remove unnecessary nesting
     const groupContent = `
-      <div class="message-content assistant-content">
-        ${content ? formatAssistantContent(content, metadata) : ''}
-        <div class="tool-execution-container" data-group-id="${groupId}">
-          ${formatToolExecutionList(executionGroup.executions)}
-        </div>
+      ${content ? `<div class="message-content assistant-content">${formatAssistantContent(content, metadata)}</div>` : ''}
+      <div class="tool-execution-list" data-group-id="${groupId}">
+        ${formatToolExecutionList(executionGroup.executions)}
       </div>
     `;
     
@@ -102,7 +100,7 @@ export function createOrUpdateToolExecutionGroup(directModeMessages, executionGr
     attachToolExecutionEventListeners(groupElement);
   } else {
     // Update existing group
-    const container = groupElement.querySelector('.tool-execution-container');
+    const container = groupElement.querySelector('.tool-execution-list');
     if (container) {
       container.innerHTML = formatToolExecutionList(executionGroup.executions);
       
@@ -128,7 +126,7 @@ export function updateToolExecutionGroupWithResults(directModeMessages, toolExec
   toolExecutions.forEach(execution => {
     const groupElements = directModeMessages.querySelectorAll('.tool-execution-group');
     groupElements.forEach(groupElement => {
-      const container = groupElement.querySelector('.tool-execution-container');
+      const container = groupElement.querySelector('.tool-execution-list');
       if (container) {
         const toolElement = container.querySelector(`[data-tool-id="${execution.id}"]`);
         if (toolElement) {
