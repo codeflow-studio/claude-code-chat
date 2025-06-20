@@ -112,12 +112,11 @@ export class DirectModeService {
    */
   private async _sendStreamingMessage(text: string): Promise<void> {
     try {
-      const currentSessionId = this._messageProcessor.getCurrentSessionId();
-      
+      // In streaming mode, session state is maintained by the persistent process
+      // Session IDs should not be sent via stdin JSON
       const message = {
         role: 'user',
-        content: text,
-        ...(currentSessionId && { sessionId: currentSessionId })
+        content: text
       };
 
       const success = this._processManager.sendStreamingMessage(message);

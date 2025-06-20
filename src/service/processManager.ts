@@ -75,7 +75,7 @@ export class ProcessManager {
   /**
    * Sends a message to the streaming Claude process via stdin
    */
-  sendStreamingMessage(message: { role: string; content: string; sessionId?: string }): boolean {
+  sendStreamingMessage(message: { role: string; content: string }): boolean {
     if (!this._streamingMode || !this._currentProcess || !this._isProcessRunning) {
       console.error('Cannot send streaming message: no active streaming process');
       return false;
@@ -98,8 +98,8 @@ export class ProcessManager {
               text: message.content
             }
           ]
-        },
-        ...(message.sessionId && { sessionId: message.sessionId })
+        }
+        // Session state is maintained internally by the streaming process
       };
       
       const jsonMessage = JSON.stringify(formattedMessage) + '\n';
