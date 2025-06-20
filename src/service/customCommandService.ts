@@ -38,28 +38,34 @@ export class CustomCommandService {
    */
   public getCustomCommands(): SlashCommand[] {
     const commands: SlashCommand[] = [];
+    const commandMap = new Map<string, SlashCommand>();
 
-    // Add project commands
+    // Add project commands first (they take precedence)
     for (const cmd of this.projectCommands) {
-      commands.push({
-        command: `/project:${cmd.name}`,
-        description: cmd.description || `Project command: ${cmd.name}`,
+      const command = {
+        command: `/${cmd.name}`,
+        description: `📄 ${cmd.description || cmd.name}`,
         icon: '📄', // Document icon for project commands
         isCustom: true
-      });
+      };
+      commandMap.set(cmd.name, command);
     }
 
-    // Add user commands
+    // Add user commands only if no project command with the same name exists
     for (const cmd of this.userCommands) {
-      commands.push({
-        command: `/user:${cmd.name}`,
-        description: cmd.description || `User command: ${cmd.name}`,
-        icon: '👤', // User icon for user commands
-        isCustom: true
-      });
+      if (!commandMap.has(cmd.name)) {
+        const command = {
+          command: `/${cmd.name}`,
+          description: `👤 ${cmd.description || cmd.name}`,
+          icon: '👤', // User icon for user commands
+          isCustom: true
+        };
+        commandMap.set(cmd.name, command);
+      }
     }
 
-    return commands;
+    // Convert map to array
+    return Array.from(commandMap.values());
   }
 
   /**
