@@ -23,6 +23,56 @@ const launchOptionsState = {
 let claudeTerminalInputProvider: ClaudeTerminalInputProvider | undefined;
 
 /**
+ * Gets the terminal configuration based on user settings and platform
+ */
+function getTerminalConfiguration(context: vscode.ExtensionContext): {
+  terminalOptions: vscode.TerminalOptions;
+  claudeCommand: string;
+} {
+  const config = vscode.workspace.getConfiguration('claude-code-extension');
+  
+  // Get user-defined settings
+  const customTerminalProfile = config.get<string>('customTerminalProfile', '');
+  const customClaudeCommand = config.get<string>('customClaudeCommand', '');
+  const enableWindowsWSLSupport = config.get<boolean>('enableWindowsWSLSupport', false);
+  const windowsWSLDistribution = config.get<string>('windowsWSLDistribution', 'Ubuntu');
+  
+  // Base terminal options
+  const terminalOptions: vscode.TerminalOptions = {
+    name: 'Claude Code',
+    iconPath: vscode.Uri.joinPath(context.extensionUri, 'resources', 'claude-icon.svg'),
+    cwd: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
+  };
+  
+  // Determine Claude command
+  let claudeCommand = 'claude';
+  
+  // Priority 1: Custom command (highest priority)
+  if (customClaudeCommand) {
+    claudeCommand = customClaudeCommand;
+    console.log(`Using custom Claude command: ${claudeCommand}`);
+  }
+  // Priority 2: Automatic Windows WSL support
+  else if (process.platform === 'win32' && enableWindowsWSLSupport) {
+    claudeCommand = `wsl.exe -d ${windowsWSLDistribution} bash -c "claude"`;
+    console.log(`Using automatic Windows WSL command: ${claudeCommand}`);
+  }
+  // Priority 3: Default (existing behavior)
+  else {
+    console.log(`Using default Claude command: ${claudeCommand}`);
+  }
+  
+  // Log if custom terminal profile is specified
+  if (customTerminalProfile) {
+    // Note: VSCode doesn't have a direct API for terminal profiles in createTerminal
+    // Users will need to use the custom command approach for now
+    console.log(`Custom terminal profile specified: ${customTerminalProfile} (use customClaudeCommand for full control)`);
+  }
+  
+  return { terminalOptions, claudeCommand };
+}
+
+/**
  * Ensures that a Claude Code terminal exists and is initialized
  * Now attempts to detect and connect to existing Claude terminals first
  * Exported for use by the terminal input provider
@@ -78,11 +128,8 @@ export async function ensureClaudeTerminal(context: vscode.ExtensionContext): Pr
   
   // No existing Claude terminal found or valid, create a new one
   console.log('Creating new Claude terminal');
-  claudeTerminal = vscode.window.createTerminal({
-    name: 'Claude Code',
-    iconPath: vscode.Uri.joinPath(context.extensionUri, 'resources', 'claude-icon.svg'),
-    cwd: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
-  });
+  const { terminalOptions } = getTerminalConfiguration(context);
+  claudeTerminal = vscode.window.createTerminal(terminalOptions);
   
   // Register disposal when VSCode closes
   context.subscriptions.push({

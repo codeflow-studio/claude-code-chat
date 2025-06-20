@@ -158,6 +158,26 @@
           ],
           "default": "claude",
           "description": "Command to use when auto-starting Claude Code"
+        },
+        "claude-code-extension.customTerminalProfile": {
+          "type": "string",
+          "default": "",
+          "description": "Custom terminal profile name to use (e.g., 'Ubuntu (WSL)' for Windows WSL). Leave empty to use default terminal."
+        },
+        "claude-code-extension.customClaudeCommand": {
+          "type": "string",
+          "default": "",
+          "description": "Custom command to launch Claude Code (e.g., 'wsl.exe -d Ubuntu bash -c \"claude\"' for Windows). Leave empty to use 'claude'."
+        },
+        "claude-code-extension.enableWindowsWSLSupport": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable automatic WSL support on Windows. When enabled, will try to use WSL to run Claude Code on Windows systems."
+        },
+        "claude-code-extension.windowsWSLDistribution": {
+          "type": "string",
+          "default": "Ubuntu",
+          "description": "WSL distribution name to use on Windows (e.g., 'Ubuntu', 'Debian'). Only used when enableWindowsWSLSupport is true."
         }
       }
     }

@@ -981,6 +981,45 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
   }
 
   /**
+   * Gets the configured Claude command based on user settings and platform
+   */
+  private _getConfiguredClaudeCommand(baseCommand: string): string {
+    const config = vscode.workspace.getConfiguration('claude-code-extension');
+    
+    // Get user-defined settings
+    const customClaudeCommand = config.get<string>('customClaudeCommand', '');
+    const enableWindowsWSLSupport = config.get<boolean>('enableWindowsWSLSupport', false);
+    const windowsWSLDistribution = config.get<string>('windowsWSLDistribution', 'Ubuntu');
+    
+    // Priority 1: Custom command (highest priority)
+    if (customClaudeCommand) {
+      // For custom commands, we need to adapt the base command
+      // Replace 'claude' with the custom command and append any flags
+      const flags = baseCommand.replace('claude', '').trim();
+      if (flags) {
+        // If custom command contains 'claude', replace it with flags
+        if (customClaudeCommand.includes('claude')) {
+          return customClaudeCommand.replace('claude', `claude ${flags}`);
+        } else {
+          // Otherwise append flags (this might not work for all custom commands)
+          return `${customClaudeCommand} ${flags}`;
+        }
+      }
+      return customClaudeCommand;
+    }
+    
+    // Priority 2: Automatic Windows WSL support
+    if (process.platform === 'win32' && enableWindowsWSLSupport) {
+      const flags = baseCommand.replace('claude', '').trim();
+      const claudeWithFlags = flags ? `claude ${flags}` : 'claude';
+      return `wsl.exe -d ${windowsWSLDistribution} bash -c "${claudeWithFlags}"`;
+    }
+    
+    // Priority 3: Default (existing behavior)
+    return baseCommand;
+  }
+
+  /**
    * Uses the extension's unified terminal management for launch options
    */
   private async _ensureTerminalForLaunchOptions(): Promise<vscode.Terminal> {
@@ -1005,7 +1044,9 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
    */
   private async _handleLaunchClaude(command: string) {
     try {
-      console.log(`Launching Claude with command: ${command}`);
+      // Get the configured command based on user settings
+      const configuredCommand = this._getConfiguredClaudeCommand(command);
+      console.log(`Launching Claude with command: ${command} -> configured as: ${configuredCommand}`);
       
       // Hide launch options UI
       if (this._view) {
@@ -1020,8 +1061,8 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
       // Show terminal
       terminal.show(false);
       
-      // Send the command
-      await this.sendToTerminal(command);
+      // Send the configured command
+      await this.sendToTerminal(configuredCommand);
       
       // Update terminal status
       this._isTerminalClosed = false;
@@ -1048,7 +1089,7 @@ export class ClaudeTerminalInputProvider implements vscode.WebviewViewProvider {
     try {
       console.log('Launching Claude with -r option for conversation history');
       
-      // Directly call claude -r - Claude Code CLI will handle the conversation selection
+      // Use the same configuration logic as other launch methods
       await this._handleLaunchClaude('claude -r');
       
     } catch (error) {
