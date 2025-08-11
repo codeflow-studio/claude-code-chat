@@ -154,7 +154,8 @@
           "enum": [
             "claude",
             "claude -c",
-            "claude -r"
+            "claude -r",
+            "claude --dangerously-skip-permissions"
           ],
           "default": "claude",
           "description": "Command to use when auto-starting Claude Code"
